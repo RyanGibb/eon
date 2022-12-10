@@ -57,7 +57,7 @@ module type S = sig
     val of_string : string -> t
     (** [of_string str] makes a body from the given [string] [str]. *)
 
-    val to_string : t -> string Lwt.t
+    val to_string : t -> string
     (** [to_string body] returns the full given [body] as a [string]. *)
   end
 
@@ -73,7 +73,7 @@ module type S = sig
   end
 
   val head :
-    ?ctx:ctx -> ?headers:Headers.t -> Uri.t -> Response.t Lwt.t
+    ?ctx:ctx -> ?headers:Headers.t -> Uri.t -> Response.t
   (** [head ?ctx ?headers uri] sends an {i HEAD} HTTP request to the given
       [uri] and returns its response. The returned response does not have
       a {i body} according to the HTTP standard. *)
@@ -82,7 +82,7 @@ module type S = sig
     ?ctx:ctx ->
     ?headers:Headers.t ->
     Uri.t ->
-    (Response.t * Body.t) Lwt.t
+    (Response.t * Body.t)
   (** [get ?ctx ?headers uri] sends an {i GET} HTTP request to the given
       [uri] and returns its response with its body. *)
 
@@ -92,7 +92,7 @@ module type S = sig
     ?chunked:bool ->
     ?headers:Headers.t ->
     Uri.t ->
-    (Response.t * Body.t) Lwt.t
+    (Response.t * Body.t)
   (** [post ?ctx ?body ?chunked ?headers uri] sends an {i POST} HTTP request
       with the optional given [body] using chunked encoding if [chunked] is
       [true] (default to [false]). It returns a response and a body. *)
