@@ -25,7 +25,7 @@ module Client: sig
   type solver = {
     typ : [ `Dns | `Http | `Alpn ];
     solve_challenge : token:string -> key_authorization:string ->
-      [`host] Domain_name.t -> (unit, [ `Msg of string]) result Lwt.t;
+      [`host] Domain_name.t -> (unit, [ `Msg of string]) result;
   }
 
   (** [http_solver (fun domain ~prefix ~token ~content)] is a solver for
@@ -36,7 +36,7 @@ module Client: sig
   *)
   val http_solver :
     ([`host] Domain_name.t -> prefix:string -> token:string -> content:string ->
-     (unit, [ `Msg of string ]) result Lwt.t) -> solver
+     (unit, [ `Msg of string ]) result) -> solver
 
   (** [print_http] outputs the HTTP challenge solution, and waits for user input
       before continuing with ACME. *)
@@ -52,7 +52,7 @@ module Client: sig
   val alpn_solver :
     ?key_type:X509.Key_type.t -> ?bits:int ->
     ([`host] Domain_name.t -> alpn:string -> X509.Private_key.t ->
-     X509.Certificate.t -> (unit, [ `Msg of string ]) result Lwt.t) -> solver
+     X509.Certificate.t -> (unit, [ `Msg of string ]) result) -> solver
 
   (** [print_alpn] outputs the ALPN challenge solution, and waits for user input
       before continuing with ACME. *)
@@ -65,15 +65,15 @@ module Client: sig
         account is registered yet, a new account is created with contact
         information of [email]. The terms of service are agreed on. *)
     val initialise : ?ctx:Http.ctx -> endpoint:Uri.t -> ?email:string ->
-      X509.Private_key.t -> (t, [> `Msg of string ]) result Lwt.t
+      X509.Private_key.t -> (t, [> `Msg of string ]) result
 
     (** [sign_certificate ~ctx solver t sleep csr] orders a certificate for
         the names in the signing request [csr], and solves the requested
         challenges. *)
     val sign_certificate : ?ctx:Http.ctx ->
-      solver -> t -> (int -> unit Lwt.t) ->
+      solver -> t -> (int -> unit) ->
       X509.Signing_request.t ->
-      (X509.Certificate.t list, [> `Msg of string ]) result Lwt.t
+      (X509.Certificate.t list, [> `Msg of string ]) result
       (* TODO: use X509.Certificate.t * list *)
   end
 

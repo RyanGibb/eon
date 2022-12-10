@@ -3,4 +3,4 @@
   (public_name oacmel)
   (package letsencrypt-app)
   (modules oacmel)
-  (libraries letsencrypt letsencrypt-dns ptime.clock.os ipaddr.unix cohttp-lwt-unix fpath randomconv cmdliner mirage-crypto-rng.unix fmt.cli fmt.tty logs.fmt logs.cli))
+  (libraries letsencrypt letsencrypt-dns ptime.clock.os ipaddr.unix cohttp-eio fpath randomconv cmdliner mirage-crypto-rng.unix fmt.cli fmt.tty logs.fmt logs.cli))
