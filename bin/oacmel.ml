@@ -1,15 +1,13 @@
-open Lwt.Infix
-
 module HTTP_client = struct
   module Headers = Cohttp.Header
-  module Body = Cohttp_lwt.Body
+  module Body = Cohttp_eio.Body
 
   module Response = struct
     include Cohttp.Response
     let status resp = Cohttp.Code.code_of_status (Cohttp.Response.status resp)
   end
 
-  include Cohttp_lwt_unix.Client
+  include Cohttp_eio.Client
 end
 
 module Acme_cli = Letsencrypt.Client.Make(HTTP_client)
