@@ -1,17 +1,5 @@
-module HTTP_client = struct
-  module Headers = Cohttp.Header
-  module Body = Cohttp_eio.Body
 
-  module Response = struct
-    include Cohttp.Response
-    let status resp = Cohttp.Code.code_of_status (Cohttp.Response.status resp)
-  end
-
-  include Cohttp_eio.Client
-end
-
-module Acme_cli = Letsencrypt.Client.Make(HTTP_client)
-
+(*
 let dns_out ip cs =
   let out = Lwt_unix.(socket PF_INET SOCK_DGRAM 0) in
   let server = Lwt_unix.ADDR_INET (ip, 53) in
@@ -19,17 +7,18 @@ let dns_out ip cs =
   Lwt_unix.sendto out (Cstruct.to_bytes cs) 0 bl [] server >>= fun n ->
   (* TODO should listen for a reply from NS, report potential errors and retransmit if UDP frame got lost *)
   if n = bl then Lwt.return_ok () else Lwt.return_error (`Msg "couldn't send nsupdate")
+*)
 
-let sleep x = Lwt_unix.sleep (float_of_int x)
-
-let doit email endpoint account_key solver sleep csr =
+let doit env email endpoint account_key solver sleep csr =
   Logs.app (fun m -> m "doit %s" endpoint);
-  Acme_cli.initialise ~endpoint:(Uri.of_string endpoint) ?email account_key >>= function
-  | Ok t -> Acme_cli.sign_certificate solver t sleep csr
-  | Error e -> Lwt.return_error e
+  Letsencrypt.Client.initialise env ~endpoint:(Uri.of_string endpoint) ?email account_key |> function
+  | Ok t -> Letsencrypt.Client.sign_certificate env solver t sleep csr
+  | Error e -> Error e
 
 let main _ priv_pem csr_pem email solver acme_dir ip key endpoint cert zone =
-  Mirage_crypto_rng_unix.initialize () ;
+  Eio_main.run @@ fun env ->
+  Eio.Ctf.with_tracing @@ fun () ->
+  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let r =
     let ( let* ) = Result.bind in
     let priv_pem, csr_pem, cert = Fpath.(v priv_pem, v csr_pem, v cert) in
@@ -51,6 +40,7 @@ let main _ priv_pem csr_pem email solver acme_dir ip key endpoint cert zone =
             Lwt_result.lift (Bos.OS.File.write path content)
           in
           Letsencrypt.Client.http_solver solve_challenge
+          (*
         | _, None, Some ip, Some (keyname, key) ->
           Logs.app (fun m -> m "using dns solver, writing to %a" Ipaddr.V4.pp ip);
           let ip' = Ipaddr_unix.V4.to_inet_addr ip in
@@ -63,6 +53,7 @@ let main _ priv_pem csr_pem email solver acme_dir ip key endpoint cert zone =
         | Some `Dns, None, None, None ->
           Logs.app (fun m -> m "using dns solver");
           Letsencrypt_dns.print_dns
+          *)
         | Some `Http, None, None, None ->
           Logs.app (fun m -> m "using http solver");
           Letsencrypt.Client.print_http
