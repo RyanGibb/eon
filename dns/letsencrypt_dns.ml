@@ -1,8 +1,6 @@
 let src = Logs.Src.create "letsencrypt.dns" ~doc:"let's encrypt library"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-open Lwt.Infix
-
 let dns_solver writef =
   let solve_challenge ~token:_ ~key_authorization domain =
     let solution = Letsencrypt.sha256_and_base64 key_authorization in
@@ -16,7 +14,7 @@ let print_dns =
     Log.warn (fun f -> f "Setup a TXT record for %a to return %s and press enter to continue"
                  Domain_name.pp domain solution);
     ignore (read_line ());
-    Lwt.return_ok ()
+    Ok ()
   in
   dns_solver solve
 
@@ -39,14 +37,14 @@ let nsupdate ?proto id now out ?recv ~zone ~keyname key =
     in
     let packet = Packet.create header zone (`Update update) in
     match Dns_tsig.encode_and_sign ?proto packet (now ()) key keyname with
-    | Error s -> Lwt.return_error (`Msg (Fmt.to_to_string Dns_tsig.pp_s s))
+    | Error s -> Error(`Msg (Fmt.to_to_string Dns_tsig.pp_s s))
     | Ok (data, mac) ->
-      out data >>= function
-      | Error err -> Lwt.return_error err
+      out data |> function
+      | Error err -> Error err
       | Ok () ->
         match recv with
-        | None -> Lwt.return_ok ()
-        | Some recv -> recv () >|= function
+        | None -> Ok ()
+        | Some recv -> recv () |> function
           | Error e -> Error e
           | Ok data ->
             match Dns_tsig.decode_and_verify (now ()) key keyname ~mac data with

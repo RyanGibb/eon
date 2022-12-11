@@ -21,12 +21,11 @@ let main _ priv_pem csr_pem email solver acme_dir ip key endpoint cert zone =
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let r =
     let ( let* ) = Result.bind in
-    let priv_pem, csr_pem, cert = Fpath.(v priv_pem, v csr_pem, v cert) in
-    let* priv_pem = Bos.OS.File.read priv_pem in
-    let* csr_pem = Bos.OS.File.read csr_pem in
-    let* f_exists = Bos.OS.File.exists cert in
+    let priv_pem = Eio.Path.load (Eio.Path.(Eio.Stdenv.fs env / priv_pem)) in
+    let csr_pem = Eio.Path.load (Eio.Path.(Eio.Stdenv.fs env / csr_pem)) in
+    let f_exists = Sys.file_exists cert in
     if f_exists then
-      Error (`Msg (Fmt.str "output file %a already exists" Fpath.pp cert))
+      Error (`Msg (Fmt.str "output file %s already exists" cert))
     else
       let* account_key = X509.Private_key.decode_pem (Cstruct.of_string priv_pem) in
       let* request = X509.Signing_request.decode_pem (Cstruct.of_string csr_pem) in
@@ -36,8 +35,9 @@ let main _ priv_pem csr_pem email solver acme_dir ip key endpoint cert zone =
           Logs.app (fun m -> m "using http solver, writing to %s" path);
           let solve_challenge _ ~prefix:_ ~token ~content =
             (* now, resource has .well-known/acme-challenge prepended *)
-            let path = Fpath.(v path / token) in
-            Lwt_result.lift (Bos.OS.File.write path content)
+            let path = Eio.Path.(Eio.Stdenv.fs env / path / token) in
+            Eio.Path.save ~create:(`Exclusive 0o600) path content;
+            Ok ()
           in
           Letsencrypt.Client.http_solver solve_challenge
           (*
@@ -63,11 +63,14 @@ let main _ priv_pem csr_pem email solver acme_dir ip key endpoint cert zone =
         | _ ->
           invalid_arg "unsupported combination of acme_dir, ip, and key"
       in
-      match Lwt_main.run (doit email endpoint account_key solver sleep request) with
+      let sleep n = Eio.Time.sleep env#clock (float_of_int n) in
+      match doit env email endpoint account_key solver sleep request with
       | Error e -> Error e
       | Ok t ->
         Logs.info (fun m -> m "Certificates downloaded");
-        Bos.OS.File.write cert (Cstruct.to_string @@ X509.Certificate.encode_pem_multiple t)
+        let path = Eio.Path.(Eio.Stdenv.fs env / cert) in
+        Eio.Path.save ~create:(`Exclusive 0o600) path (Cstruct.to_string @@ X509.Certificate.encode_pem_multiple t);
+        Ok ()
   in
   match r with
   | Ok _ -> `Ok ()
