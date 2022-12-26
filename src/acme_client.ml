@@ -25,10 +25,12 @@ type solver = {
     [`host] Domain_name.t -> (unit, [ `Msg of string]) result;
 }
 
-let error_in endpoint status body =
+let error_in ?headers endpoint status body =
   Error (`Msg (Fmt.str
-                 "Error at %s: status %3d - body: %S"
-                 endpoint (Http.Status.to_int status) body))
+                 "Error at %s: status %3d - %a body: %S" endpoint
+                 (Http.Status.to_int status) 
+                 (Fmt.option Http.Header.pp_hum) headers
+                 body))
 
 let http_solver writef =
   let solve_challenge ~token ~key_authorization domain =
@@ -107,61 +109,88 @@ let headers =
 
 let http_get ?(headers=headers) env url =
   Eio.Switch.run @@ fun sw ->
-  let host = match Uri.host url with Some v -> v | None -> failwith "no host" in 
-  let port = match Uri.port url with Some v -> v | _ -> 80 in
-  let he = Unix.gethostbyname host in 
-  let addr = `Tcp (Eio_unix.Ipaddr.of_unix he.h_addr_list.(0), port) in
-  let path = Uri.path url in
-  let conn = Eio.Net.connect ~sw env#net addr in
-  Cohttp_eio.Client.get ~conn ~headers (host, Some port) path |> fun (resp, body) ->
-  let status = Http.Response.status resp in
-  let headers = Http.Response.headers resp in
-  let body = Cohttp_eio.Client.read_fixed (resp, body) in
-  Log.debug (fun m -> m "HTTP get: %a" Uri.pp_hum url);
-  Log.debug (fun m -> m "Got status: %3d" (Http.Status.to_int status));
-  Log.debug (fun m -> m "headers %S" (Http.Header.to_string headers));
-  Log.debug (fun m -> m "body %S" body);
-  status, headers, body
+  let base = match Uri.host url with Some v -> v | None -> failwith "no host" in 
+  let service = match Uri.scheme url with | Some "https" -> "https" | _ -> "http" in
+  match Eio.Net.getaddrinfo_stream ~service env#net base with
+  | [] -> failwith "host resolution failed"
+  | stream :: _ ->
+      let tls_config =
+        let null ?ip:_ ~host:_ _certs = Ok None in
+        Tls.Config.client ~authenticator:null () in
+      let conn = Eio.Net.connect env#net ~sw stream in
+      let host = Domain_name.of_string_exn base |> Domain_name.host |> Result.to_option in
+      let conn =
+        if service = "https" then 
+          (Tls_eio.client_of_flow ?host tls_config conn :> Eio.Flow.two_way)
+        else (conn :> Eio.Flow.two_way)
+      in
+      let resp, body = Cohttp_eio.Client.get ~headers ~conn (base, None) (Uri.path url)  in
+      let status = Http.Response.status resp in
+      let headers = Http.Response.headers resp in
+      let body = Cohttp_eio.Client.read_fixed (resp, body) in
+      Log.debug (fun m -> m "HTTP get: %a" Uri.pp_hum url);
+      Log.debug (fun m -> m "Got status: %3d" (Http.Status.to_int status));
+      Log.debug (fun m -> m "headers %S" (Http.Header.to_string headers));
+      Log.debug (fun m -> m "body %S" body);
+      status, headers, body
 
 let http_head ?(headers=headers) env url =
   Eio.Switch.run @@ fun sw ->
-  let host = match Uri.host url with Some v -> v | None -> failwith "no host" in 
-  let port = match Uri.port url with Some v -> v | _ -> 80 in
-  let he = Unix.gethostbyname host in 
-  let addr = `Tcp (Eio_unix.Ipaddr.of_unix he.h_addr_list.(0), port) in
-  let path = Uri.path url in
-  let conn = Eio.Net.connect ~sw env#net addr in
-  Cohttp_eio.Client.head ~headers ~conn (host, Some port) path |> fun (resp, body) ->
-  let status = Http.Response.status resp in
-  let headers = Http.Response.headers resp in
-  Log.debug (fun m -> m "HTTP get: %a" Uri.pp_hum url);
-  Log.debug (fun m -> m "Got status: %3d" (Http.Status.to_int status));
-  Log.debug (fun m -> m "headers %S" (Http.Header.to_string headers));
-  status, headers
+  let base = match Uri.host url with Some v -> v | None -> failwith "no host" in 
+  let service = match Uri.scheme url with | Some "https" -> "https" | _ -> "http" in
+  match Eio.Net.getaddrinfo_stream ~service env#net base with
+  | [] -> failwith "host resolution failed"
+  | stream :: _ ->
+      let tls_config =
+        let null ?ip:_ ~host:_ _certs = Ok None in
+        Tls.Config.client ~authenticator:null () in
+      let conn = Eio.Net.connect env#net ~sw stream in
+      let host = Domain_name.of_string_exn base |> Domain_name.host |> Result.to_option in
+      let conn =
+        if service = "https" then 
+          (Tls_eio.client_of_flow ?host tls_config conn :> Eio.Flow.two_way)
+        else (conn :> Eio.Flow.two_way)
+      in
+      let resp, _ = Cohttp_eio.Client.head ~headers ~conn (base, None) (Uri.path url)  in
+      let status = Http.Response.status resp in
+      let headers = Http.Response.headers resp in
+      Log.debug (fun m -> m "HTTP get: %a" Uri.pp_hum url);
+      Log.debug (fun m -> m "Got status: %3d" (Http.Status.to_int status));
+      Log.debug (fun m -> m "headers %S" (Http.Header.to_string headers));
+      status, headers
 
 let http_post ?(headers=headers) ~body env url =
-  Eio.Switch.run @@ fun sw ->
   let body = Cohttp_eio.Body.Fixed body in
-  let host = match Uri.host url with Some v -> v | None -> failwith "no host" in 
-  let port = match Uri.port url with Some v -> v | _ -> 80 in
-  let he = Unix.gethostbyname host in 
-  let addr = `Tcp (Eio_unix.Ipaddr.of_unix he.h_addr_list.(0), port) in
-  let path = Uri.path url in
-  let conn = Eio.Net.connect ~sw env#net addr in
-  Cohttp_eio.Client.post ~headers ~body ~conn (host, Some port) path |> fun (resp, body) ->
-  let status = Http.Response.status resp in
-  let headers = Http.Response.headers resp in
-  let body = Cohttp_eio.Client.read_fixed (resp, body) in
-  Log.debug (fun m -> m "HTTP get: %a" Uri.pp_hum url);
-  Log.debug (fun m -> m "Got status: %3d" (Http.Status.to_int status));
-  Log.debug (fun m -> m "headers %S" (Http.Header.to_string headers));
-  Log.debug (fun m -> m "body %S" body);
-  status, headers, body
+  Eio.Switch.run @@ fun sw ->
+  let base = match Uri.host url with Some v -> v | None -> failwith "no host" in 
+  let service = match Uri.scheme url with | Some "https" -> "https" | _ -> "http" in
+  match Eio.Net.getaddrinfo_stream ~service env#net base with
+  | [] -> failwith "host resolution failed"
+  | stream :: _ ->
+      let tls_config =
+        let null ?ip:_ ~host:_ _certs = Ok None in
+        Tls.Config.client ~authenticator:null () in
+      let conn = Eio.Net.connect env#net ~sw stream in
+      let host = Domain_name.of_string_exn base |> Domain_name.host |> Result.to_option in
+      let conn =
+        if service = "https" then 
+          (Tls_eio.client_of_flow ?host tls_config conn :> Eio.Flow.two_way)
+        else (conn :> Eio.Flow.two_way)
+      in
+      let resp, body = Cohttp_eio.Client.post ~headers ~body ~conn (base, None) (Uri.path url)  in
+      let status = Http.Response.status resp in
+      let headers = Http.Response.headers resp in
+      let body = Cohttp_eio.Client.read_fixed (resp, body) in
+      Log.debug (fun m -> m "HTTP get: %a" Uri.pp_hum url);
+      Log.debug (fun m -> m "Got status: %3d" (Http.Status.to_int status));
+      Log.debug (fun m -> m "headers %S" (Http.Header.to_string headers));
+      Log.debug (fun m -> m "body %S" body);
+      status, headers, body
 
 let discover env directory =
   http_get env directory |> function
   | (`OK, _headers, body) -> Directory.decode body
-  | (status, _, body) -> error_in "discover" status body
+  | (status, headers, body) -> error_in ~headers "discover" status body
 
 let get_nonce env url =
   http_head env url |> function
