@@ -36,7 +36,7 @@ let main _ priv_pem csr_pem email solver acme_dir ip key endpoint cert zone =
           let solve_challenge _ ~prefix:_ ~token ~content =
             (* now, resource has .well-known/acme-challenge prepended *)
             let path = Eio.Path.(Eio.Stdenv.fs env / path / token) in
-            Eio.Path.save ~create:(`Exclusive 0o600) path content;
+            Eio.Path.save ~create:(`Or_truncate 0o600) path content;
             Ok ()
           in
           Letsencrypt.Client.http_solver solve_challenge
