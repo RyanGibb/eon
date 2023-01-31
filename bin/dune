@@ -1,0 +1,4 @@
+(executable
+ (public_name ocaml_dns_eio)
+ (name main)
+ (libraries ocaml_dns_eio))
