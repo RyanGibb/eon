@@ -11,6 +11,7 @@ bug-reports: "https://github.com/RyanGibb/ocaml-dns-eio/issues"
 depends: [
   "ocaml" {= "5.1.0"}
   "dune" {>= "3.4"}
+  "eio_main"
   "odoc" {with-doc}
 ]
 build: [

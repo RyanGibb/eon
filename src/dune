@@ -1,4 +1,4 @@
 (executable
  (public_name ocaml-dns-eio)
  (name dns)
- (libraries unix))
+ (libraries eio_main))
