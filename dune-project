@@ -1,26 +1,24 @@
 (lang dune 3.4)
 
-(name ocaml_dns_eio)
+(name ocaml-dns-eio)
 
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github RyanGibb/ocaml-dns-eio))
 
-(authors "Author Name")
+(authors "Ryan Gibb")
 
-(maintainers "Maintainer Name")
+(maintainers "Ryan Gibb")
 
 (license LICENSE)
 
 (documentation https://url/to/documentation)
 
 (package
- (name ocaml_dns_eio)
- (synopsis "A short synopsis")
- (description "A longer description")
- (depends ocaml dune)
+ (name ocaml-dns-eio)
+ (synopsis "")
+ (description "")
+ (depends (ocaml :5.1.0) dune)
  (tags
-  (topics "to describe" your project)))
-
-; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project
+  ()))

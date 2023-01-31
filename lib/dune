@@ -1,2 +1,0 @@
-(library
- (name ocaml_dns_eio))

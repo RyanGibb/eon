@@ -1,0 +1,4 @@
+(executable
+ (public_name ocaml-dns-eio)
+ (name dns)
+ (libraries unix))
