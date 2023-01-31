@@ -5,20 +5,20 @@
     opam-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
   outputs = { self, flake-utils, opam-nix, nixpkgs }@inputs:
-    let package = "ocaml_dns_eio";
+    let package = "ocaml-dns-eio";
     in flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         on = opam-nix.lib.${system};
         devPackagesQuery = {
           # You can add "development" packages here. They will get added to the devShell automatically.
-          ocaml-lsp-server = "*";
-          ocamlformat = "*";
+          # ocaml-lsp-server = "*";
+          # ocamlformat = "*";
         };
         query = devPackagesQuery // {
           ## You can force versions of certain packages here, e.g:
           ## - force the ocaml compiler to be taken from opam-repository:
-          ocaml-base-compiler = "*";
+          # ocaml-base-compiler = "*";
           ## - or force the compiler to be taken from nixpkgs and be a certain version:
           # ocaml-system = "4.14.0";
           ## - or force ocamlfind to be a certain version:
@@ -26,7 +26,7 @@
         };
         scope = on.buildOpamProject' { } ./. query;
         overlay = final: prev: {
-          ${package} = prev.${package}.overrideAttrs (_: {
+          "${package}" = prev.${package}.overrideAttrs (_: {
             # Prevent the ocaml dependencies from leaking into dependent environments
             doNixSupport = false;
           });
