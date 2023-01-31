@@ -1,9 +1,12 @@
 
-let handle_client flow _addr stdout =
-  Eio.Flow.copy_string "Hello from server" flow;
-  Eio.Flow.copy_string "Hello from server" stdout
+let handle_client sock _stdout =
+  let b = Cstruct.create 100 in
+  let _sock2, _i = sock#recv b in
+  Eio.traceln "Client: received %S" (Cstruct.to_string b)
 
-let () = Eio_main.run @@ fun env ->
-  let flow = Eio_mock.Flow.make "flow" in
-  let addr = `Tcp (Eio.Net.Ipaddr.V4.loopback, 37568) in
-  handle_client flow addr (Eio.Stdenv.stdout env);;
+let () =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let bindaddr = `Udp (Eio.Net.Ipaddr.V4.loopback, 53) in
+  let sock = Eio.Net.datagram_socket ~sw (Eio.Stdenv.net env) bindaddr in
+  handle_client sock (Eio.Stdenv.stdout env);;
