@@ -19,6 +19,6 @@
  (name ocaml-dns-eio)
  (synopsis "")
  (description "")
- (depends (ocaml :5.1.0) dune)
+ (depends (ocaml (= 5.1.0)) dune)
  (tags
   ()))
