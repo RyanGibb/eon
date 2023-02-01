@@ -7,10 +7,11 @@ let handle_client sock _stdout =
   done
 
 let main ~net ~stdout =
-  let bindaddr = `Udp (Eio.Net.Ipaddr.V4.loopback, 53) in
   Eio.Switch.run @@ fun sw ->
-  let sock = Eio.Net.datagram_socket ~sw net bindaddr in
-  handle_client sock stdout;;
+  let get_sock addr = Eio.Net.datagram_socket ~sw net (`Udp (addr, 53)) in
+  Eio.Fiber.both
+    (fun () -> handle_client (get_sock Eio.Net.Ipaddr.V6.loopback) stdout)
+    (fun () -> handle_client (get_sock Eio.Net.Ipaddr.V4.loopback) stdout)
 
 let () = Eio_main.run @@ fun env ->
   main ~net:(Eio.Stdenv.net env) ~stdout:(Eio.Stdenv.stdout env)
