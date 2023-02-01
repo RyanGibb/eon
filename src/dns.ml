@@ -2,8 +2,10 @@
 let handle_client sock _stdout =
   while true do
     let b = Cstruct.create 512 in
-    let _senderSock, size = Eio.Net.recv sock b in
+    let addr, size = Eio.Net.recv sock b in
     Eio.traceln "Client: received %S" (Cstruct.to_string b ~len:size);
+    let b, _ = Cstruct.split b size in
+    Eio.Net.send sock addr b
   done
 
 let main ~net ~stdout =
