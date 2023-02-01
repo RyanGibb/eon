@@ -1,9 +1,10 @@
 
-let rec handle_client sock _stdout =
-  let b = Cstruct.create 512 in
-  let _sock2, _i = Eio.Net.recv sock b in
-  Eio.traceln "Client: received %S" (Cstruct.to_string b);
-  handle_client sock _stdout
+let handle_client sock _stdout =
+  while true do
+    let b = Cstruct.create 512 in
+    let _sock2, _i = Eio.Net.recv sock b in
+    Eio.traceln "Client: received %S" (Cstruct.to_string b);
+  done
 
 let main ~net ~stdout =
   let bindaddr = `Udp (Eio.Net.Ipaddr.V4.loopback, 53) in
