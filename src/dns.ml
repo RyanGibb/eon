@@ -27,14 +27,12 @@ module Packet = struct
         let label = Cstruct.to_string label in
         let names, off = decode_name buf in
         (label :: names), off
-      else [], buf.off
+      else [], buf.off + 1
     in
     let names, off = decode_name (Cstruct.sub buf 12 (buf.len - 12)) in
-    let off = off - 13 in
     let name = String.concat "." names in
     let typ = Cstruct.BE.get_uint16 buf off
     and cls = Cstruct.BE.get_uint16 buf (off + 2) in
-    (* let off = off + 4 in *)
     id, query, opcode, authorative_answer, truncation, recursion_desired, recursion_available, rcode, q_count, an_count, au_count, ad_count, name, typ, cls
 
 end
