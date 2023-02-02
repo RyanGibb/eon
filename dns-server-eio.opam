@@ -12,6 +12,7 @@ depends: [
   "ocaml" {= "5.1.0"}
   "dune" {>= "3.4"}
   "eio_main"
+  "dns"
   "odoc" {with-doc}
 ]
 build: [

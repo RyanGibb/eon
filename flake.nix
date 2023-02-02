@@ -5,7 +5,7 @@
     opam-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
   outputs = { self, flake-utils, opam-nix, nixpkgs }@inputs:
-    let package = "ocaml-dns-eio";
+    let package = "dns-server-eio";
     in flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};

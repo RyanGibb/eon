@@ -1,6 +1,6 @@
 (lang dune 3.4)
 
-(name ocaml-dns-eio)
+(name dns-server-eio)
 
 (generate_opam_files true)
 
@@ -16,9 +16,9 @@
 (documentation https://url/to/documentation)
 
 (package
- (name ocaml-dns-eio)
+ (name dns-server-eio)
  (synopsis "")
  (description "")
- (depends (ocaml (= 5.1.0)) dune eio_main)
+ (depends (ocaml (= 5.1.0)) dune eio_main dns)
  (tags
   ()))

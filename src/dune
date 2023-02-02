@@ -1,4 +1,4 @@
 (executable
- (public_name ocaml-dns-eio)
- (name dns)
- (libraries eio_main eio.mock))
+ (public_name dns-server-eio)
+ (name dns_server_eio)
+ (libraries eio_main eio.mock dns))
