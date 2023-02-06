@@ -19,6 +19,6 @@
  (name dns-server-eio)
  (synopsis "")
  (description "")
- (depends (ocaml (= 5.1.0)) dune eio_main dns)
+ (depends (ocaml (= 5.1.0)) dune eio_main dns dns-server)
  (tags
   ()))
