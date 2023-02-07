@@ -1,4 +1,4 @@
 (executable
  (public_name dns-server-eio)
  (name dns_server_eio)
- (libraries eio_main eio.mock dns dns-server))
+ (libraries eio_main eio.mock dns dns-server dns-server.zone))
