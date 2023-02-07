@@ -14,7 +14,7 @@ let listen ~clock ~mono_clock sock server =
         src, p
     in
     let buf_trim = Cstruct.sub buf 0 size in
-    Eio.traceln "received:"; Cstruct.hexdump buf_trim;
+    Eio.traceln "rx"; Cstruct.hexdump buf_trim;
     let now = Ptime.of_float_s @@ Eio.Time.now clock in
     match now with
     | None -> ()
@@ -24,7 +24,7 @@ let listen ~clock ~mono_clock sock server =
       let _t, answers, _notify, _n, _key =
         Dns_server.Primary.handle_buf !server now ts `Udp src port buf
       in
-      List.iter (Eio.Net.send sock addr) answers
+      List.iter (fun b -> Eio.traceln "tx"; Cstruct.hexdump b; Eio.Net.send sock addr b) answers
   done
 
 let main ~net ~random ~clock ~mono_clock =
