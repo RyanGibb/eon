@@ -27,12 +27,14 @@ let listen ~clock ~mono_clock sock server =
       List.iter (fun b -> Eio.traceln "tx"; Cstruct.hexdump b; Eio.Net.send sock addr b) answers
   done
 
-let main ~net ~random ~clock ~mono_clock =
+let main ~net ~random ~clock ~mono_clock ~cwd =
   Eio.Switch.run @@ fun sw ->
   let get_sock addr = Eio.Net.datagram_socket ~sw net (`Udp (addr, 53)) in
   (* TODO load from zonefile *)
-  (* let zones, trie, keys = Dns_zone.decode_zones_keys bindings in *)
-  let trie = Dns_trie.empty in
+  let zonefile =
+    let ( / ) = Eio.Path.( / ) in
+    Eio.Path.load (cwd / "zonefile") in
+  let _zones, trie = Dns_zone.decode_zones [ ("freumh.org", zonefile) ] in
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact random buf;
@@ -48,4 +50,5 @@ let () = Eio_main.run @@ fun env ->
     ~net:(Eio.Stdenv.net env)
     ~random:(Eio.Stdenv.secure_random env)
     ~clock:(Eio.Stdenv.clock env)
-    ~mono_clock:(Eio.Stdenv.mono_clock env) 
+    ~mono_clock:(Eio.Stdenv.mono_clock env)
+    ~cwd:(Eio.Stdenv.cwd env)
