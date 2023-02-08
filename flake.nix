@@ -24,6 +24,7 @@
         legacyPackages = scope';
 
         packages = scope' // { default = main; };
+        defaultPackage = main;
 
         devShells.default =
           let
@@ -38,5 +39,9 @@
            inputsFrom = [ main ];
            buildInputs = devPackages;
          };
-      });
+      }) // {
+    nixosModules.default = {
+      imports = [ ./module.nix ];
+    };
+  };
 }
