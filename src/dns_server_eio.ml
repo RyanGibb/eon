@@ -38,8 +38,8 @@ let main ~net ~random ~clock ~mono_clock zonefile =
   in
   let server = ref @@ Dns_server.Primary.create ~rng trie in
   Eio.Fiber.both
-    (fun () -> listen ~clock ~mono_clock (get_sock Eio.Net.Ipaddr.V6.loopback) server)
-    (fun () -> listen ~clock ~mono_clock (get_sock Eio.Net.Ipaddr.V4.loopback) server)
+    (fun () -> listen ~clock ~mono_clock (get_sock Eio.Net.Ipaddr.V6.any) server)
+    (fun () -> listen ~clock ~mono_clock (get_sock Eio.Net.Ipaddr.V4.any) server)
 
 let () = Eio_main.run @@ fun env ->
   let zonefile =
