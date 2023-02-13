@@ -10,7 +10,11 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         on = opam-nix.lib.${system};
-        scope = on.buildOpamProject' { } ./. {};
+        devPackagesQuery = {
+          ocaml-lsp-server = "*";
+          ocamlformat = "*";
+        };
+        scope = on.buildOpamProject' { } ./. devPackagesQuery;
         overlay = final: prev: {
           "${package}" = prev.${package}.overrideAttrs (_: {
             # Prevent the ocaml dependencies from leaking into dependent environments
@@ -28,13 +32,8 @@
 
         devShells.default =
           let
-            devPackagesQuery = {
-              ocaml-lsp-server = "*";
-              ocamlformat = "*";
-            };
-            devScope = on.queryToScope { } devPackagesQuery;
             devPackages = builtins.attrValues
-              (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) devScope);
+              (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope);
           in pkgs.mkShell {
            inputsFrom = [ main ];
            buildInputs = devPackages;
