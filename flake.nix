@@ -3,8 +3,9 @@
     opam-nix.url = "github:tweag/opam-nix";
     flake-utils.url = "github:numtide/flake-utils";
     opam-nix.inputs.nixpkgs.follows = "nixpkgs";
+    ipaddr.url = "github:RyanGibb/ocaml-ipaddr";
   };
-  outputs = { self, nixpkgs, flake-utils, opam-nix }@inputs:
+  outputs = { self, nixpkgs, flake-utils, opam-nix, ipaddr }@inputs:
     let package = "dns-server-eio";
     in flake-utils.lib.eachDefaultSystem (system:
       let
@@ -14,17 +15,21 @@
           ocaml-lsp-server = "*";
           ocamlformat = "*";
         };
+        overlay = final: prev: {
+          "${package}" = prev.${package}.overrideAttrs (_: {
+            # Prevent the ocaml dependencies from leaking into dependent environments
+            doNixSupport = false;
+          });
+          ipaddr = ipaddr.packages.${system}.default;
+          macaddr = ipaddr.packages.${system}.macaddr;
+          macaddr-cstruct = ipaddr.packages.${system}.macaddr-cstruct;
+        };
         resolved-scope =
-          let
-            scope = opam-nix-lib.buildOpamProject' { } ./. devPackagesQuery;
-            overlay = final: prev: {
-              "${package}" = prev.${package}.overrideAttrs (_: {
-                # Prevent the ocaml dependencies from leaking into dependent environments
-                doNixSupport = false;
-              });
-            };
-          in scope.overrideScope' overlay;
-        materialized-scope = opam-nix-lib.materializedDefsToScope { sourceMap.${package} = ./.; } ./package-defs.json;
+          let scope = opam-nix-lib.buildOpamProject' { } ./. devPackagesQuery; in
+          scope.overrideScope' overlay;
+        materialized-scope =
+          let scope = opam-nix-lib.materializedDefsToScope { sourceMap.${package} = ./.; } ./package-defs.json; in
+          scope.overrideScope' overlay;
       in rec {
         packages = {
           resolved = resolved-scope;
