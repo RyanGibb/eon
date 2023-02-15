@@ -27,7 +27,6 @@ let listen ~clock ~mono_clock sock server =
 
 let main ~net ~random ~clock ~mono_clock zonefile =
   Eio.Switch.run @@ fun sw ->
-  let get_sock addr = Eio.Net.datagram_socket ~sw net (`Udp (addr, 53)) in
   let _zones, trie = Dns_zone.decode_zones [ ("freumh.org", zonefile) ] in
   let rng ?_g length =
     let buf = Cstruct.create length in
@@ -35,7 +34,18 @@ let main ~net ~random ~clock ~mono_clock zonefile =
     buf
   in
   let server = ref @@ Dns_server.Primary.create ~rng trie in
-  listen ~clock ~mono_clock (get_sock Eio.Net.Ipaddr.V6.any) server
+  (* We listen on in6addr_any to bind to all interfaces. If we also listen on
+     INADDR_ANY, this collides with EADDRINUSE. However we can recieve IPv4 traffic
+     too via IPv4-mapped IPv6 addresses [0]. It might be useful to look at using
+     happy-eyeballs to choose between IPv4 and IPv6, however this may have
+     peformance implications [2]. Better might be to explicitly listen per
+     interface on IPv4 and/or Ipv6, which would allow the user granular control.
+     BSD's also disable IPv4-mapped IPv6 address be default, so this would enable
+     better portability.
+     [0] https://www.rfc-editor.org/rfc/rfc3493#section-3.7
+     [1] https://labs.apnic.net/presentations/store/2015-10-04-dns-dual-stack.pdf *)
+  let sock = Eio.Net.datagram_socket ~sw net (`Udp (Eio.Net.Ipaddr.V6.any, 53)) in
+  listen ~clock ~mono_clock sock server
 
 let () = Eio_main.run @@ fun env ->
   let zonefile =
