@@ -15,6 +15,9 @@
           ocaml-lsp-server = "*";
           ocamlformat = "*";
         };
+        query = {
+          ocaml-base-compiler = "*";
+        };
         overlay = final: prev: {
           "${package}" = prev.${package}.overrideAttrs (_: {
             # Prevent the ocaml dependencies from leaking into dependent environments
@@ -25,9 +28,11 @@
           macaddr-cstruct = ipaddr.packages.${system}.macaddr-cstruct;
         };
         resolved-scope =
-          let scope = opam-nix-lib.buildOpamProject' { } ./. devPackagesQuery; in
+          let scope = opam-nix-lib.buildOpamProject' { } ./. query // devPackagesQuery; in
           scope.overrideScope' overlay;
         materialized-scope =
+          # to generate:
+          #   nix shell github:tweag/opam-nix#opam-nix-gen -c opam-nix-gen -p ocaml-lsp-server -p ocamlformat -p ocaml-base-compiler dns-server-eio . package-defs.json
           let scope = opam-nix-lib.materializedDefsToScope { sourceMap.${package} = ./.; } ./package-defs.json; in
           scope.overrideScope' overlay;
       in rec {

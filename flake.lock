@@ -99,11 +99,11 @@
         "opam-nix": "opam-nix"
       },
       "locked": {
-        "lastModified": 1676388334,
-        "narHash": "sha256-u+CP9MtsApiV+OygFdBWZtkoOrDAN5XEMQK1gmHw1PM=",
+        "lastModified": 1676476073,
+        "narHash": "sha256-gOLOaxFhH7ZebAE9Bm4YVbbBVyTdLSPGeMNke2stA0A=",
         "owner": "RyanGibb",
         "repo": "ocaml-ipaddr",
-        "rev": "4dfb8fc0b3ddd86e8d17ce1e878e02e23b42f842",
+        "rev": "e01019391317bc570808e565e4fa33a2be0b6cf3",
         "type": "github"
       },
       "original": {
