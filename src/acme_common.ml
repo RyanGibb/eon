@@ -475,7 +475,7 @@ module Order = struct
         | `Invalid -> "invalid")
 
   let pp ppf o =
-    Fmt.pf ppf "status %a@,expires %a@,identifiers %a@,not_before %a@,not_after %a@,error %a@,authorizations %a@,finalize %a@,certificate %a"
+    Fmt.pf ppf "status %a@ expires %a@ identifiers %a@ not_before %a@ not_after %a@ error %a@ authorizations %a@ finalize %a@ certificate %a"
       pp_status o.order_status
       Fmt.(option ~none:(any "no") (Ptime.pp_rfc3339 ())) o.expires
       Fmt.(list ~sep:(any ", ") pp_id) o.identifiers
