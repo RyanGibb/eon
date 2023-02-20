@@ -27,13 +27,13 @@ let listen ~clock ~mono_clock ~log sock server =
 
 let main ~net ~random ~clock ~mono_clock ~zonefile ~log =
   Eio.Switch.run @@ fun sw ->
-  let _zones, trie = Dns_zone.decode_zones [ ("freumh.org", zonefile) ] in
+  let _zones, trie, keys = Dns_zone.decode_zones_keys [ ("freumh.org", zonefile) ] in
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact random buf;
     buf
   in
-  let server = ref @@ Dns_server.Primary.create ~rng trie in
+  let server = ref @@ Dns_server.Primary.create ~keys ~rng trie in
   (* We listen on in6addr_any to bind to all interfaces. If we also listen on
      INADDR_ANY, this collides with EADDRINUSE. However we can recieve IPv4 traffic
      too via IPv4-mapped IPv6 addresses [0]. It might be useful to look at using
@@ -47,30 +47,56 @@ let main ~net ~random ~clock ~mono_clock ~zonefile ~log =
   let sock = Eio.Net.datagram_socket ~sw net (`Udp (Eio.Net.Ipaddr.V6.any, 53)) in
   listen ~clock ~mono_clock ~log sock server
 
-let log_packet direction addr buf =
-  (match direction with
-  | `Rx -> Format.fprintf Format.std_formatter "<-"
-  | `Tx -> Format.fprintf Format.std_formatter "->");
-  Format.print_space ();
-  Eio.Net.Sockaddr.pp Format.std_formatter addr;
-  Format.print_space ();
+let log_level_0 _direction _addr _buf = ()
+
+let log_helper direction addr buf log_packet =
+  let log_transmssion direction addr =
+    (match direction with
+    | `Rx -> Format.fprintf Format.std_formatter "<-"
+    | `Tx -> Format.fprintf Format.std_formatter "->");
+    Format.print_space ();
+    Eio.Net.Sockaddr.pp Format.std_formatter addr;
+    Format.print_space ()
+  in
+  log_transmssion direction addr;
   match Dns.Packet.decode buf with
-  | Error _ -> Format.fprintf Format.std_formatter "error";
-  | Ok packet -> Dns.Packet.pp Format.std_formatter packet;
+  | Error e ->
+    Format.fprintf Format.std_formatter "error decoding:";
+    Format.print_space ();
+    Dns.Packet.pp_err Format.std_formatter e
+  | Ok packet -> log_packet packet;
   Format.print_space (); Format.print_space ();
   Format.print_flush ()
 
+let log_level_1 direction addr buf =
+  let log_packet (packet : Dns.Packet.t) =
+    Format.fprintf Format.std_formatter "question %a@ data %a@"
+      Dns.Packet.Question.pp packet.question
+      Dns.Packet.pp_data packet.data
+  in
+  log_helper direction addr buf log_packet
+
+let log_level_2 direction addr buf =
+  let log_packet = Dns.Packet.pp Format.std_formatter in
+  log_helper direction addr buf log_packet
+  
 let run zonefile_path log_level = Eio_main.run @@ fun env ->
   let zonefile =
     let ( / ) = Eio.Path.( / ) in
     Eio.Path.load ((Eio.Stdenv.fs env) / zonefile_path) in
+  let log = match log_level with
+    | 0 -> log_level_0
+    | 1 -> log_level_1
+    | 2 -> log_level_2
+    | _ -> if log_level < 0 then log_level_0 else log_level_2
+  in
   main
     ~net:(Eio.Stdenv.net env)
     ~random:(Eio.Stdenv.secure_random env)
     ~clock:(Eio.Stdenv.clock env)
     ~mono_clock:(Eio.Stdenv.mono_clock env)
     ~zonefile
-    ~log:(if log_level > 0 then log_packet else fun _ _ _ -> ())
+    ~log
 
 let cmd =
   let zonefile =
