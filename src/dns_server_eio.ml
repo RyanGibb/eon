@@ -25,9 +25,9 @@ let listen ~clock ~mono_clock ~log sock server =
     List.iter (fun b -> log `Tx addr b; Eio.Net.send sock addr b) answers
   done
 
-let main ~net ~random ~clock ~mono_clock ~zonefile ~log =
+let main ~net ~random ~clock ~mono_clock ~bindings ~log =
   Eio.Switch.run @@ fun sw ->
-  let _zones, trie, keys = Dns_zone.decode_zones_keys [ ("freumh.org", zonefile) ] in
+  let _zones, trie, keys = Dns_zone.decode_zones_keys bindings in
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact random buf;
@@ -80,10 +80,16 @@ let log_level_2 direction addr buf =
   let log_packet = Dns.Packet.pp Format.std_formatter in
   log_helper direction addr buf log_packet
   
-let run zonefile_path log_level = Eio_main.run @@ fun env ->
-  let zonefile =
-    let ( / ) = Eio.Path.( / ) in
-    Eio.Path.load ((Eio.Stdenv.fs env) / zonefile_path) in
+let run zonefiles log_level = Eio_main.run @@ fun env ->
+  let bindings =
+    let map zonefile =
+      let ( / ) = Eio.Path.( / ) in
+      let path = (Eio.Stdenv.fs env) / zonefile in
+      let name = Filename.basename zonefile in
+      name, Eio.Path.load path
+    in
+    List.map map zonefiles
+  in
   let log = match log_level with
     | 0 -> log_level_0
     | 1 -> log_level_1
@@ -95,18 +101,18 @@ let run zonefile_path log_level = Eio_main.run @@ fun env ->
     ~random:(Eio.Stdenv.secure_random env)
     ~clock:(Eio.Stdenv.clock env)
     ~mono_clock:(Eio.Stdenv.mono_clock env)
-    ~zonefile
+    ~bindings
     ~log
 
 let cmd =
-  let zonefile =
+  let zonefiles =
     let doc = "Zonefile path." in
-    Cmdliner.Arg.(value & pos 0 string "zonefile" & info [] ~docv:"ZONEFILE_PATH" ~doc) in
+    Cmdliner.Arg.(value & opt_all string [] & info ["z"; "zonefile"] ~docv:"ZONEFILE_PATHS" ~doc) in
   let logging =
     let doc = "Log level." in
     Cmdliner.Arg.(value & opt int 1 & info ["l"; "log-level"] ~docv:"LOG_LEVEL" ~doc)
   in
-  let dns_t = Cmdliner.Term.(const run $ zonefile $ logging) in
+  let dns_t = Cmdliner.Term.(const run $ zonefiles $ logging) in
   let info = Cmdliner.Cmd.info "dns" in
   Cmdliner.Cmd.v info dns_t
 
