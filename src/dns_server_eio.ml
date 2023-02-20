@@ -13,16 +13,13 @@ let listen ~clock ~mono_clock sock server =
         in
         src, p
     in
-    let now = Ptime.of_float_s @@ Eio.Time.now clock in
-    match now with
-    | None -> ()
-    | Some now ->
+    (* todo handle these *)
+    let _t, answers, _notify, _n, _key =
+      let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
       let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
-      (* todo handle these *)
-      let _t, answers, _notify, _n, _key =
-        Dns_server.Primary.handle_buf !server now ts `Udp src port buf
-      in
-      List.iter (Eio.Net.send sock addr) answers
+      Dns_server.Primary.handle_buf !server now ts `Udp src port buf
+    in
+    List.iter (Eio.Net.send sock addr) answers
   done
 
 let main ~net ~random ~clock ~mono_clock zonefile =
