@@ -47,29 +47,41 @@ let main ~net ~random ~clock ~mono_clock ~zonefile ~log =
   let sock = Eio.Net.datagram_socket ~sw net (`Udp (Eio.Net.Ipaddr.V6.any, 53)) in
   listen ~clock ~mono_clock ~log sock server
 
-let run log = Eio_main.run @@ fun env ->
+let log_packet direction addr buf =
+  (match direction with
+  | `Rx -> Format.fprintf Format.std_formatter "<-"
+  | `Tx -> Format.fprintf Format.std_formatter "->");
+  Format.print_space ();
+  Eio.Net.Sockaddr.pp Format.std_formatter addr;
+  Format.print_space ();
+  match Dns.Packet.decode buf with
+  | Error _ -> Format.fprintf Format.std_formatter "error";
+  | Ok packet -> Dns.Packet.pp Format.std_formatter packet;
+  Format.print_space (); Format.print_space ();
+  Format.print_flush ()
+
+let run zonefile_path log_level = Eio_main.run @@ fun env ->
   let zonefile =
     let ( / ) = Eio.Path.( / ) in
-    Eio.Path.load ((Eio.Stdenv.fs env) / Sys.argv.(1)) in
+    Eio.Path.load ((Eio.Stdenv.fs env) / zonefile_path) in
   main
     ~net:(Eio.Stdenv.net env)
     ~random:(Eio.Stdenv.secure_random env)
     ~clock:(Eio.Stdenv.clock env)
     ~mono_clock:(Eio.Stdenv.mono_clock env)
     ~zonefile
-    ~log
+    ~log:(if log_level > 0 then log_packet else fun _ _ _ -> ())
 
-let log_packet direction addr buf =
-    (match direction with
-    | `Rx -> Format.fprintf Format.std_formatter "<-"
-    | `Tx -> Format.fprintf Format.std_formatter "->");
-    Format.print_space ();
-    Eio.Net.Sockaddr.pp Format.std_formatter addr;
-    Format.print_space ();
-    match Dns.Packet.decode buf with
-    | Error _ -> Format.fprintf Format.std_formatter "error";
-    | Ok packet -> Dns.Packet.pp Format.std_formatter packet;
-    Format.print_space (); Format.print_space ();
-    Format.print_flush ()
+let cmd =
+  let zonefile =
+    let doc = "Zonefile path." in
+    Cmdliner.Arg.(value & pos 0 string "zonefile" & info [] ~docv:"ZONEFILE_PATH" ~doc) in
+  let logging =
+    let doc = "Log level." in
+    Cmdliner.Arg.(value & opt int 1 & info ["l"; "log-level"] ~docv:"LOG_LEVEL" ~doc)
+  in
+  let dns_t = Cmdliner.Term.(const run $ zonefile $ logging) in
+  let info = Cmdliner.Cmd.info "dns" in
+  Cmdliner.Cmd.v info dns_t
 
-let () = run log_packet
+let () = exit (Cmdliner.Cmd.eval cmd)

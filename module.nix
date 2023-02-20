@@ -18,6 +18,10 @@ let cfg = config.services.ocaml-dns-eio; in
       type = lib.types.str;
       default = cfg.user;
     };
+    logLevel = lib.mkOption {
+      type = lib.types.int;
+      default = 1;
+    };
   };
   
   config = mkIf cfg.enable {
@@ -27,7 +31,7 @@ let cfg = config.services.ocaml-dns-eio; in
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        ExecStart = "${pkgs.ocaml-dns-eio.out}/bin/dns-server-eio ${cfg.zoneFile}";
+        ExecStart = "${pkgs.ocaml-dns-eio.out}/bin/dns-server-eio ${cfg.zoneFile} -l ${cfg.logLevel}";
         Restart = "always";
         RestartSec = "1s";
         User = cfg.user;
