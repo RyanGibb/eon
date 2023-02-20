@@ -86,9 +86,15 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
       let ( / ) = Eio.Path.( / ) in
       let path = (Eio.Stdenv.fs env) / zonefile in
       let name = Filename.basename zonefile in
-      name, Eio.Path.load path
+      let zonefile_binding = name, Eio.Path.load path in
+      try
+        let path_keys = (Eio.Stdenv.fs env) / (zonefile ^ "._keys") in
+        let name_keys = name ^ "._keys" in
+        [ zonefile_binding; (name_keys, Eio.Path.load path_keys) ]
+      with
+        Eio.Io _ -> [ zonefile_binding ]
     in
-    List.map map zonefiles
+    List.concat_map map zonefiles
   in
   let log = match log_level with
     | 0 -> log_level_0
