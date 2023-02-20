@@ -1,19 +1,4 @@
 
-let log_packet log direction addr buf = match log with
-  | false -> ()
-  | true ->
-    (match direction with
-    | `Rx -> Format.fprintf Format.std_formatter "<-"
-    | `Tx -> Format.fprintf Format.std_formatter "->");
-    Format.print_space ();
-    Eio.Net.Sockaddr.pp Format.std_formatter addr;
-    Format.print_space ();
-    match Dns.Packet.decode buf with
-    | Error _ -> Format.fprintf Format.std_formatter "error";
-    | Ok packet -> Dns.Packet.pp Format.std_formatter packet;
-    Format.print_space (); Format.print_space ();
-    Format.print_flush ()
-
 let listen ~clock ~mono_clock ~log sock server =
   let buf = Cstruct.create 512 in
   while true do
@@ -28,14 +13,14 @@ let listen ~clock ~mono_clock ~log sock server =
         in
         src, p
     in
-    log_packet log `Rx addr buf;
+    log `Rx addr buf;
     (* todo handle these *)
     let _t, answers, _notify, _n, _key =
       let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
       let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
       Dns_server.Primary.handle_buf !server now ts `Udp src port buf
     in
-    List.iter (fun b -> log_packet log `Tx addr b; Eio.Net.send sock addr b) answers
+    List.iter (fun b -> log `Tx addr b; Eio.Net.send sock addr b) answers
   done
 
 let main ~net ~random ~clock ~mono_clock ~zonefile ~log =
@@ -72,4 +57,17 @@ let run log = Eio_main.run @@ fun env ->
     ~zonefile
     ~log
 
-let () = run true
+let log_packet direction addr buf =
+    (match direction with
+    | `Rx -> Format.fprintf Format.std_formatter "<-"
+    | `Tx -> Format.fprintf Format.std_formatter "->");
+    Format.print_space ();
+    Eio.Net.Sockaddr.pp Format.std_formatter addr;
+    Format.print_space ();
+    match Dns.Packet.decode buf with
+    | Error _ -> Format.fprintf Format.std_formatter "error";
+    | Ok packet -> Dns.Packet.pp Format.std_formatter packet;
+    Format.print_space (); Format.print_space ();
+    Format.print_flush ()
+
+let () = run log_packet
