@@ -1,23 +1,25 @@
 
+let convert_eio_to_ipaddr (addr : Eio.Net.Sockaddr.datagram) =
+  match addr with
+  | `Udp (ip, p) ->
+    let src = (ip :> string) in
+    let src = Eio.Net.Ipaddr.fold
+      ~v4:(fun _v4 -> Ipaddr.V4 (Result.get_ok @@ Ipaddr.V4.of_octets src))
+      ~v6:(fun _v6 -> Ipaddr.V6 (Result.get_ok @@ Ipaddr.V6.of_octets src))
+      ip
+    in
+    src, p
+
 let listen ~clock ~mono_clock ~log sock server =
   let buf = Cstruct.create 512 in
   while true do
     let addr, _size = Eio.Net.recv sock buf in
-    let src, port = match addr with
-      | `Udp (ip, p) -> 
-        let src = (ip :> string) in
-        let src = Eio.Net.Ipaddr.fold
-          ~v4:(fun _v4 -> Ipaddr.V4 (Result.get_ok @@ Ipaddr.V4.of_octets src))
-          ~v6:(fun _v6 -> Ipaddr.V6 (Result.get_ok @@ Ipaddr.V6.of_octets src))
-          ip
-        in
-        src, p
-    in
     log `Rx addr buf;
     (* todo handle these *)
     let _t, answers, _notify, _n, _key =
       let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
       let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
+      let src, port = convert_eio_to_ipaddr addr in
       Dns_server.Primary.handle_buf !server now ts `Udp src port buf
     in
     List.iter (fun b -> log `Tx addr b; Eio.Net.send sock addr b) answers
