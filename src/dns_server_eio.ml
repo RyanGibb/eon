@@ -16,12 +16,13 @@ let listen ~clock ~mono_clock ~log sock server =
     let addr, _size = Eio.Net.recv sock buf in
     log `Rx addr buf;
     (* todo handle these *)
-    let _t, answers, _notify, _n, _key =
+    let new_server, answers, _notify, _n, _key =
       let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
       let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
       let src, port = convert_eio_to_ipaddr addr in
       Dns_server.Primary.handle_buf !server now ts `Udp src port buf
     in
+    server := new_server;
     List.iter (fun b -> log `Tx addr b; Eio.Net.send sock addr b) answers
   done
 
@@ -33,7 +34,7 @@ let main ~net ~random ~clock ~mono_clock ~bindings ~log =
     Eio.Flow.read_exact random buf;
     buf
   in
-  let server = ref @@ Dns_server.Primary.create ~keys ~rng trie in
+  let server = ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie in
   (* We listen on in6addr_any to bind to all interfaces. If we also listen on
      INADDR_ANY, this collides with EADDRINUSE. However we can recieve IPv4 traffic
      too via IPv4-mapped IPv6 addresses [0]. It might be useful to look at using
