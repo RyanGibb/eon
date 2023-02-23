@@ -6,7 +6,7 @@
     ipaddr.url = "github:RyanGibb/ocaml-ipaddr";
   };
   outputs = { self, nixpkgs, flake-utils, opam-nix, ipaddr }@inputs:
-    let package = "dns-server-eio";
+    let package = "aeon";
     in flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -32,7 +32,7 @@
           scope.overrideScope' overlay;
         materialized-scope =
           # to generate:
-          #   nix shell github:tweag/opam-nix#opam-nix-gen -c opam-nix-gen -p ocaml-lsp-server -p ocamlformat -p ocaml-base-compiler dns-server-eio . package-defs.json
+          #   nix shell github:tweag/opam-nix#opam-nix-gen -c opam-nix-gen -p ocaml-lsp-server -p ocamlformat -p ocaml-base-compiler aeon . package-defs.json
           let scope = opam-nix-lib.materializedDefsToScope { sourceMap.${package} = ./.; } ./package-defs.json; in
           scope.overrideScope' overlay;
       in rec {

@@ -31,7 +31,7 @@ let cfg = config.services.ocaml-dns-eio; in
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        ExecStart = "${pkgs.ocaml-dns-eio.out}/bin/dns-server-eio -z ${cfg.zoneFile} -l ${builtins.toString cfg.logLevel}";
+        ExecStart = "${pkgs.ocaml-dns-eio.out}/bin/aeon -z ${cfg.zoneFile} -l ${builtins.toString cfg.logLevel}";
         Restart = "always";
         RestartSec = "1s";
         User = cfg.user;

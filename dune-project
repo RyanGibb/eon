@@ -1,6 +1,6 @@
 (lang dune 3.4)
 
-(name dns-server-eio)
+(name aeon)
 
 (generate_opam_files true)
 
@@ -16,7 +16,7 @@
 (documentation https://url/to/documentation)
 
 (package
- (name dns-server-eio)
+ (name aeon)
  (synopsis "")
  (description "")
  (depends (ocaml (>= 5.0.0)) dune eio_main dns (dns-server (>= 6.2.2)) dns-tsig cmdliner)
