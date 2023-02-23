@@ -1,0 +1,12 @@
+$ORIGIN example.org.
+$TTL 3600
+@ IN SOA ns1 dns (
+  1        ; Serial No.
+  3600     ; 1hr Refresh
+  900      ; 15m Retry
+  1814400  ; 21d Expire
+  3600     ; 1hr Negative Cache TTL
+)
+@   IN  NS ns1
+ns1 IN  A  203.0.113.0
+@   IN  A  203.0.113.0

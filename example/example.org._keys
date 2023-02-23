@@ -1,0 +1,2 @@
+$ORIGIN example.org.
+client._update IN DNSKEY 0 3 163 FGwot7AqiDIthEv6TippJm35DaRpRac5NSLd/wSp9go=
