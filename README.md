@@ -34,7 +34,7 @@ Once built, to run the project use:
 $ ./aeon --zonefile <domain>
 ```
 
-The zonefile must be named `<domain>` in order to authoritatively serve that domain, e.g:
+For example:
 ```
 $ ./aeon --zonefile examples/example.com
 ```
@@ -66,7 +66,7 @@ You'll need to configure your zonefile with an [NS](https://www.ietf.org/rfc/rfc
 
 The server uses [TSIG](https://www.rfc-editor.org/rfc/rfc2845) resources records (RRs) to authenticate queries. For example, [DNS UPDATE](https://www.rfc-editor.org/rfc/rfc2136) queries can be authenticated to provide secure dynamic updates.
 
-We pass [HMAC](https://www.rfc-editor.org/rfc/rfc2104) keys to the server through a zonefile representation that is in a file named `<domain>._keys`, e.g. [example.org._keys](./example/example.org._keys). These are secret keys, and should not be published.
+We pass [HMAC](https://www.rfc-editor.org/rfc/rfc2104) keys to the server through a zonefile representation that is in a file named `<zonefile>._keys`, e.g. [example.org._keys](./example/example.org._keys). These are secret keys, and should not be published.
 
 A DNSKEY RR domain name in this file must be of the format `<name>.<operation>.<domain>`, where `<operation>` can be `_update`, `_transfer`, or `_notify`.
 
