@@ -1,4 +1,11 @@
 (library
  (name aeon_log)
  (public_name aeon-log)
- (libraries eio_main dns))
+ (libraries eio_main dns)
+ (modules aeon_log))
+
+(library
+ (name aeon_zonefile)
+ (public_name aeon-zonefile)
+ (libraries eio_main dns dns-server.zone)
+ (modules aeon_zonefile))
