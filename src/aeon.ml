@@ -49,6 +49,7 @@ let parse_zonefiles ~fs zonefiles =
   let keys = Domain_name.Map.bindings keys in
   trie, keys
 
+(* TODO modify ocaml-dns not to require this? *)
 let convert_eio_to_ipaddr (addr : Eio.Net.Sockaddr.datagram) =
   match addr with
   | `Udp (ip, p) ->
@@ -77,29 +78,6 @@ let listen ~clock ~mono_clock ~log sock server =
     List.iter (fun b -> log `Tx addr b; Eio.Net.send sock addr b) answers
   done
 
-let main ~net ~random ~clock ~mono_clock ~fs ~zonefiles ~log =
-  Eio.Switch.run @@ fun sw ->
-  let trie, keys = parse_zonefiles ~fs zonefiles in
-  let rng ?_g length =
-    let buf = Cstruct.create length in
-    Eio.Flow.read_exact random buf;
-    buf
-  in
-  let server = ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie in
-  (* We listen on in6addr_any to bind to all interfaces. If we also listen on
-     INADDR_ANY, this collides with EADDRINUSE. However we can recieve IPv4 traffic
-     too via IPv4-mapped IPv6 addresses [0]. It might be useful to look at using
-     happy-eyeballs to choose between IPv4 and IPv6, however this may have
-     peformance implications [2]. Better might be to explicitly listen per
-     interface on IPv4 and/or Ipv6, which would allow the user granular control.
-     BSD's also disable IPv4-mapped IPv6 address be default, so this would enable
-     better portability.
-     [0] https://www.rfc-editor.org/rfc/rfc3493#section-3.7
-     [1] https://labs.apnic.net/presentations/store/2015-10-04-dns-dual-stack.pdf *)
-  let sock = Eio.Net.datagram_socket ~sw net (`Udp (Eio.Net.Ipaddr.V6.any, 53)) in
-  listen ~clock ~mono_clock ~log sock server
-
-  
 let run zonefiles log_level = Eio_main.run @@ fun env ->
   let log = (match log_level with
     | 0 -> Aeon_log.log_level_0
@@ -108,14 +86,27 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
     | _ -> if log_level < 0 then Aeon_log.log_level_0 else Aeon_log.log_level_2
   ) Format.std_formatter
   in
-  main
-    ~net:(Eio.Stdenv.net env)
-    ~random:(Eio.Stdenv.secure_random env)
-    ~clock:(Eio.Stdenv.clock env)
-    ~mono_clock:(Eio.Stdenv.mono_clock env)
-    ~fs:(Eio.Stdenv.fs env)
-    ~zonefiles
-    ~log
+  let trie, keys = parse_zonefiles ~fs:(Eio.Stdenv.fs env) zonefiles in
+  (* TODO modify ocaml-dns not to require this? *)
+  let rng ?_g length =
+    let buf = Cstruct.create length in
+    Eio.Flow.read_exact (Eio.Stdenv.secure_random env) buf;
+    buf
+  in
+  let server = ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie in
+  (* We listen on in6addr_any to bind to all interfaces. If we also listen on
+      INADDR_ANY, this collides with EADDRINUSE. However we can recieve IPv4 traffic
+      too via IPv4-mapped IPv6 addresses [0]. It might be useful to look at using
+      happy-eyeballs to choose between IPv4 and IPv6, however this may have
+      peformance implications [2]. Better might be to explicitly listen per
+      interface on IPv4 and/or Ipv6, which would allow the user granular control.
+      BSD's also disable IPv4-mapped IPv6 address be default, so this would enable
+      better portability.
+      [0] https://www.rfc-editor.org/rfc/rfc3493#section-3.7
+      [1] https://labs.apnic.net/presentations/store/2015-10-04-dns-dual-stack.pdf *)
+  Eio.Switch.run @@ fun sw ->
+    let sock = Eio.Net.datagram_socket ~sw (Eio.Stdenv.net env) (`Udp (Eio.Net.Ipaddr.V6.any, 53)) in
+    listen ~clock:(Eio.Stdenv.clock env) ~mono_clock:(Eio.Stdenv.mono_clock env) ~log sock server
 
 let cmd =
   let zonefiles =
