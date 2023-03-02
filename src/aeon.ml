@@ -101,45 +101,46 @@ let main ~net ~random ~clock ~mono_clock ~fs ~zonefiles ~log =
   let sock = Eio.Net.datagram_socket ~sw net (`Udp (Eio.Net.Ipaddr.V6.any, 53)) in
   listen ~clock ~mono_clock ~log sock server
 
-let log_level_0 _direction _addr _buf = ()
+let log_level_0 _fmt _direction _addr _buf = ()
 
-let log_helper direction addr buf log_packet =
+let log_helper fmt direction addr buf log_packet =
   let log_transmssion direction addr =
     (match direction with
-    | `Rx -> Format.fprintf Format.std_formatter "<-"
-    | `Tx -> Format.fprintf Format.std_formatter "->");
+    | `Rx -> Format.fprintf fmt "<-"
+    | `Tx -> Format.fprintf fmt "->");
     Format.print_space ();
-    Eio.Net.Sockaddr.pp Format.std_formatter addr;
+    Eio.Net.Sockaddr.pp fmt addr;
     Format.print_space ()
   in
   log_transmssion direction addr;
   match Dns.Packet.decode buf with
   | Error e ->
-    Format.fprintf Format.std_formatter "error decoding:";
+    Format.fprintf fmt "error decoding:";
     Format.print_space ();
-    Dns.Packet.pp_err Format.std_formatter e
+    Dns.Packet.pp_err fmt e
   | Ok packet -> log_packet packet;
   Format.print_space (); Format.print_space ();
   Format.print_flush ()
 
-let log_level_1 direction addr buf =
+let log_level_1 fmt direction addr buf =
   let log_packet (packet : Dns.Packet.t) =
-    Format.fprintf Format.std_formatter "question %a@ data %a@"
+    Format.fprintf fmt "question %a@ data %a@"
       Dns.Packet.Question.pp packet.question
       Dns.Packet.pp_data packet.data
   in
-  log_helper direction addr buf log_packet
+  log_helper fmt direction addr buf log_packet
 
-let log_level_2 direction addr buf =
-  let log_packet = Dns.Packet.pp Format.std_formatter in
-  log_helper direction addr buf log_packet
+let log_level_2 fmt direction addr buf =
+  let log_packet = Dns.Packet.pp fmt in
+  log_helper fmt direction addr buf log_packet
   
 let run zonefiles log_level = Eio_main.run @@ fun env ->
-  let log = match log_level with
+  let log = (match log_level with
     | 0 -> log_level_0
     | 1 -> log_level_1
     | 2 -> log_level_2
     | _ -> if log_level < 0 then log_level_0 else log_level_2
+  ) Format.std_formatter
   in
   main
     ~net:(Eio.Stdenv.net env)
