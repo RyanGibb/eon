@@ -1,0 +1,4 @@
+(library
+ (name aeon_log)
+ (public_name aeon-log)
+ (libraries eio_main dns))

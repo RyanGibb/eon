@@ -22,3 +22,7 @@
  (depends (ocaml (>= 5.0.0)) dune eio_main dns (dns-server (>= 6.2.2)) dns-tsig cmdliner)
  (tags
   ()))
+
+(package
+ (name aeon-log)
+ (depends (ocaml (>= 5.0.0)) dune eio_main dns))
