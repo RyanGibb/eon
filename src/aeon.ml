@@ -80,8 +80,6 @@ let listen ~clock ~mono_clock ~log sock server =
 let main ~net ~random ~clock ~mono_clock ~fs ~zonefiles ~log =
   Eio.Switch.run @@ fun sw ->
   let trie, keys = parse_zonefiles ~fs zonefiles in
-  Format.print_space ();
-  Format.print_flush ();
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact random buf;
