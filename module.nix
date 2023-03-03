@@ -2,9 +2,9 @@
 
 with lib;
 
-let cfg = config.services.ocaml-dns-eio; in
+let cfg = config.services.aeon; in
 {
-  options.services.ocaml-dns-eio = {
+  options.services.aeon = {
     enable = mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
     # todo multiple zones, primary and secondary servers
     zoneFile = mkOption {
@@ -12,7 +12,7 @@ let cfg = config.services.ocaml-dns-eio; in
     };
     user = lib.mkOption {
       type = lib.types.str;
-      default = "ocaml-dns-eio";
+      default = "aeon";
     };
     group = lib.mkOption {
       type = lib.types.str;
@@ -25,13 +25,13 @@ let cfg = config.services.ocaml-dns-eio; in
   };
   
   config = mkIf cfg.enable {
-    systemd.services.ocaml-dns-eio = {
+    systemd.services.aeon = {
       description = "OCaml DNS Server using effects-based direct-style IO";
       after = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        ExecStart = "${pkgs.ocaml-dns-eio.out}/bin/aeon -z ${cfg.zoneFile} -l ${builtins.toString cfg.logLevel}";
+        ExecStart = "${pkgs.aeon.out}/bin/aeon -z ${cfg.zoneFile} -l ${builtins.toString cfg.logLevel}";
         Restart = "always";
         RestartSec = "1s";
         User = cfg.user;
