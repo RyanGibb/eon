@@ -15,44 +15,53 @@ let convert_eio_to_ipaddr (addr : Eio.Net.Sockaddr.t) =
   | `Unix _ -> failwith "Unix sockets not supported";;
 
 let handle_dns proto ~clock ~mono_clock server addr buf =
+  (* TODO handle notify, n, and key *)
   let new_server, answers, _notify, _n, _key =
+    (* TODO modify ocaml-dns not to require this? *)
     let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
     let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
     let src, port = convert_eio_to_ipaddr addr in
     Dns_server.Primary.handle_buf !server now ts proto src port buf
   in
-  (* TODO is this thread safe *)
+  (* TODO is this thread safe? *)
   server := new_server;
   answers
 
 let udp_listen ~log ~handle_dns sock server =
+  (* rfc1035 section 2.3.4 *)
+  (* TODO make this user configurable *)
   let buf = Cstruct.create 512 in
   while true do
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
-    (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.to
-       TODO surely there's a more elgant way to do this *)
+    (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
+    (* TODO is there a more elgant way to do this? *)
     let addr = match addr with `Udp a -> `Udp a in
     log `Rx addr trimmedBuf;
-    (* TODO handle these *)
     let answers = handle_dns `Udp server addr trimmedBuf in
     List.iter (fun b -> log `Tx addr b; Eio.Net.send sock addr b) answers
   done
 
 let tcp_handle ~log ~handle_dns server sock addr =
-  (* TODO what is the max size here? *)
+  (* TODO make this user configurable *)
+  (* It would be unusual for queries to exceed 4kB.
+     TCP's max size is 65535B, but MTU accross the internet should reduce this to 1500B *)
   let buf = Cstruct.create 4096 in
+  (* TODO keep retrying into the entire message is read, rfc7766 section-8 *)
   let size = Eio.Flow.single_read sock buf in
   Eio.traceln "%s" @@ string_of_int size;
   (* Messages sent over TCP have a 2 byte prefix giving the message length, rfc1035 section 4.2.2 *)
   let _prefix, buf = Cstruct.split buf 2 in
-  (* We could check the integrity of the prefix, but does it really matter? *)
-  (* let len = Cstruct.BE.get_uint16 prefix 0 in
-  assert (len == size - 2); *)
+  (* We could check the integrity of the prefix with:
+       let len = Cstruct.BE.get_uint16 prefix 0 in
+       assert (len == size - 2);
+     but it doesn't really matter
+     (TODO actually yes -- rfc7766 section-8)
+  *)
   let len = size - 2 in
   let trimmedBuf = Cstruct.sub buf 0 len in
-  (* convert Eio.Net.Sockaddr.stream to Eio.Net.Sockaddr.to
-     TODO surely there's a more elgant way to do this *)
+  (* convert Eio.Net.Sockaddr.stream to Eio.Net.Sockaddr.t *)
+  (* TODO is there a more elgant way to do this? *)
   let addr = match addr with `Tcp a -> `Tcp a | `Unix _ -> failwith "Unix sockets not supported" in
   log `Rx addr trimmedBuf;
   let answers = handle_dns `Tcp server addr trimmedBuf in
@@ -63,6 +72,7 @@ let tcp_handle ~log ~handle_dns server sock addr =
     Cstruct.BE.set_uint16 prefix 0 b.len;
     Eio.Flow.write sock [ prefix ; b ]
   ) answers
+  (* TODO persist connection until EOF, rfc7766 section 6.2.1 *)
 
 let tcp_listen listeningSock connection_handler =
   while true do
@@ -107,6 +117,7 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
         (* TODO make port configurable *)
         Eio.Net.datagram_socket ~sw (Eio.Stdenv.net env) (`Udp (Eio.Net.Ipaddr.V6.any, 53))
       with
+      (* TODO proper error handling *)
       | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) -> Eio.traceln "error"; failwith "whoops"
     in
     udp_listen ~log ~handle_dns sockUDP server)
@@ -137,6 +148,7 @@ let cmd =
   Cmdliner.Cmd.v info dns_t
 
 let () =
+  (* TODO make this configurable *)
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level (Some Logs.Error);
   exit (Cmdliner.Cmd.eval cmd)
