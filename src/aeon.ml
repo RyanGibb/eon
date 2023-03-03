@@ -1,8 +1,8 @@
 
 (* TODO modify ocaml-dns not to require this? *)
-let convert_eio_to_ipaddr (addr : Eio.Net.Sockaddr.datagram) =
+let convert_eio_to_ipaddr (addr : Eio.Net.Sockaddr.t) =
   match addr with
-  | `Udp (ip, p) ->
+  | `Udp (ip, p) | `Tcp (ip, p) ->
     let src = (ip :> string) in
     let src = Eio.Net.Ipaddr.fold
       ~v4:(fun _v4 -> Ipaddr.V4 (Result.get_ok @@ Ipaddr.V4.of_octets src))
@@ -10,24 +10,66 @@ let convert_eio_to_ipaddr (addr : Eio.Net.Sockaddr.datagram) =
       ip
     in
     src, p
+  (* TODO better way to display this message? *)
+  | `Unix _ -> failwith "Unix sockets not supported";;
 
-let listen ~clock ~mono_clock ~log sock server =
+let handle_dns proto ~clock ~mono_clock server addr buf =
+  let new_server, answers, _notify, _n, _key =
+    let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
+    let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
+    let src, port = convert_eio_to_ipaddr addr in
+    Dns_server.Primary.handle_buf !server now ts proto src port buf
+  in
+  (* TODO is this thread safe *)
+  server := new_server;
+  answers
+
+let udp_listen ~log ~handle_dns sock server =
   let buf = Cstruct.create 512 in
   while true do
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
-    log `Rx addr buf;
-    (* todo handle these *)
-    let new_server, answers, _notify, _n, _key =
-      let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
-      let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
-      let src, port = convert_eio_to_ipaddr addr in
-      Dns_server.Primary.handle_buf !server now ts `Udp src port trimmedBuf
-    in
-    server := new_server;
+    (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.to
+       TODO surely there's a more elgant way to do this *)
+    let addr = match addr with `Udp a -> `Udp a in
+    log `Rx addr trimmedBuf;
+    (* TODO handle these *)
+    let answers = handle_dns `Udp server addr trimmedBuf in
     List.iter (fun b -> log `Tx addr b; Eio.Net.send sock addr b) answers
   done
 
+let tcp_handle ~log ~handle_dns server sock addr =
+  (* TODO what is the max size here? *)
+  let buf = Cstruct.create 4096 in
+  let size = Eio.Flow.single_read sock buf in
+  Eio.traceln "%s" @@ string_of_int size;
+  (* Messages sent over TCP have a 2 byte prefix giving the message length, rfc1035 section 4.2.2 *)
+  let _prefix, buf = Cstruct.split buf 2 in
+  (* We could check the integrity of the prefix, but does it really matter? *)
+  (* let len = Cstruct.BE.get_uint16 prefix 0 in
+  assert (len == size - 2); *)
+  let len = size - 2 in
+  let trimmedBuf = Cstruct.sub buf 0 len in
+  (* convert Eio.Net.Sockaddr.stream to Eio.Net.Sockaddr.to
+     TODO surely there's a more elgant way to do this *)
+  let addr = match addr with `Tcp a -> `Tcp a | `Unix _ -> failwith "Unix sockets not supported" in
+  log `Rx addr trimmedBuf;
+  let answers = handle_dns `Tcp server addr trimmedBuf in
+  List.iter (fun b ->
+    log `Tx addr b;
+    (* add prefix, described in rfc1035 section 4.2.2 *)
+    let prefix = Cstruct.create 2 in
+    Cstruct.BE.set_uint16 prefix 0 b.len;
+    Eio.Flow.write sock [ prefix ; b ]
+  ) answers
+
+let tcp_listen listeningSock connection_handler =
+  while true do
+    let on_error = Eio.traceln "Error handling connection: %a" Fmt.exn in
+    Eio.Switch.run @@ fun sw ->
+      Eio.Net.accept_fork ~sw listeningSock ~on_error connection_handler
+  done
+  
 let run zonefiles log_level = Eio_main.run @@ fun env ->
   let log = (match log_level with
     | 0 -> Aeon_log.log_level_0
@@ -55,9 +97,29 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
       better portability.
       [0] https://www.rfc-editor.org/rfc/rfc3493#section-3.7
       [1] https://labs.apnic.net/presentations/store/2015-10-04-dns-dual-stack.pdf *)
-  Eio.Switch.run @@ fun sw ->
-    let sock = Eio.Net.datagram_socket ~sw (Eio.Stdenv.net env) (`Udp (Eio.Net.Ipaddr.V6.any, 53)) in
-    listen ~clock:(Eio.Stdenv.clock env) ~mono_clock:(Eio.Stdenv.mono_clock env) ~log sock server
+  let handle_dns = handle_dns ~clock:(Eio.Stdenv.clock env) ~mono_clock:(Eio.Stdenv.mono_clock env) in
+  Eio.Fiber.both
+  (fun () ->
+    Eio.Switch.run @@ fun sw ->
+    let sockUDP =
+      try
+        (* TODO make port configurable *)
+        Eio.Net.datagram_socket ~sw (Eio.Stdenv.net env) (`Udp (Eio.Net.Ipaddr.V6.any, 53))
+      with
+      | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) -> Eio.traceln "error"; failwith "whoops"
+    in
+    udp_listen ~log ~handle_dns sockUDP server)
+  (fun () ->
+    Eio.Switch.run @@ fun sw ->
+    let sockTCP =
+      try
+        Eio.Net.listen ~sw ~backlog:4096 (Eio.Stdenv.net env) (`Tcp (Eio.Net.Ipaddr.V6.any, 53))
+      with
+      | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) -> Eio.traceln "error"; failwith "oops"
+    in
+    let connection_handler = tcp_handle ~log ~handle_dns server in
+    tcp_listen sockTCP connection_handler);;
+
 
 let cmd =
   (* TODO add port argument *)
