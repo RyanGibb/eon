@@ -1,5 +1,6 @@
 
-(* TODO modify ocaml-dns not to require this? *)
+(* TODO a Ipaddr.V4.t and Ipaddr.V6.t string representation should simplify this:
+  See https://github.com/mirage/ocaml-ipaddr/issues/113 *)
 let convert_eio_to_ipaddr (addr : Eio.Net.Sockaddr.t) =
   match addr with
   | `Udp (ip, p) | `Tcp (ip, p) ->
