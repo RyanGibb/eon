@@ -5,9 +5,9 @@ description: ""
 maintainer: ["Ryan Gibb"]
 authors: ["Ryan Gibb"]
 license: "LICENSE"
-homepage: "https://github.com/RyanGibb/ocaml-dns-eio"
+homepage: "https://github.com/RyanGibb/aeon"
 doc: "https://url/to/documentation"
-bug-reports: "https://github.com/RyanGibb/ocaml-dns-eio/issues"
+bug-reports: "https://github.com/RyanGibb/aeon/issues"
 depends: [
   "ocaml" {>= "5.0.0"}
   "dune" {>= "3.4"}
@@ -16,6 +16,11 @@ depends: [
   "dns-server" {>= "6.2.2"}
   "dns-tsig"
   "cmdliner"
+  "aeon-log"
+  "aeon-zonefile"
+  "logs"
+  "fmt"
+  "menhir"
   "odoc" {with-doc}
 ]
 build: [
@@ -32,4 +37,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/RyanGibb/ocaml-dns-eio.git"
+dev-repo: "git+https://github.com/RyanGibb/aeon.git"

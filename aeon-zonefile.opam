@@ -3,9 +3,9 @@ opam-version: "2.0"
 maintainer: ["Ryan Gibb"]
 authors: ["Ryan Gibb"]
 license: "LICENSE"
-homepage: "https://github.com/RyanGibb/ocaml-dns-eio"
+homepage: "https://github.com/RyanGibb/aeon"
 doc: "https://url/to/documentation"
-bug-reports: "https://github.com/RyanGibb/ocaml-dns-eio/issues"
+bug-reports: "https://github.com/RyanGibb/aeon/issues"
 depends: [
   "ocaml" {>= "5.0.0"}
   "dune" {>= "3.4"}
@@ -28,4 +28,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/RyanGibb/ocaml-dns-eio.git"
+dev-repo: "git+https://github.com/RyanGibb/aeon.git"

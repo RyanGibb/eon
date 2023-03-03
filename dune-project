@@ -5,7 +5,7 @@
 (generate_opam_files true)
 
 (source
- (github RyanGibb/ocaml-dns-eio))
+ (github RyanGibb/aeon))
 
 (authors "Ryan Gibb")
 
@@ -19,7 +19,7 @@
  (name aeon)
  (synopsis "")
  (description "")
- (depends (ocaml (>= 5.0.0)) dune eio_main dns (dns-server (>= 6.2.2)) dns-tsig cmdliner)
+ (depends (ocaml (>= 5.0.0)) dune eio_main dns (dns-server (>= 6.2.2)) dns-tsig cmdliner aeon-log aeon-zonefile logs fmt menhir)
  (tags
   ()))
 
