@@ -60,9 +60,11 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
     listen ~clock:(Eio.Stdenv.clock env) ~mono_clock:(Eio.Stdenv.mono_clock env) ~log sock server
 
 let cmd =
+  (* TODO add port argument *)
   let zonefiles =
     let doc = "Zonefile path." in
     Cmdliner.Arg.(value & opt_all string [] & info ["z"; "zonefile"] ~docv:"ZONEFILE_PATHS" ~doc) in
+  (* TODO add descriptions *)
   let logging =
     let doc = "Log level." in
     Cmdliner.Arg.(value & opt int 1 & info ["l"; "log-level"] ~docv:"LOG_LEVEL" ~doc)
