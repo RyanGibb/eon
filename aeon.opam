@@ -16,8 +16,6 @@ depends: [
   "dns-server" {>= "6.2.2"}
   "dns-tsig"
   "cmdliner"
-  "aeon-log"
-  "aeon-zonefile"
   "logs"
   "fmt"
   "menhir"

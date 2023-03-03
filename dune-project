@@ -19,14 +19,6 @@
  (name aeon)
  (synopsis "")
  (description "")
- (depends (ocaml (>= 5.0.0)) dune eio_main dns (dns-server (>= 6.2.2)) dns-tsig cmdliner aeon-log aeon-zonefile logs fmt menhir)
+ (depends (ocaml (>= 5.0.0)) dune eio_main dns (dns-server (>= 6.2.2)) dns-tsig cmdliner logs fmt menhir)
  (tags
   ()))
-
-(package
- (name aeon-log)
- (depends (ocaml (>= 5.0.0)) dune eio_main dns))
-
-(package
- (name aeon-zonefile)
- (depends (ocaml (>= 5.0.0)) dune eio_main dns dns-server))

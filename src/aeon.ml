@@ -135,4 +135,7 @@ let cmd =
   let info = Cmdliner.Cmd.info "dns" in
   Cmdliner.Cmd.v info dns_t
 
-let () = exit (Cmdliner.Cmd.eval cmd)
+let () =
+  Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_level (Some Logs.Error);
+  exit (Cmdliner.Cmd.eval cmd)
