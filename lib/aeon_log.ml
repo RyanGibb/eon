@@ -14,8 +14,9 @@ let log_helper fmt direction addr buf log_packet =
   match Dns.Packet.decode buf with
   | Error e ->
     Format.fprintf fmt "error decoding:";
+    Dns.Packet.pp_err fmt e;
     Format.print_space ();
-    Dns.Packet.pp_err fmt e
+    Format.print_flush ()
   | Ok packet -> log_packet packet;
   Format.print_space (); Format.print_space ();
   Format.print_flush ()
