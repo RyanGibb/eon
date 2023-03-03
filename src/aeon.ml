@@ -33,6 +33,7 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
     | 0 -> Aeon_log.log_level_0
     | 1 -> Aeon_log.log_level_1
     | 2 -> Aeon_log.log_level_2
+    | 3 -> Aeon_log.log_level_3
     | _ -> if log_level < 0 then Aeon_log.log_level_0 else Aeon_log.log_level_2
   ) Format.std_formatter
   in
