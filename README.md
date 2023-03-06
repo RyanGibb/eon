@@ -1,7 +1,7 @@
 
-# An Effects-based OCaml Nameserver
+# Algebraic Effects-based OCaml Nameserver
 
-This project is An Effects-based OCaml Nameserver (AEON) implementation of an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for OCaml 5](https://github.com/ocaml-multicore/eio).
+Algebraic Effects-based OCaml Nameserver (AEON) is an implementation of an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for OCaml 5](https://github.com/ocaml-multicore/eio).
 
 ### Building
 
