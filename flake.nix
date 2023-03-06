@@ -3,9 +3,8 @@
     opam-nix.url = "github:tweag/opam-nix";
     flake-utils.url = "github:numtide/flake-utils";
     opam-nix.inputs.nixpkgs.follows = "nixpkgs";
-    ipaddr.url = "github:RyanGibb/ocaml-ipaddr";
   };
-  outputs = { self, nixpkgs, flake-utils, opam-nix, ipaddr }@inputs:
+  outputs = { self, nixpkgs, flake-utils, opam-nix, ... }@inputs:
     let package = "aeon";
     in flake-utils.lib.eachDefaultSystem (system:
       let
@@ -23,9 +22,6 @@
             # Prevent the ocaml dependencies from leaking into dependent environments
             doNixSupport = false;
           });
-          ipaddr = ipaddr.packages.${system}.default;
-          macaddr = ipaddr.packages.${system}.macaddr;
-          macaddr-cstruct = ipaddr.packages.${system}.macaddr-cstruct;
         };
         resolved-scope =
           let scope = opam-nix-lib.buildOpamProject' { } ./. query // devPackagesQuery; in
