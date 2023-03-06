@@ -10,3 +10,4 @@ $TTL 3600
 @   IN  NS ns1
 ns1 IN  A  203.0.113.0
 @   IN  A  203.0.113.0
+@   IN  AAAA 2001:DB8::
