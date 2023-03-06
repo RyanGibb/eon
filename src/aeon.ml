@@ -45,7 +45,8 @@ let udp_listen ~log ~handle_dns sock server =
 let tcp_handle ~log ~handle_dns server sock addr =
   (* TODO make this user configurable *)
   (* It would be unusual for queries to exceed 4kB.
-     TCP's max size is 65535B, but MTU accross the internet should reduce this to 1500B *)
+     TCP's max size is 65535B, but MTU across the internet should reduce this to 1500B
+     But might actually span multiple MTUs... rfc7766 section-8 *)
   let buf = Cstruct.create 4096 in
   (* TODO keep retrying into the entire message is read, rfc7766 section-8 *)
   let size = Eio.Flow.single_read sock buf in
