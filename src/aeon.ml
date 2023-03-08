@@ -14,6 +14,17 @@ let convert_eio_to_ipaddr (addr : Eio.Net.Sockaddr.t) =
   (* TODO better way to display this message? *)
   | `Unix _ -> failwith "Unix sockets not supported";;
 
+(* TODO is there a more elgant way to do this? *)
+
+(* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
+let sockaddr_of_sockaddr_datagram (addr : Eio.Net.Sockaddr.datagram) = match addr with
+  | `Udp a -> `Udp a
+
+(* convert Eio.Net.Sockaddr.stream to Eio.Net.Sockaddr.t *)
+let sockaddr_of_sockaddr_stream (addr : Eio.Net.Sockaddr.stream) = match addr with
+  | `Tcp a -> `Tcp a
+  | `Unix _ -> failwith "Unix sockets not supported"
+
 let handle_dns proto ~clock ~mono_clock server addr buf =
   (* TODO handle notify, n, and key *)
   let new_server, answers, _notify, _n, _key =
@@ -34,9 +45,7 @@ let udp_listen ~log ~handle_dns sock server =
   while true do
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
-    (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
-    (* TODO is there a more elgant way to do this? *)
-    let addr = match addr with `Udp a -> `Udp a in
+    let addr = sockaddr_of_sockaddr_datagram addr in
     log `Rx addr trimmedBuf;
     let answers = handle_dns `Udp server addr trimmedBuf in
     List.iter (fun b -> log `Tx addr b; Eio.Net.send sock addr b) answers
@@ -58,9 +67,7 @@ let tcp_handle ~log ~handle_dns server sock addr =
   *)
   let len = size - 2 in
   let trimmedBuf = Cstruct.sub buf 0 len in
-  (* convert Eio.Net.Sockaddr.stream to Eio.Net.Sockaddr.t *)
-  (* TODO is there a more elgant way to do this? *)
-  let addr = match addr with `Tcp a -> `Tcp a | `Unix _ -> failwith "Unix sockets not supported" in
+  let addr = sockaddr_of_sockaddr_stream addr in
   log `Rx addr trimmedBuf;
   let answers = handle_dns `Tcp server addr trimmedBuf in
   List.iter (fun b ->
