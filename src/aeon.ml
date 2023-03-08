@@ -51,24 +51,29 @@ let udp_listen ~log ~handle_dns sock server =
     List.iter (fun b -> log `Tx addr b; Eio.Net.send sock addr b) answers
   done
 
-let tcp_handle ~log ~handle_dns server sock addr =
-  (* Messages sent over TCP have a 2 byte prefix giving the message length, rfc1035 section 4.2.2 *)
-  let prefix = Cstruct.create 2 in
-  Eio.Flow.read_exact sock prefix;
-  let len = Cstruct.BE.get_uint16 prefix 0 in
-  let buf = Cstruct.create len in
-  Eio.Flow.read_exact sock buf;
-  let addr = sockaddr_of_sockaddr_stream addr in
-  log `Rx addr buf;
-  let answers = handle_dns `Tcp server addr buf in
-  List.iter (fun b ->
-    log `Tx addr b;
-    (* add prefix, described in rfc1035 section 4.2.2 *)
+  let tcp_handle ~log ~handle_dns server sock addr =
+  (* Persist connection until EOF, rfc7766 section 6.2.1 *)
+  try
+    while true do
+      (* Messages sent over TCP have a 2 byte prefix giving the message length, rfc1035 section 4.2.2 *)
     let prefix = Cstruct.create 2 in
-    Cstruct.BE.set_uint16 prefix 0 b.len;
-    Eio.Flow.write sock [ prefix ; b ]
-  ) answers
-  (* TODO persist connection until EOF, rfc7766 section 6.2.1 *)
+    Eio.Flow.read_exact sock prefix;
+    let len = Cstruct.BE.get_uint16 prefix 0 in
+    let buf = Cstruct.create len in
+    Eio.Flow.read_exact sock buf;
+    let addr = sockaddr_of_sockaddr_stream addr in
+    log `Rx addr buf;
+    let answers = handle_dns `Tcp server addr buf in
+    List.iter (fun b ->
+      log `Tx addr b;
+      (* add prefix, described in rfc1035 section 4.2.2 *)
+      let prefix = Cstruct.create 2 in
+      Cstruct.BE.set_uint16 prefix 0 b.len;
+      Eio.Flow.write sock [ prefix ; b ]
+    ) answers
+    done
+  (* ignore EOF *)
+  with End_of_file -> ()
 
 let tcp_listen listeningSock connection_handler =
   while true do
