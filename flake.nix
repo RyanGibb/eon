@@ -24,7 +24,7 @@
           });
         };
         resolved-scope =
-          let scope = opam-nix-lib.buildOpamProject' { } ./. query // devPackagesQuery; in
+          let scope = opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery); in
           scope.overrideScope' overlay;
         materialized-scope =
           # to generate:
