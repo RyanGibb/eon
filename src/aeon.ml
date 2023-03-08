@@ -28,9 +28,9 @@ let handle_dns proto ~clock ~mono_clock server addr buf =
   answers
 
 let udp_listen ~log ~handle_dns sock server =
-  (* rfc1035 section 2.3.4 *)
-  (* TODO make this user configurable *)
-  let buf = Cstruct.create 512 in
+  (* Support queries of up to 4kB.
+     The 512B limit described in rfc1035 section 2.3.4 is outdated) *)
+  let buf = Cstruct.create 4096 in
   while true do
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
@@ -43,11 +43,8 @@ let udp_listen ~log ~handle_dns sock server =
   done
 
 let tcp_handle ~log ~handle_dns server sock addr =
-  (* TODO make this user configurable *)
-  (* It would be unusual for queries to exceed 4kB.
-     TCP's max size is 65535B, but MTU across the internet should reduce this to 1500B
-     But might actually span multiple MTUs... rfc7766 section-8 *)
-  let buf = Cstruct.create 4096 in
+  (* Two octect prefix (see below) limits the max DNS packet size to 2^16 B *)
+  let buf = Cstruct.create 65536 in
   (* TODO keep retrying into the entire message is read, rfc7766 section-8 *)
   let size = Eio.Flow.single_read sock buf in
   Eio.traceln "%s" @@ string_of_int size;
