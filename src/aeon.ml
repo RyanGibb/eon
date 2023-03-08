@@ -52,24 +52,15 @@ let udp_listen ~log ~handle_dns sock server =
   done
 
 let tcp_handle ~log ~handle_dns server sock addr =
-  (* Two octect prefix (see below) limits the max DNS packet size to 2^16 B *)
-  let buf = Cstruct.create 65536 in
-  (* TODO keep retrying into the entire message is read, rfc7766 section-8 *)
-  let size = Eio.Flow.single_read sock buf in
-  Eio.traceln "%s" @@ string_of_int size;
   (* Messages sent over TCP have a 2 byte prefix giving the message length, rfc1035 section 4.2.2 *)
-  let _prefix, buf = Cstruct.split buf 2 in
-  (* We could check the integrity of the prefix with:
-       let len = Cstruct.BE.get_uint16 prefix 0 in
-       assert (len == size - 2);
-     but it doesn't really matter
-     (TODO actually yes -- rfc7766 section-8)
-  *)
-  let len = size - 2 in
-  let trimmedBuf = Cstruct.sub buf 0 len in
+  let prefix = Cstruct.create 2 in
+  Eio.Flow.read_exact sock prefix;
+  let len = Cstruct.BE.get_uint16 prefix 0 in
+  let buf = Cstruct.create len in
+  Eio.Flow.read_exact sock buf;
   let addr = sockaddr_of_sockaddr_stream addr in
-  log `Rx addr trimmedBuf;
-  let answers = handle_dns `Tcp server addr trimmedBuf in
+  log `Rx addr buf;
+  let answers = handle_dns `Tcp server addr buf in
   List.iter (fun b ->
     log `Tx addr b;
     (* add prefix, described in rfc1035 section 4.2.2 *)
