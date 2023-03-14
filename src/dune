@@ -2,4 +2,9 @@
  (package aeon)
  (public_name aeon)
  (name aeon)
- (libraries eio_main eio.mock dns dns-server dns-server.zone dns-tsig cmdliner logs logs.fmt))
+ (libraries eio_main eio.mock dns dns-server dns-server.zone dns-tsig cmdliner logs logs.fmt capnp-rpc-lwt capnp-rpc-unix))
+
+(rule
+ (targets pipe_api.ml pipe_api.mli)
+ (deps    pipe_api.capnp)
+ (action (run capnp compile -o %{bin:capnpc-ocaml} %{deps})))

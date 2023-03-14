@@ -18,6 +18,8 @@ depends: [
   "logs"
   "fmt"
   "menhir"
+  "capnp-rpc-lwt"
+  "capnp-rpc-unix"
   "odoc" {with-doc}
 ]
 build: [
@@ -43,4 +45,9 @@ pin-depends: [
   ["macaddr.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
   ["macaddr-sexp.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
   ["macaddr-cstruct.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
+  # https://github.com/mirage/capnp-rpc/pull/256
+  ["capnp-rpc.dev" "git+https://github.com/talex5/capnp-rpc.git#c06e767b8a4ec5a87a07e62958cdb55d0d59c59d"]
+  ["capnp-rpc-lwt.dev" "git+https://github.com/talex5/capnp-rpc.git#c06e767b8a4ec5a87a07e62958cdb55d0d59c59d"]
+  ["capnp-rpc-net.dev" "git+https://github.com/talex5/capnp-rpc.git#c06e767b8a4ec5a87a07e62958cdb55d0d59c59d"]
+  ["capnp-rpc-unix.dev" "git+https://github.com/talex5/capnp-rpc.git#c06e767b8a4ec5a87a07e62958cdb55d0d59c59d"]
 ]
