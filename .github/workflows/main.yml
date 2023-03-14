@@ -1,0 +1,45 @@
+name: Main workflow
+
+on:
+  pull_request:
+  push:
+  schedule:
+    # Prime the caches every Monday
+    - cron: 0 1 * * MON
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+        ocaml-compiler:
+          - 4.13.x
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install Cap'n Proto (on Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          CAPNP_VERSION: 0.9.1
+        run: |
+          curl -LO https://capnproto.org/capnproto-c++-win32-$CAPNP_VERSION.zip && \
+          unzip -j capnproto-c++-win32-$CAPNP_VERSION.zip capnproto-tools-win32-$CAPNP_VERSION/capnp.exe -d /usr/bin
+
+      - run: opam install . --deps-only --with-test
+
+      - run: opam exec -- dune build
+
+      - run: opam exec -- dune runtest
