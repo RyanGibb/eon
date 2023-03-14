@@ -1,0 +1,13 @@
+(library
+  (name        dns_client_unix)
+  (modules     dns_client_unix)
+  (public_name dns-client.unix)
+  (libraries   domain-name ipaddr ipaddr.unix dns-client dns-client.resolvconf unix mtime.clock.os mirage-crypto-rng.unix)
+  (wrapped     false))
+
+(executable
+  (name         ohost)
+  (modules      ohost)
+  (package      dns-client)
+  (public_name  dns-client.unix)
+  (libraries    fmt dns-client.unix mtime.clock.os))
