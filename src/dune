@@ -1,12 +1,18 @@
 (executable
  (name        aeon)
- (modules     aeon dns_log zonefile)
+ (modules     aeon zonefile)
  (public_name aeon)
  (package     aeon)
- (libraries   server eio_main eio.mock dns dns-server dns-server.zone dns-tsig cmdliner logs logs.fmt))
+ (libraries   server dns_log eio_main eio.mock dns dns-server dns-server.zone dns-tsig cmdliner logs logs.fmt))
 
 (library
  (name        server)
  (modules     server)
  (public_name aeon.server)
+ (libraries   dns_log eio_main eio.mock dns dns-server dns-server.zone dns-tsig cmdliner logs logs.fmt))
+
+(library
+ (name        dns_log)
+ (modules     dns_log)
+ (public_name aeon.dns-log)
  (libraries   eio_main eio.mock dns dns-server dns-server.zone dns-tsig cmdliner logs logs.fmt))

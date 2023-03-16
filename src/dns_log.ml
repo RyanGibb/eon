@@ -1,11 +1,16 @@
 
-let log_level_0 _fmt _direction _addr _buf = ()
+type dir = Rx | Tx
 
-let log_helper fmt direction addr buf log_packet =
-  let log_transmssion direction addr =
+type log = Format.formatter -> dir -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
+type formattedLog = dir -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
+
+let log_level_0 _fmt (_direction : dir) _addr _buf = ()
+
+let log_helper fmt (direction : dir) addr buf log_packet =
+  let log_transmssion (direction : dir) addr =
     (match direction with
-    | `Rx -> Format.fprintf fmt "<-"
-    | `Tx -> Format.fprintf fmt "->");
+    | Rx -> Format.fprintf fmt "<-"
+    | Tx -> Format.fprintf fmt "->");
     Format.print_space ();
     Eio.Net.Sockaddr.pp fmt addr;
     Format.print_space ()
@@ -21,7 +26,7 @@ let log_helper fmt direction addr buf log_packet =
   Format.print_space (); Format.print_space ();
   Format.print_flush ()
 
-let log_level_1 fmt direction addr buf =
+let log_level_1 fmt (direction : dir) addr buf =
   let log_packet (packet : Dns.Packet.t) =
     Format.fprintf fmt "question %a@ data %a@"
       Dns.Packet.Question.pp packet.question
@@ -29,15 +34,15 @@ let log_level_1 fmt direction addr buf =
   in
   log_helper fmt direction addr buf log_packet
 
-let log_level_2 fmt direction addr buf =
+let log_level_2 fmt (direction : dir) addr buf =
   let log_packet = Dns.Packet.pp fmt in
   log_helper fmt direction addr buf log_packet
 
-let log_level_3 fmt direction addr buf =
-  let log_transmssion direction addr =
+let log_level_3 fmt (direction : dir) addr buf =
+  let log_transmssion (direction : dir) addr =
     (match direction with
-    | `Rx -> Format.fprintf fmt "<-"
-    | `Tx -> Format.fprintf fmt "->");
+    | Rx -> Format.fprintf fmt "<-"
+    | Tx -> Format.fprintf fmt "->");
     Format.print_space ();
     Eio.Net.Sockaddr.pp fmt addr;
     Format.print_space ()
