@@ -38,7 +38,7 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
       (* TODO proper error handling *)
       | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) -> Eio.traceln "error"; failwith "whoops"
     in
-    Server.udp_listen ~log ~handle_dns sockUDP)
+    Server.udp_listen log handle_dns sockUDP)
   (fun () ->
     Eio.Switch.run @@ fun sw ->
     let sockTCP =
@@ -47,7 +47,7 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
       with
       | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) -> Eio.traceln "error"; failwith "oops"
     in
-    let connection_handler = Server.tcp_handle ~log ~handle_dns in
+    let connection_handler = Server.tcp_handle log handle_dns in
     Server.tcp_listen sockTCP connection_handler);;
 
 
