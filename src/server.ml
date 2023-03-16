@@ -25,7 +25,7 @@ let sockaddr_of_sockaddr_stream (addr : Eio.Net.Sockaddr.stream) = match addr wi
   | `Tcp a -> `Tcp a
   | `Unix _ -> failwith "Unix sockets not supported"
 
-let handle_dns ~server ~clock ~mono_clock proto addr buf =
+let dns_handler ~server ~clock ~mono_clock = fun proto addr buf ->
   (* TODO handle notify, n, and key *)
   let new_server, answers, _notify, _n, _key =
     (* TODO modify ocaml-dns not to require this? *)
@@ -46,34 +46,34 @@ let udp_listen ~log ~handle_dns sock =
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
     let addr = sockaddr_of_sockaddr_datagram addr in
-    log `Rx addr trimmedBuf;
+    log Dns_log.Rx addr trimmedBuf;
     let answers = handle_dns `Udp addr trimmedBuf in
-    List.iter (fun b -> log `Tx addr b; Eio.Net.send sock addr b) answers
+    List.iter (fun b -> log Dns_log.Tx addr b; Eio.Net.send sock addr b) answers
   done
 
   let tcp_handle ~log ~handle_dns sock addr =
-  (* Persist connection until EOF, rfc7766 section 6.2.1 *)
-  try
-    while true do
-      (* Messages sent over TCP have a 2 byte prefix giving the message length, rfc1035 section 4.2.2 *)
-    let prefix = Cstruct.create 2 in
-    Eio.Flow.read_exact sock prefix;
-    let len = Cstruct.BE.get_uint16 prefix 0 in
-    let buf = Cstruct.create len in
-    Eio.Flow.read_exact sock buf;
-    let addr = sockaddr_of_sockaddr_stream addr in
-    log `Rx addr buf;
-    let answers = handle_dns `Tcp addr buf in
-    List.iter (fun b ->
-      log `Tx addr b;
-      (* add prefix, described in rfc1035 section 4.2.2 *)
+    (* Persist connection until EOF, rfc7766 section 6.2.1 *)
+    try
+      while true do
+        (* Messages sent over TCP have a 2 byte prefix giving the message length, rfc1035 section 4.2.2 *)
       let prefix = Cstruct.create 2 in
-      Cstruct.BE.set_uint16 prefix 0 b.len;
-      Eio.Flow.write sock [ prefix ; b ]
-    ) answers
-    done
-  (* ignore EOF *)
-  with End_of_file -> ()
+      Eio.Flow.read_exact sock prefix;
+      let len = Cstruct.BE.get_uint16 prefix 0 in
+      let buf = Cstruct.create len in
+      Eio.Flow.read_exact sock buf;
+      let addr = sockaddr_of_sockaddr_stream addr in
+      log Dns_log.Rx addr buf;
+      let answers = handle_dns `Tcp addr buf in
+      List.iter (fun b ->
+        log Dns_log.Tx addr b;
+        (* add prefix, described in rfc1035 section 4.2.2 *)
+        let prefix = Cstruct.create 2 in
+        Cstruct.BE.set_uint16 prefix 0 b.len;
+        Eio.Flow.write sock [ prefix ; b ]
+      ) answers
+      done
+    (* ignore EOF *)
+    with End_of_file -> ()
 
 let tcp_listen listeningSock connection_handler =
   while true do

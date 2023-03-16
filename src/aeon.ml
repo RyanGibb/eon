@@ -26,7 +26,7 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
       better portability.
       [0] https://www.rfc-editor.org/rfc/rfc3493#section-3.7
       [1] https://labs.apnic.net/presentations/store/2015-10-04-dns-dual-stack.pdf *)
-  let handle_dns = Server.handle_dns ~server ~clock:(Eio.Stdenv.clock env) ~mono_clock:(Eio.Stdenv.mono_clock env) in
+  let handle_dns = Server.dns_handler ~server ~clock:(Eio.Stdenv.clock env) ~mono_clock:(Eio.Stdenv.mono_clock env) in
   Eio.Fiber.both
   (fun () ->
     Eio.Switch.run @@ fun sw ->
