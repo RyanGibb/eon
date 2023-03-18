@@ -16,3 +16,10 @@
  (modules     dns_log)
  (public_name aeon.dns-log)
  (libraries   eio_main dns dns-server.zone))
+
+(executable
+ (name        client)
+ (modules     client)
+ (public_name aeon.client)
+ (package     aeon)
+ (libraries   eio_main dns dns-client cmdliner logs.fmt))
