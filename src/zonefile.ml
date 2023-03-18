@@ -1,19 +1,14 @@
 
 let parse_zonefiles ~fs zonefiles =
   let trie, keys = List.fold_left (fun (trie, keys) zonefile ->
-    let ( / ) = Eio.Path.( / ) in
-    match
-      let data = Eio.Path.load @@ fs / zonefile in
-      Dns_zone.parse data
-    with
+    match Eio.Path.load @@ Eio.Path.(fs / zonefile) |> Dns_zone.parse with
     | Error `Msg msg ->
       Format.fprintf Format.std_formatter "ignoring zonefile %s: %s" zonefile msg;
       trie, keys
     | Ok rrs ->
       let keys' =
         try
-          let keydata = Eio.Path.load @@ fs / (zonefile ^ "._keys") in
-          match Dns_zone.parse keydata with
+          match Eio.Path.load @@ Eio.Path.(fs / (zonefile ^ "._keys")) |> Dns_zone.parse with
           | Error `Msg msg ->
             Format.fprintf Format.std_formatter "ignoring zonefile %s: %s" zonefile msg;
             keys
