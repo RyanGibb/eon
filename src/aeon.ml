@@ -50,16 +50,14 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
     let connection_handler = Server.tcp_handle log handle_dns in
     Server.tcp_listen sockTCP connection_handler);;
 
-
 let cmd =
   (* TODO add port argument *)
   let zonefiles =
-    let doc = "Zonefile path." in
-    Cmdliner.Arg.(value & opt_all string [] & info ["z"; "zonefile"] ~docv:"ZONEFILE_PATHS" ~doc) in
+    Cmdliner.Arg.(value & opt_all string [] & info ["z"; "zonefile"] ~docv:"ZONEFILE_PATHS" ~doc:"Zonefile path.")
+  in
   (* TODO add descriptions *)
   let logging =
-    let doc = "Log level." in
-    Cmdliner.Arg.(value & opt int 1 & info ["l"; "log-level"] ~docv:"LOG_LEVEL" ~doc)
+    Cmdliner.Arg.(value & opt int 1 & info ["l"; "log-level"] ~docv:"LOG_LEVEL" ~doc:"Log level.")
   in
   let dns_t = Cmdliner.Term.(const run $ zonefiles $ logging) in
   let info = Cmdliner.Cmd.info "dns" in
