@@ -1480,6 +1480,27 @@ module Loc = struct
 
 end
 
+(* Null record *)
+module Null = struct
+  type t = bytes
+
+  let to_string null = Hex.show @@ Hex.of_bytes null
+
+  let pp ppf null = Fmt.pf ppf "NULL %s" (to_string null)
+
+  let compare = Bytes.compare
+
+  let decode_exn names buf ~off ~len =
+    let sub = Cstruct.sub buf off len in
+    Ok (Cstruct.to_bytes sub, names, off + len)
+
+  let encode null names buf off =
+    let max_len = 65535 in
+    let len = min max_len @@ Bytes.length null in
+    Cstruct.blit_from_bytes null 0 buf off len ;
+    names, off + len + 1
+end
+
 (* certificate authority authorization *)
 module Caa = struct
   type t = {
@@ -2295,6 +2316,7 @@ module Rr_map = struct
   module Ds_set = Set.Make(Ds)
   module Rrsig_set = Set.Make(Rrsig)
   module Loc_set = Set.Make(Loc)
+  module Null_set = Set.Make(Null)
 
   module I : sig
     type t
@@ -2332,6 +2354,7 @@ module Rr_map = struct
     | Nsec : Nsec.t with_ttl rr
     | Nsec3 : Nsec3.t with_ttl rr
     | Loc : Loc_set.t with_ttl rr
+    | Null : Null_set.t with_ttl rr
     | Unknown : I.t -> Txt_set.t with_ttl rr
 
   module K = struct
@@ -2358,6 +2381,7 @@ module Rr_map = struct
       | Nsec, Nsec -> Eq | Nsec, _ -> Lt | _, Nsec -> Gt
       | Nsec3, Nsec3 -> Eq | Nsec3, _ -> Lt | _, Nsec3 -> Gt
       | Loc, Loc -> Eq | Loc, _ -> Lt | _, Loc -> Gt
+      | Null, Null -> Eq | Null, _ -> Lt | _, Null -> Gt
       | Unknown a, Unknown b ->
         let r = I.compare a b in
         if r = 0 then Eq else if r < 0 then Lt else Gt
@@ -2390,6 +2414,7 @@ module Rr_map = struct
     | Nsec, (_, ns), (_, ns') -> Nsec.compare ns ns' = 0
     | Nsec3, (_, ns), (_, ns') -> Nsec3.compare ns ns' = 0
     | Loc, (_, loc), (_, loc') -> Loc_set.equal loc loc'
+    | Null, (_, null), (_, null') -> Null_set.equal null null'
     | Unknown _, (_, data), (_, data') -> Txt_set.equal data data'
 
   let equalb (B (k, v)) (B (k', v')) = match K.compare k k' with
@@ -2397,7 +2422,7 @@ module Rr_map = struct
     | _ -> false
 
   let to_int : type a. a key -> int = function
-    | A -> 1 | Ns -> 2 | Cname -> 5 | Soa -> 6 | Ptr -> 12 | Mx -> 15
+    | A -> 1 | Ns -> 2 | Cname -> 5 | Soa -> 6 | Null -> 10 | Ptr -> 12 | Mx -> 15
     | Txt -> 16 | Aaaa -> 28  | Loc -> 29 | Srv -> 33 | Ds -> 43
     | Sshfp -> 44 | Rrsig -> 46 | Nsec -> 47 | Dnskey -> 48 | Nsec3 -> 50
     | Tlsa -> 52 | Caa -> 257
@@ -2406,7 +2431,7 @@ module Rr_map = struct
   let any_rtyp = 255 and axfr_rtyp = 252 and ixfr_rtyp = 251
 
   let of_int ?(off = 0) = function
-    | 1 -> Ok (K A) | 2 -> Ok (K Ns) | 5 -> Ok (K Cname) | 6 -> Ok (K Soa)
+    | 1 -> Ok (K A) | 2 -> Ok (K Ns) | 5 -> Ok (K Cname) | 6 -> Ok (K Soa) | 10 -> Ok (K Null)
     | 12 -> Ok (K Ptr) | 15 -> Ok (K Mx) | 16 -> Ok (K Txt) | 28 -> Ok (K Aaaa)
     | 29 -> Ok (K Loc) | 33 -> Ok (K Srv) | 43 -> Ok (K Ds) | 44 -> Ok (K Sshfp)
     | 46 -> Ok (K Rrsig) | 47 -> Ok (K Nsec) | 48 -> Ok (K Dnskey)
@@ -2434,6 +2459,7 @@ module Rr_map = struct
     | Nsec -> Fmt.string ppf "NSEC"
     | Nsec3 -> Fmt.string ppf "NSEC3"
     | Loc -> Fmt.string ppf "LOC"
+    | Null -> Fmt.string ppf "NULL"
     | Unknown x -> Fmt.pf ppf "TYPE%d" (I.to_int x)
 
   let of_string = function
@@ -2455,6 +2481,7 @@ module Rr_map = struct
     | "NSEC" -> Ok (K Nsec)
     | "NSEC3" -> Ok (K Nsec3)
     | "LOC" -> Ok (K Loc)
+    | "NULL" -> Ok (K Null)
     | x when String.length x > 4 && String.(equal "TYPE" (sub x 0 4)) ->
       Result.map_error
         (function `Malformed (_, m) -> `Msg m | `Msg m -> `Msg m)
@@ -2563,6 +2590,10 @@ module Rr_map = struct
       Loc_set.fold (fun loc ((names, off), count) ->
           rr names (Loc.encode loc) off ttl, succ count)
         locs ((names, off), 0)
+    | Null, (ttl, nulls) ->
+      Null_set.fold (fun null ((names, off), count) ->
+          rr names (Null.encode null) off ttl, succ count)
+        nulls ((names, off), 0)
     | Unknown _, (ttl, datas) ->
       let encode data names buf off =
         let l = String.length data in
@@ -2648,6 +2679,10 @@ module Rr_map = struct
       Loc_set.fold (fun loc acc ->
           rr (Loc.encode loc) :: acc)
         locs []
+    | Null, (_ttl, nulls) ->
+      Null_set.fold (fun null acc ->
+          rr (Null.encode null) :: acc)
+        nulls []
     | Unknown _, (_ttl, datas) ->
       let encode data names buf off =
         let l = String.length data in
@@ -2800,6 +2835,9 @@ module Rr_map = struct
     | Loc, (ttl, locs), (_, rm) ->
       let s = Loc_set.diff locs rm in
       if Loc_set.is_empty s then None else Some (ttl, s)
+    | Null, (ttl, nulls), (_, rm) ->
+      let s = Null_set.diff nulls rm in
+      if Null_set.is_empty s then None else Some (ttl, s)
     | Unknown _, (ttl, datas), (_, rm) ->
       let data = Txt_set.diff datas rm in
       if Txt_set.is_empty data then None else Some (ttl, data)
@@ -2993,6 +3031,10 @@ module Rr_map = struct
         Loc_set.fold (fun loc acc ->
             Fmt.str "%s\t%aLOC\t%s" str_name ttl_fmt (ttl_opt ttl) (Loc.to_string loc) :: acc)
           locs []
+      | Null, (ttl, nulls) ->
+        Null_set.fold (fun null acc ->
+            Fmt.str "%s\t%aNULL\t%s" str_name ttl_fmt (ttl_opt ttl) (Null.to_string null) :: acc)
+          nulls []
       | Unknown x, (ttl, datas) ->
         Txt_set.fold (fun data acc ->
             Fmt.str "%s\t%aTYPE%d\t\\# %d %s" str_name ttl_fmt (ttl_opt ttl)
@@ -3021,6 +3063,7 @@ module Rr_map = struct
     | Nsec, (ttl, _) -> ttl
     | Nsec3, (ttl, _) -> ttl
     | Loc, (ttl, _) -> ttl
+    | Null, (ttl, _) -> ttl
     | Unknown _, (ttl, _) -> ttl
 
   let with_ttl : type a. a key -> a -> int32 -> a = fun k v ttl ->
@@ -3043,6 +3086,7 @@ module Rr_map = struct
     | Nsec, (_, ns) -> ttl, ns
     | Nsec3, (_, ns) -> ttl, ns
     | Loc, (_, loc) -> ttl, loc
+    | Null, (_, null) -> ttl, null
     | Unknown _, (_, datas) -> ttl, datas
 
   let split : type a. a key -> a -> a * a option = fun k v ->
@@ -3144,6 +3188,13 @@ module Rr_map = struct
         if Loc_set.is_empty rest then None else Some (ttl, rest)
       in
       (ttl, Loc_set.singleton one), rest'
+    | Null, (ttl, nulls) ->
+      let one = Null_set.choose nulls in
+      let rest = Null_set.remove one nulls in
+      let rest' =
+        if Null_set.is_empty rest then None else Some (ttl, rest)
+      in
+      (ttl, Null_set.singleton one), rest'
     | Unknown _, (ttl, datas) ->
       let one = Txt_set.choose datas in
       let rest = Txt_set.remove one datas in
@@ -3248,6 +3299,9 @@ module Rr_map = struct
           | Loc ->
             let* loc, names, off = Loc.decode_exn names buf ~off ~len in
             Ok (B (Loc, (ttl, Loc_set.singleton loc)), names, off)
+          | Null ->
+            let* null, names, off = Null.decode_exn names buf ~off ~len in
+            Ok (B (Null, (ttl, Null_set.singleton null)), names, off)
           | Unknown x ->
             let data = Cstruct.sub buf off len in
             Ok (B (Unknown x, (ttl, Txt_set.singleton (Cstruct.to_string data))), names, rdata_start + len)
