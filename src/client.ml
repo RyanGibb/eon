@@ -14,15 +14,20 @@ let udp_listen log sock handle_dns =
 
 let create_query ~rng record_type hostname =
       (* | `Tcp -> Some (Edns.create ~extensions:[Edns.Tcp_keepalive (Some 1200)] ()) *)
-  let question = Dns.Packet.Question.create hostname record_type in
-  let header =
-    let flags = Dns.Packet.Flags.singleton `Recursion_desired in
-    (* let flags =
-      if dnssec then Dns.Packet.Flags.add `Authentic_data flags else flags
-    in *)
-    Randomconv.int16 rng, flags
+  let
+    question = Dns.Packet.Question.create hostname record_type and
+    header =
+      let flags = Dns.Packet.Flags.singleton `Recursion_desired in
+      (* let flags =
+        if dnssec then Dns.Packet.Flags.add `Authentic_data flags else flags
+      in *)
+      Randomconv.int16 rng, flags and
+    additional =
+      Dns.Name_rr_map.union
+      (Dns.Name_rr_map.singleton (Domain_name.of_string_exn "rpc.example.org") Dns.Rr_map.Txt (1l, Dns.Rr_map.Txt_set.singleton "hello"))
+      (Dns.Name_rr_map.singleton (Domain_name.of_string_exn "rpc.example.org") Dns.Rr_map.Null (1l, Dns.Rr_map.Null_set.singleton (Bytes.of_string "hello")))
   in
-  let query = Dns.Packet.create header question `Query in
+  let query = Dns.Packet.create ~additional header question `Query in
   (* Log.debug (fun m -> m "sending %a" Dns.Packet.pp query); *)
   let cs, _ = Dns.Packet.encode `Udp query in
   cs
