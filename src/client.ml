@@ -1,41 +1,42 @@
 
-let convert_ipaddr_to_eio (addr : Ipaddr.t) =
-  (match addr with
-  | Ipaddr.V4 v4 -> Ipaddr.V4.to_octets v4
-  | Ipaddr.V6 v6 -> Ipaddr.V6.to_octets v6
-  ) |> Eio.Net.Ipaddr.of_raw
 
-let send_recv ~mono sock ns tx =
-  try
-    Eio.Time.Timeout.run_exn (Eio.Time.Timeout.v mono @@ Mtime.Span.of_uint64_ns 5000000000L) (fun () ->
-    Eio.Net.send sock ns tx;
-    (* we assume in order deliver *)
-    let buf = Cstruct.create 100000 in
-    (* todo check *)
-    ignore @@ Eio.Net.recv sock buf;
-    Ok buf
-  )
-  with Eio.Time.Timeout -> Error (`Msg "DNS request timeout")
+let udp_listen log sock handle_dns =
+  (* Support queries of up to 4kB.
+      The 512B limit described in rfc1035 section 2.3.4 is outdated) *)
+  let buf = Cstruct.create 4096 in
+  while true do
+    let addr, size = Eio.Net.recv sock buf in
+    let trimmedBuf = Cstruct.sub buf 0 size in
+    let addr = Util.sockaddr_of_sockaddr_datagram addr in
+    log Dns_log.Rx addr trimmedBuf;
+    handle_dns trimmedBuf
+  done
 
-let get_resource_record ~mono ~rng query_type name sock addr =
-  let tx, state = Dns_client.Pure.make_query rng `Udp `Auto name query_type in
-  match send_recv ~mono sock addr tx with
-  | Error _ ->
-    (* TODO log *)
-    Error ()
-  | Ok buf -> match Dns_client.Pure.handle_response state buf with
-    | Ok `Data x ->
-      Ok x
-    | Ok ((`No_data _ | `No_domain _) as _nodom) ->
-      Error ()
-    | Error `Msg _ -> Error ()
-    | Ok `Partial -> Error ()
+let create_query ~rng record_type hostname =
+      (* | `Tcp -> Some (Edns.create ~extensions:[Edns.Tcp_keepalive (Some 1200)] ()) *)
+  let question = Dns.Packet.Question.create hostname record_type in
+  let header =
+    let flags = Dns.Packet.Flags.singleton `Recursion_desired in
+    (* let flags =
+      if dnssec then Dns.Packet.Flags.add `Authentic_data flags else flags
+    in *)
+    Randomconv.int16 rng, flags
+  in
+  let query = Dns.Packet.create header question `Query in
+  (* Log.debug (fun m -> m "sending %a" Dns.Packet.pp query); *)
+  let cs, _ = Dns.Packet.encode `Udp query in
+  cs
+    (* | `Tcp ->
+      let len_field = Cstruct.create 2 in
+      Cstruct.BE.set_uint16 len_field 0 (Cstruct.length cs) ;
+      Cstruct.concat [len_field ; cs] *)
 
-let run domainName nameserver = Eio_main.run @@ fun env ->
+let run hostname nameserver = Eio_main.run @@ fun env ->
   let
-    record = Dns.Rr_map.A and
-    name = Domain_name.(host_exn (of_string_exn domainName)) and
-    addr = `Udp (Ipaddr.of_string_exn nameserver |> convert_ipaddr_to_eio, 53)
+    record_type = Dns.Rr_map.A and
+    name = Domain_name.(host_exn (of_string_exn hostname)) and
+    (* TODO query ns *)
+    addr = `Udp (Ipaddr.of_string_exn nameserver |> Util.convert_ipaddr_to_eio, 53)
   in
   let rng ?_g length =
     let buf = Cstruct.create length in
@@ -44,21 +45,41 @@ let run domainName nameserver = Eio_main.run @@ fun env ->
   in
   Eio.Switch.run @@ fun sw -> 
   let sock = Eio.Net.datagram_socket ~sw env#net `UdpV4 in
-  match get_resource_record ~mono:env#mono_clock ~rng record name sock addr with
-  | Error _ -> ()
-  | Ok (_ttl, res) -> match Ipaddr.V4.Set.choose_opt res with
-    | None -> ()
-    | Some ip -> Eio.traceln "%s" @@ Ipaddr.V4.to_string ip
+  let log = Dns_log.log_level_0 Format.std_formatter in
+  Eio.Fiber.both
+    (fun () ->
+      udp_listen log sock (fun buf ->
+        (* TODO deobfuscate this *)
+        match Dns.Packet.decode buf with
+        | Ok packet -> (match packet.data with
+          | `Answer (answer, _authority) -> (
+            match Domain_name.Map.find_opt (Domain_name.raw name) answer with
+            | None -> () (* need soa *)
+            | Some relevant_map ->
+              match Dns.Rr_map.find record_type relevant_map with
+              | None -> () (* TODO process cnames *)
+              | Some (_ttl, answer) ->
+                match Ipaddr.V4.Set.choose_opt answer with
+                  | None -> ()
+                  | Some ip -> Eio.traceln "%s" @@ Ipaddr.V4.to_string ip; exit 0)
+                  | _ -> ())
+        | _ -> ()
+      )
+    )
+    (fun () ->
+      let query = create_query ~rng record_type name in
+      Eio.Net.send sock addr query;
+    )
 
 let cmd =
-  let domainName =
-    Cmdliner.Arg.(required & pos 0 (some string) None & info [] ~docv:"DOMAN_NAME" ~doc:"Domain name")
+  let hostname =
+    Cmdliner.Arg.(required & pos 0 (some string) None & info [] ~docv:"HOSTNAME" ~doc:"Hostname")
   in
   let nameserver =
     Cmdliner.Arg.(required & pos 1 (some string) None & info [] ~docv:"NAMESERVER" ~doc:"Nameserver.")
   in
-  let dns_t = Cmdliner.Term.(const run $ domainName $ nameserver) in
-  let info = Cmdliner.Cmd.info "dip" in
+  let dns_t = Cmdliner.Term.(const run $ hostname $ nameserver) in
+  let info = Cmdliner.Cmd.info "client" in
   Cmdliner.Cmd.v info dns_t
 
 let () =

@@ -5,11 +5,18 @@
  (package     aeon)
  (libraries   server dns_log eio_main dns-tsig cmdliner logs.fmt))
 
+(executable
+ (name        client)
+ (modules     client)
+ (public_name aeon.client)
+ (package     aeon)
+ (libraries   util dns_log eio_main dns cmdliner logs.fmt))
+
 (library
  (name        server)
  (modules     server)
  (public_name aeon.server)
- (libraries   dns_log eio_main dns dns-server))
+ (libraries   util dns_log eio_main dns dns-server))
 
 (library
  (name        dns_log)
@@ -17,9 +24,8 @@
  (public_name aeon.dns-log)
  (libraries   eio_main dns dns-server.zone))
 
-(executable
- (name        client)
- (modules     client)
- (public_name aeon.client)
- (package     aeon)
- (libraries   eio_main dns dns-client cmdliner logs.fmt))
+(library
+ (name        util)
+ (modules     util)
+ (public_name aeon.util)
+ (libraries   eio dns))
