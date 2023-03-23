@@ -34,16 +34,18 @@
           # recursive finds vendored dependancies in duniverse
           opam-nix-lib.buildOpamProject' { recursive = true; } ./. (query // devPackagesQuery);
         materialized-scope =
-          # to generate:
-          #   nix shell github:tweag/opam-nix#opam-nix-gen -c opam-nix-gen -p ocaml-lsp-server -p ocamlformat -p ocaml-base-compiler aeon . package-defs.json
           opam-nix-lib.materializedDefsToScope { sourceMap.aeon = ./.; sourceMap.aeon-client = ./.; } ./package-defs.json;
       in rec {
         packages = rec {
           resolved = resolved-scope;
           materialized = materialized-scope;
-          default = materialized.aeon;
+          # to generate:
+          #   nix build .#materializeOpamProject; cat result > package-defs.json; rm result
+          materializeOpamProject =
+            let file = opam-nix-lib.materializeOpamProject { } "aeon" ./. (query // devPackagesQuery); in
+            pkgs.runCommand "package-defs.json" { } "cat ${file} > $out";
         };
-        defaultPackage = packages.default;
+        defaultPackage = packages.materialized.aeon;
 
         devShells =
           let
