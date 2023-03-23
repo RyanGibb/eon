@@ -1,8 +1,6 @@
 
 
 let udp_listen log sock handle_dns =
-  (* Support queries of up to 4kB.
-      The 512B limit described in rfc1035 section 2.3.4 is outdated) *)
   let buf = Cstruct.create 4096 in
   while true do
     let addr, size = Eio.Net.recv sock buf in
@@ -13,13 +11,11 @@ let udp_listen log sock handle_dns =
   done
 
 let create_query ~rng record_type authority =
-      (* | `Tcp -> Some (Edns.create ~extensions:[Edns.Tcp_keepalive (Some 1200)] ()) *)
   let
     question =
       let message = "hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohhellohellohellohellohellohellohellohellohellohellohellohellohellohellohello" in
       let data = Base64.encode_exn message in
       assert (String.length data + String.length authority < 255);
-      Eio.traceln "%d" (String.length data + String.length authority);
       let rec segment_string list string =
         let max_len = 63 in
         let len = String.length string in
@@ -37,19 +33,11 @@ let create_query ~rng record_type authority =
       Dns.Packet.Question.create hostname record_type and
     header =
       let flags = Dns.Packet.Flags.singleton `Recursion_desired in
-      (* let flags =
-        if dnssec then Dns.Packet.Flags.add `Authentic_data flags else flags
-      in *)
       Randomconv.int16 rng, flags
   in
   let query = Dns.Packet.create header question `Query in
-  (* Log.debug (fun m -> m "sending %a" Dns.Packet.pp query); *)
   let cs, _ = Dns.Packet.encode `Udp query in
   cs
-    (* | `Tcp ->
-      let len_field = Cstruct.create 2 in
-      Cstruct.BE.set_uint16 len_field 0 (Cstruct.length cs) ;
-      Cstruct.concat [len_field ; cs] *)
 
 let run hostname nameserver = Eio_main.run @@ fun env ->
   let
@@ -68,7 +56,6 @@ let run hostname nameserver = Eio_main.run @@ fun env ->
   Eio.Fiber.both
     (fun () ->
       udp_listen log sock (fun buf ->
-        (* TODO deobfuscate this *)
         match Dns.Packet.decode buf with
         | Ok packet ->
           (match packet.data with
@@ -76,7 +63,7 @@ let run hostname nameserver = Eio_main.run @@ fun env ->
             (match Domain_name.Map.bindings answer with
             | [ _key, relevant_map ] ->
               (match Dns.Rr_map.find record_type relevant_map with
-              | None -> () (* TODO process cnames *)
+              | None -> ()
               | Some (_ttl, answer) ->
                 (match Ipaddr.V4.Set.choose_opt answer with
                   | None -> ()
@@ -107,7 +94,6 @@ let cmd =
   Cmdliner.Cmd.v info dns_t
 
 let () =
-  (* TODO make this configurable *)
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level (Some Logs.Error);
   exit (Cmdliner.Cmd.eval cmd)
