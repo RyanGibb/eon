@@ -35,14 +35,13 @@
           opam-nix-lib.buildOpamProject' { recursive = true; } ./. (query // devPackagesQuery);
         materialized-scope =
           # to generate:
-          #   nix shell github:tweag/opam-nix#opam-nix-gen -c opam-nix-gen -p ocaml-lsp-server -p ocamlformat -p ocaml-base-compiler -p hex aeon . package-defs.json
-          # NB this is broken for now, see https://github.com/tweag/opam-nix/issues/37
+          #   nix shell github:tweag/opam-nix#opam-nix-gen -c opam-nix-gen -p ocaml-lsp-server -p ocamlformat -p ocaml-base-compiler aeon . package-defs.json
           opam-nix-lib.materializedDefsToScope { sourceMap.aeon = ./.; sourceMap.aeon-client = ./.; } ./package-defs.json;
       in rec {
         packages = rec {
           resolved = resolved-scope;
           materialized = materialized-scope;
-          default = resolved.aeon;
+          default = materialized.aeon;
         };
         defaultPackage = packages.default;
 
