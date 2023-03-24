@@ -37,15 +37,19 @@ let create_query ~rng record_type authority =
       Dns.Packet.Question.create hostname record_type and
     header =
       let flags = Dns.Packet.Flags.singleton `Recursion_desired in
-      Randomconv.int16 rng, flags
+      Randomconv.int16 rng, flags and
+    additional =
+      (* Dns.Name_rr_map.union *)
+      (* (Dns.Name_rr_map.singleton (Domain_name.of_string_exn "rpc.example.org") Dns.Rr_map.Txt (1l, Dns.Rr_map.Txt_set.singleton "hello")) *)
+      (Dns.Name_rr_map.singleton (Domain_name.of_string_exn "rpc.example.org") Dns.Rr_map.Null (1l, Dns.Rr_map.Null_set.singleton (Bytes.of_string "hello")))
   in
-  let query = Dns.Packet.create header question `Query in
+  let query = Dns.Packet.create ~additional  header question `Query in
   let cs, _ = Dns.Packet.encode `Udp query in
   cs
 
 let run hostname nameserver = Eio_main.run @@ fun env ->
   let
-    record_type = Dns.Rr_map.Cname and
+    record_type = Dns.Rr_map.Null and
     (* TODO query ns *)
     addr = `Udp (Ipaddr.of_string_exn nameserver |> Util.convert_ipaddr_to_eio, 53)
   in
@@ -68,8 +72,15 @@ let run hostname nameserver = Eio_main.run @@ fun env ->
             | [ _key, relevant_map ] ->
               (match Dns.Rr_map.find record_type relevant_map with
               | None -> ()
-              | Some (_ttl, cname) ->
-                Eio.traceln "%s" @@ Domain_name.to_string cname;
+              | Some (_ttl, answer) ->
+                (match Dns.Rr_map.Null_set.choose_opt answer with
+                  | None -> ()
+                  | Some null ->
+                    let message = String.of_bytes null in
+                    Eio.traceln "%s" message;
+                    exit 0
+                )
+                (* Eio.traceln "%s" @@ Domain_name.to_string cname;
                 match Domain_name.find_label cname (fun s -> String.equal "rpc" s) with
                 | None ->
                   exit 1
@@ -81,7 +92,7 @@ let run hostname nameserver = Eio_main.run @@ fun env ->
                   let data = String.concat "" (Array.to_list data_array) in
                   let message = Base64.decode_exn data in
                   Eio.traceln "%s" message;
-                  exit 0
+                  exit 0 *)
               )
               | _ -> ()
             )

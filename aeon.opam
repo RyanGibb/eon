@@ -19,6 +19,7 @@ depends: [
   "fmt"
   "menhir"
   "odoc" {with-doc}
+  "hex" # workaround for vendored ocaml-dns
 ]
 build: [
   ["dune" "subst"] {dev}

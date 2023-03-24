@@ -152,15 +152,21 @@ let dns_handler ~trie = fun proto buf ->
               Eio.traceln "%s" data;
               let data_name = Array.of_list @@ segment_string data in
               let name_array = Array.append (Domain_name.to_array root) data_name in
-              let hostname = Domain_name.of_array name_array in
+              let _hostname = Domain_name.of_array name_array in
 
               let flags = authoritative in
               (* typ *)
-              let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
+              (* let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in *)
+              let rr = Dns.Rr_map.singleton Dns.Rr_map.Null (1l, Dns.Rr_map.Null_set.singleton (Bytes.of_string reply)) in
               let answer = Domain_name.Map.singleton name rr in
               let authority = Dns.Name_rr_map.empty in (* Name_rr_map.remove_sub (Name_rr_map.singleton au Ns (ttl, ns)) answer *)
               let data = `Answer (answer, authority) in
-              let additional = None in
+              (* let additional = None in *)
+              let additional = Some
+                (* Dns.Name_rr_map.union *)
+                (* (Dns.Name_rr_map.singleton (Domain_name.of_string_exn "rpc.example.org") Dns.Rr_map.Txt (1l, Dns.Rr_map.Txt_set.singleton "hello")) *)
+                (Dns.Name_rr_map.singleton (Domain_name.of_string_exn "rpc.example.org") Dns.Rr_map.Null (1l, Dns.Rr_map.Null_set.singleton (Bytes.of_string "hello")))
+              in
               flags, data, additional
             in
             

@@ -22,7 +22,6 @@ depends: [
   "ca-certs" {>= "0.2.3"}
   "mirage-crypto-rng-eio" {>= "0.10.7"}
   "happy-eyeballs" {>= "0.3.0"}
-  "hex" # workaround for vendored ocaml-dns
 ]
 build: [
   ["dune" "subst"] {dev}

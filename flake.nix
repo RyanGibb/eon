@@ -32,7 +32,7 @@
         };
         resolved-scope =
           # recursive finds vendored dependancies in duniverse
-          opam-nix-lib.buildOpamProject' { recursive = true; } ./. (query // devPackagesQuery);
+          opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery);
         materialized-scope =
           opam-nix-lib.materializedDefsToScope { sourceMap.aeon = ./.; sourceMap.aeon-client = ./.; } ./package-defs.json;
       in rec {
@@ -45,7 +45,7 @@
             let file = opam-nix-lib.materializeOpamProject { } "aeon" ./. (query // devPackagesQuery); in
             pkgs.runCommand "package-defs.json" { } "cat ${file} > $out";
         };
-        defaultPackage = packages.materialized.aeon;
+        defaultPackage = packages.resolved.aeon;
 
         devShells =
           let
