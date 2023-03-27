@@ -22,6 +22,7 @@ depends: [
   "ca-certs" {>= "0.2.3"}
   "mirage-crypto-rng-eio" {>= "0.10.7"}
   "happy-eyeballs" {>= "0.3.0"}
+  "tcpip"
 ]
 build: [
   ["dune" "subst"] {dev}
@@ -46,4 +47,13 @@ pin-depends: [
   ["macaddr.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
   ["macaddr-sexp.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
   ["macaddr-cstruct.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
+
+  # https://github.com/patricoferris/vpnkit/blob/9cb5f3541476b535075287254b46e635c39e198c/vpnkit.opam
+  # OCaml 5 things
+  [ "arp.dev" "git+https://github.com/RyanGibb/arp#916581ae3cab53229fbe56e2645bdc345e35c328"]
+  [ "ethernet.dev" "git+https://github.com/patricoferris/ethernet#99ed193ee18a0bb1f27e1af55c9b3e45b60de5bb"]
+  [ "mirage-flow.dev" "git+https://github.com/patricoferris/mirage-flow#b81a3858c839f375d9ed4da66a55d0e8d4798bac"]
+  [ "mirage-net.dev" "git+https://github.com/ryangibb/mirage-net#b28cbe6acdeb833e2670034d49ef5bbad12bbd86"]
+  [ "mirage-vnetif.dev" "git+https://github.com/patricoferris/mirage-vnetif#f092eb6d8621c1441718e2cc6419f6841a1ad4bf" ]
+  [ "tcpip.dev" "git+https://github.com/ryangibb/mirage-tcpip#b2f4e3d942e4c2bfb3abefdb3e26ba39d58896ce" ]
 ]

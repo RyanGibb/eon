@@ -26,6 +26,7 @@
 
 (library
  (name        util)
- (modules     util)
+ (modules     util dns_ip)
  (public_name aeon.util)
- (libraries   eio dns))
+ (flags (:standard -w -27 -w -69))
+ (libraries   eio dns tcpip))
