@@ -1,4 +1,35 @@
 
+let message_of_domain_name sudbomain name =
+  match Domain_name.find_label name (fun s -> String.equal sudbomain s) with
+  | None -> None
+  | Some i ->
+    let data_name = Domain_name.drop_label_exn ~rev:true ~amount:(Domain_name.count_labels name - i) name in
+    let root = Domain_name.drop_label_exn ~amount:i name in
+    let data_array = Domain_name.to_array data_name in
+    let data = String.concat "" (Array.to_list data_array) in
+    let message = Base64.decode_exn data in
+    Some (message, root)
+
+let domain_name_of_message root message =
+  let data = Base64.encode_exn message in
+  let authority = Domain_name.to_string root in
+  assert (String.length data + String.length authority < 255);
+  let rec segment_string string =
+    let max_len = 63 in
+    let len = String.length string in
+    if len > max_len then
+      let segment = String.sub string 0 max_len  in
+      let string = String.sub string max_len (len - max_len) in
+      let list = segment_string string in
+      segment :: list
+    else
+      [ string ]
+  in
+  let data_name = Array.of_list @@ segment_string data in
+  let name_array = Array.append (Domain_name.to_array root) data_name in
+  let hostname = Domain_name.of_array name_array in
+  hostname
+    
 let convert_ipaddr_to_eio (addr : Ipaddr.t) =
   (match addr with
   | Ipaddr.V4 v4 -> Ipaddr.V4.to_octets v4

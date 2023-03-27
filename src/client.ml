@@ -43,8 +43,9 @@ let create_query ~rng record_type authority =
   let cs, _ = Dns.Packet.encode `Udp query in
   cs
 
-let run hostname nameserver = Eio_main.run @@ fun env ->
+let run hostname nameserver data_subdomain = Eio_main.run @@ fun env ->
   let
+    (* TODO support different queruies, or probing access *)
     record_type = Dns.Rr_map.Cname and
     (* TODO query ns *)
     addr = `Udp (Ipaddr.of_string_exn nameserver |> Util.convert_ipaddr_to_eio, 53)
@@ -70,16 +71,10 @@ let run hostname nameserver = Eio_main.run @@ fun env ->
               | None -> ()
               | Some (_ttl, cname) ->
                 Eio.traceln "%s" @@ Domain_name.to_string cname;
-                match Domain_name.find_label cname (fun s -> String.equal "rpc" s) with
+                match Util.message_of_domain_name data_subdomain cname with
                 | None ->
                   exit 1
-                | Some i ->
-                  let data_name = Domain_name.drop_label_exn ~rev:true ~amount:(Domain_name.count_labels cname - i) cname in
-                  (* let root = Domain_name.drop_label_exn ~amount:(i) cname in
-                  Eio.traceln "%s" @@ Domain_name.to_string root; *)
-                  let data_array = Domain_name.to_array data_name in
-                  let data = String.concat "" (Array.to_list data_array) in
-                  let message = Base64.decode_exn data in
+                | Some (message, _root) ->
                   Eio.traceln "%s" message;
                   exit 0
               )
@@ -91,7 +86,7 @@ let run hostname nameserver = Eio_main.run @@ fun env ->
       )
     )
     (fun () ->
-      let query = create_query ~rng record_type hostname in
+      let query = create_query ~rng record_type (data_subdomain ^ "." ^ hostname) in
       Eio.Net.send sock addr query;
     )
 
@@ -102,7 +97,10 @@ let cmd =
   let nameserver =
     Cmdliner.Arg.(required & pos 1 (some string) None & info [] ~docv:"NAMESERVER" ~doc:"Nameserver.")
   in
-  let dns_t = Cmdliner.Term.(const run $ hostname $ nameserver) in
+  let data_subdomain =
+    Cmdliner.Arg.(value & opt string "rpc" & info ["d"; "data-subdomain"] ~docv:"DATA_SUBDOMAIN" ~doc:"Data subdoomain.")
+  in
+  let dns_t = Cmdliner.Term.(const run $ hostname $ nameserver $ data_subdomain) in
   let info = Cmdliner.Cmd.info "client" in
   Cmdliner.Cmd.v info dns_t
 

@@ -7,6 +7,7 @@ val dns_handler :
   server:Dns_server.Primary.s ref ->
   clock:#Eio.Time.clock ->
   mono_clock:#Eio.Time.Mono.t ->
+  data_subdomain:string ->
   handle_dns
   (* takes a server and clocks and returns a dns handler *)
 

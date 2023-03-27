@@ -1,5 +1,5 @@
 
-let run zonefiles log_level = Eio_main.run @@ fun env ->
+let run zonefiles log_level data_subdomain = Eio_main.run @@ fun env ->
   let log = (match log_level with
     | 0 -> Dns_log.log_level_0
     | 1 -> Dns_log.log_level_1
@@ -26,7 +26,7 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
     buf
   in
   let server = ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie in
-  let handle_dns = Server.dns_handler ~server ~clock:(Eio.Stdenv.clock env) ~mono_clock:(Eio.Stdenv.mono_clock env) in
+  let handle_dns = Server.dns_handler ~server ~clock:(Eio.Stdenv.clock env) ~mono_clock:(Eio.Stdenv.mono_clock env) ~data_subdomain in
   Eio.Fiber.both
   (fun () ->
     Eio.Switch.run @@ fun sw ->
@@ -59,7 +59,10 @@ let cmd =
   let logging =
     Cmdliner.Arg.(value & opt int 1 & info ["l"; "log-level"] ~docv:"LOG_LEVEL" ~doc:"Log level.")
   in
-  let dns_t = Cmdliner.Term.(const run $ zonefiles $ logging) in
+  let data_subdomain =
+    Cmdliner.Arg.(value & opt string "rpc" & info ["d"; "data-subdomain"] ~docv:"DATA_SUBDOMAIN" ~doc:"Data subdoomain.")
+  in
+  let dns_t = Cmdliner.Term.(const run $ zonefiles $ logging $ data_subdomain) in
   let info = Cmdliner.Cmd.info "dns" in
   Cmdliner.Cmd.v info dns_t
 
