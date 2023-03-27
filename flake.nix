@@ -1,6 +1,6 @@
 {
   inputs = {
-    opam-nix.url = "github:tweag/opam-nix";
+    opam-nix.url = "github:RyanGibb/opam-nix/8647861";
     flake-utils.url = "github:numtide/flake-utils";
     # we pin opam-nix's nixpkgs to follow the flakes, avoiding using two different instances
     opam-nix.inputs.nixpkgs.follows = "nixpkgs";
@@ -42,7 +42,7 @@
           # to generate:
           #   nix build .#materializeOpamProject; cat result > package-defs.json; rm result
           materializeOpamProject =
-            let file = opam-nix-lib.materializeOpamProject { } "aeon" ./. (query // devPackagesQuery); in
+            let file = opam-nix-lib.materializeOpamProject' { } ./. (query // devPackagesQuery); in
             pkgs.runCommand "package-defs.json" { } "cat ${file} > $out";
         };
         defaultPackage = packages.materialized.aeon;
