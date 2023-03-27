@@ -8,7 +8,7 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
     | _ -> if log_level < 0 then Dns_log.log_level_0 else Dns_log.log_level_2
   ) Format.std_formatter
   in
-  let trie, _keys = Zonefile.parse_zonefiles ~fs:(Eio.Stdenv.fs env) zonefiles in
+  let trie, keys = Zonefile.parse_zonefiles ~fs:(Eio.Stdenv.fs env) zonefiles in
   (* TODO modify ocaml-dns not to require this? *)
   (* We listen on in6addr_any to bind to all interfaces. If we also listen on
       INADDR_ANY, this collides with EADDRINUSE. However we can recieve IPv4 traffic
@@ -20,7 +20,13 @@ let run zonefiles log_level = Eio_main.run @@ fun env ->
       better portability.
       [0] https://www.rfc-editor.org/rfc/rfc3493#section-3.7
       [1] https://labs.apnic.net/presentations/store/2015-10-04-dns-dual-stack.pdf *)
-  let handle_dns = Server.dns_handler ~trie in
+  let rng ?_g length =
+    let buf = Cstruct.create length in
+    Eio.Flow.read_exact (Eio.Stdenv.secure_random env) buf;
+    buf
+  in
+  let server = ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie in
+  let handle_dns = Server.dns_handler ~server ~clock:(Eio.Stdenv.clock env) ~mono_clock:(Eio.Stdenv.mono_clock env) in
   Eio.Fiber.both
   (fun () ->
     Eio.Switch.run @@ fun sw ->

@@ -389,12 +389,18 @@ let safe_decode buf =
     rx_metrics v.Packet.data;
     Ok v
 
-let handle_question t (name, typ) =
+type callback = Dns_trie.t -> Packet.Question.t ->
+  (Packet.Flags.t * Packet.Answer.t * Name_rr_map.t option) option
+
+let handle_question t (name, typ) callback =
   (* TODO allow/disallowlist of allowed qtypes? what about ANY and UDP? *)
   match typ with
   (* this won't happen, decoder constructs `Axfr *)
   | `Axfr | `Ixfr -> Error (Rcode.NotImp, None)
-  | (`K _ | `Any) as k -> lookup t.data (name, k)
+  | (`K _ | `Any) as k ->
+    match callback t.data (name, k) with
+    | Some result -> Ok result
+    | None -> lookup t.data (name, k)
 (*  | r ->
     Log.err (fun m -> m "refusing query type %a" Rr.pp r);
     Error (Rcode.Refused, None) *)
@@ -799,7 +805,7 @@ let handle_tsig ?mac t now p buf =
     let signed = Cstruct.sub buf 0 off in
     let* tsig, mac, key = t.tsig_verify ?mac now p name ?key tsig signed in
     Ok (Some (name, tsig, mac, key))
-
+  
 module Primary = struct
 
   type s =
@@ -969,7 +975,7 @@ module Primary = struct
       end
     | _ -> Error ()
 
-  let handle_packet (t, m, l, ns) now ts proto ip _port p key =
+  let handle_packet (t, m, l, ns) now ts proto ip _port p key callback =
     let key = match key with
       | None -> None
       | Some k -> Some (Domain_name.raw k)
@@ -1005,7 +1011,7 @@ module Primary = struct
         | _ -> l, ns, [], None
       in
       let answer =
-        let flags, data, additional = match handle_question t p.question with
+        let flags, data, additional = match handle_question t p.question callback with
           | Ok (flags, data, additional) -> flags, `Answer data, additional
           | Error (rcode, data) ->
             err_flags rcode, `Rcode_error (rcode, Opcode.Query, data), None
@@ -1073,7 +1079,7 @@ module Primary = struct
       Log.err (fun m -> m "ignoring unsolicited %a" Packet.pp_data p);
       (t, m, l, ns), None, [], None
 
-  let handle_buf t now ts proto ip port buf =
+  let handle_buf t now ts proto ip port buf callback =
     match
       let* res = safe_decode buf in
       Log.debug (fun m -> m "from %a received:@[%a@]" Ipaddr.pp ip
@@ -1091,7 +1097,7 @@ module Primary = struct
     | Ok p ->
       let handle_inner tsig_size keyname =
         let t, answer, out, notify =
-          handle_packet t now ts proto ip port p keyname
+          handle_packet t now ts proto ip port p keyname callback
         in
         let answer = match answer with
           | Some answer ->
@@ -1645,14 +1651,14 @@ module Secondary = struct
                    Packet.Question.pp (Domain_name.raw zone, typ));
       Error Rcode.Refused
 
-  let handle_packet (t, zones) now ts ip p keyname =
+  let handle_packet (t, zones) now ts ip p keyname callback =
     let keyname = match keyname with
       | None -> None
       | Some k -> Some (Domain_name.raw k)
     in
     match p.Packet.data with
     | `Query ->
-      let flags, data, additional = match handle_question t p.question with
+      let flags, data, additional = match handle_question t p.question callback with
         | Ok (flags, data, additional) -> flags, `Answer data, additional
         | Error (rcode, data) ->
           err_flags rcode, `Rcode_error (rcode, Opcode.Query, data), None
@@ -1834,7 +1840,7 @@ module Secondary = struct
         | Some (Processing_axfr (_, _, mac, _, _), _, _) -> Some mac
         | _ -> None
 
-  let handle_buf t now ts proto ip buf =
+  let handle_buf t now ts proto ip buf callback =
     match
       let* res = safe_decode buf in
       Log.debug (fun m -> m "received a packet from %a: %a" Ipaddr.pp ip
@@ -1846,7 +1852,7 @@ module Secondary = struct
       t, Packet.raw_error buf rcode, None
     | Ok p ->
       let handle_inner keyname =
-        let t, answer, out = handle_packet t now ts ip p keyname in
+        let t, answer, out = handle_packet t now ts ip p keyname callback in
         let answer = match answer with
           | Some answer ->
             let max_size, edns = Edns.reply p.edns in

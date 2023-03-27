@@ -70,11 +70,16 @@ val with_data : t -> Dns_trie.t -> t
 val text : 'a Domain_name.t -> Dns_trie.t -> (string, [> `Msg of string ]) result
 (** [text name trie] results in a string representation (zonefile) of the trie. *)
 
-val handle_question : t -> Packet.Question.t ->
+type callback = Dns_trie.t -> Packet.Question.t ->
+  (Packet.Flags.t * Packet.Answer.t * Name_rr_map.t option) option
+(** [callback trie question] either returns a faux-handled DNS query
+    [Some (flags, answer, additional)] or [None]. *)
+
+val handle_question : t -> Packet.Question.t -> callback ->
   (Packet.Flags.t * Packet.Answer.t * Name_rr_map.t option,
    Rcode.t * Packet.Answer.t option) result
-(** [handle_question t question] handles the DNS query [question] by looking
-    it up in the trie of [t]. *)
+(** [handle_question t question] handles the DNS query [question] by first trying
+    [callback], and if it returns [None] then looking it up in the trie of [t]. *)
 
 val handle_update : t -> proto -> [ `raw ] Domain_name.t option ->
   Packet.Question.t -> Packet.Update.t ->
@@ -134,19 +139,19 @@ module Primary : sig
      provided and [true] (defaults to [false]), anyone can transfer the zones. *)
 
   val handle_packet : s -> Ptime.t -> int64 -> proto -> Ipaddr.t -> int ->
-    Packet.t -> 'a Domain_name.t option ->
+    Packet.t -> 'a Domain_name.t option -> callback ->
     s * Packet.t option * (Ipaddr.t * Cstruct.t list) list *
     [> `Notify of Soa.t option | `Keep ] option
-  (** [handle_packet s now ts src src_port proto key packet] handles the given
+  (** [handle_packet s now ts src src_port proto key packet callback] handles the given
      [packet], returning new state, an answer, and potentially notify packets to
      secondary name servers. *)
 
   val handle_buf : s -> Ptime.t -> int64 -> proto ->
-    Ipaddr.t -> int -> Cstruct.t ->
+    Ipaddr.t -> int -> Cstruct.t -> callback ->
     s * Cstruct.t list * (Ipaddr.t * Cstruct.t list) list *
     [ `Notify of Soa.t option | `Signed_notify of Soa.t option | `Keep ] option *
     [ `raw ] Domain_name.t option
-  (** [handle_buf s now ts proto src src_port buffer] decodes the [buffer],
+  (** [handle_buf s now ts proto src src_port buffer callback] decodes the [buffer],
      processes the DNS frame using {!handle_packet}, and encodes the reply.
      The result is a new state, potentially a list of answers to the requestor,
      a list of notifications to send out, information whether a notify (or
@@ -186,13 +191,13 @@ module Secondary : sig
      DNS server state. *)
 
   val handle_packet : s -> Ptime.t -> int64 -> Ipaddr.t ->
-    Packet.t -> 'a Domain_name.t option ->
+    Packet.t -> 'a Domain_name.t option -> callback ->
     s * Packet.t option * (Ipaddr.t * Cstruct.t) option
-  (** [handle_packet s now ts ip proto key t] handles the incoming packet. *)
+  (** [handle_packet s now ts ip proto key callback t] handles the incoming packet. *)
 
   val handle_buf : s -> Ptime.t -> int64 -> proto -> Ipaddr.t -> Cstruct.t ->
-    s * Cstruct.t option * (Ipaddr.t * Cstruct.t) option
-  (** [handle_buf s now ts proto src buf] decodes [buf], processes with
+    callback -> s * Cstruct.t option * (Ipaddr.t * Cstruct.t) option
+  (** [handle_buf s now ts proto src callback buf] decodes [buf], processes with
       {!handle_packet}, and encodes the results. *)
 
   val timer : s -> Ptime.t -> int64 ->
