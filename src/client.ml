@@ -87,7 +87,7 @@ let run hostname nameserver data_subdomain = Eio_main.run @@ fun env ->
               | None -> ()
               | Some (_ttl, cname) ->
                 Eio.traceln "%s" @@ Domain_name.to_string cname;
-                match Util.message_of_domain_name data_subdomain cname with
+                match Transport.message_of_domain_name data_subdomain cname with
                 | None ->
                   exit 1
                 | Some (message, _root) ->

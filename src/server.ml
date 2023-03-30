@@ -1,37 +1,7 @@
 
-let callback ~data_subdomain _trie question =
-  let name, qtype = question in
-  match Util.message_of_domain_name data_subdomain name with
-  | None ->
-    exit 1
-  | Some (message, root) ->
-    Eio.traceln "%s" message;
-
-    let reply =
-      let rev x =
-        let len = String.length x in
-        String.init len (fun n -> String.get x (len - n - 1))
-      in
-      rev message
-    in
-
-    let hostname = Util.domain_name_of_message root reply in
-
-    let flags = Dns.Packet.Flags.singleton `Authoritative in
-    match qtype with
-    | `K (Dns.Rr_map.K Dns.Rr_map.Cname) ->
-      let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
-      let answer = Domain_name.Map.singleton name rr in
-      let authority = Dns.Name_rr_map.empty in (* Name_rr_map.remove_sub (Name_rr_map.singleton au Ns (ttl, ns)) answer *)
-      let data = answer, authority in
-      let additional = None
-      in
-      Some (flags, data, additional)
-    (* TODO support more RRs ? *)
-    | _ -> Eio.traceln "unsupported RR"; None (* TODO proper logging *)
 type handle_dns = Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
 
-let dns_handler ~server ~clock ~mono_clock ~data_subdomain =
+let dns_handler ~server ~clock ~mono_clock ~callback =
   fun proto addr buf ->
   (* TODO handle notify, n, and key *)
   let new_server, answers, _notify, _n, _key =
@@ -39,7 +9,7 @@ let dns_handler ~server ~clock ~mono_clock ~data_subdomain =
     let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
     let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
     let src, port = Util.convert_eio_to_ipaddr addr in
-    Dns_server.Primary.handle_buf !server now ts proto src port buf (callback ~data_subdomain)
+    Dns_server.Primary.handle_buf !server now ts proto src port buf callback
     in
   (* TODO is this thread safe? *)
   server := new_server;

@@ -3,14 +3,14 @@
  (modules     aeon zonefile)
  (public_name aeon)
  (package     aeon)
- (libraries   server dns_log eio_main dns-tsig cmdliner logs.fmt))
+ (libraries   server dns_log transport eio_main dns-tsig cmdliner logs.fmt))
 
 (executable
  (name        client)
  (modules     client)
  (public_name aeon.client)
  (package     aeon)
- (libraries   util dns_log eio_main dns cmdliner logs.fmt))
+ (libraries   util dns_log transport eio_main dns cmdliner logs.fmt))
 
 (library
  (name        server)
@@ -28,4 +28,10 @@
  (name        util)
  (modules     util)
  (public_name aeon.util)
+ (libraries   eio dns))
+
+(library
+ (name        transport)
+ (modules     transport)
+ (public_name aeon.transport)
  (libraries   eio dns))

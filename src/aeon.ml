@@ -26,7 +26,12 @@ let run zonefiles log_level data_subdomain = Eio_main.run @@ fun env ->
     buf
   in
   let server = ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie in
-  let handle_dns = Server.dns_handler ~server ~clock:(Eio.Stdenv.clock env) ~mono_clock:(Eio.Stdenv.mono_clock env) ~data_subdomain in
+  let handle_dns = Server.dns_handler
+    ~server
+    ~clock:(Eio.Stdenv.clock env)
+    ~mono_clock:(Eio.Stdenv.mono_clock env)
+    ~callback:(Transport.callback ~data_subdomain)
+  in
   Eio.Fiber.both
   (fun () ->
     Eio.Switch.run @@ fun sw ->
