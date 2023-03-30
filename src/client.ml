@@ -48,7 +48,13 @@ let run hostname nameserver data_subdomain = Eio_main.run @@ fun env ->
     (* TODO support different queruies, or probing access *)
     record_type = Dns.Rr_map.Cname and
     (* TODO query ns *)
-    addr = `Udp (Ipaddr.of_string_exn nameserver |> Util.convert_ipaddr_to_eio, 53)
+    addr =
+      (* TODO replace this with OCaml call? *)
+      match Eio.Net.getaddrinfo_datagram env#net ~service:"domain" nameserver with
+      (* just takes first returned value, which is probably ipv6
+         TODO add `-4`/`-6` flag *)
+      | ipaddr :: _ -> Eio.Net.Sockaddr.pp Format.std_formatter ipaddr; ipaddr
+      | _ -> exit 1
   in
   let rng ?_g length =
     let buf = Cstruct.create length in
@@ -56,7 +62,17 @@ let run hostname nameserver data_subdomain = Eio_main.run @@ fun env ->
     buf
   in
   Eio.Switch.run @@ fun sw -> 
-  let sock = Eio.Net.datagram_socket ~sw env#net `UdpV4 in
+  let sock =
+    let proto =
+      match addr with
+      | `Udp (ipaddr, _p) ->
+        Eio.Net.Ipaddr.fold
+          ~v4:(fun _v4 -> `UdpV4)
+          ~v6:(fun _v6 -> `UdpV6)
+          ipaddr
+    in
+    Eio.Net.datagram_socket ~sw env#net proto
+  in
   let log = Dns_log.log_level_0 Format.std_formatter in
   Eio.Fiber.both
     (fun () ->
