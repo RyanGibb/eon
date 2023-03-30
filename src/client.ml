@@ -1,5 +1,4 @@
 
-
 let udp_listen log sock handle_dns =
   let buf = Cstruct.create 4096 in
   while true do
