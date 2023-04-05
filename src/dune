@@ -1,37 +1,37 @@
 (executable
- (name        aeon)
- (modules     aeon zonefile)
+ (name aeon)
+ (modules aeon zonefile)
  (public_name aeon)
- (package     aeon)
- (libraries   server dns_log transport eio_main dns-tsig cmdliner logs.fmt))
+ (package aeon)
+ (libraries server dns_log transport eio_main dns-tsig cmdliner logs.fmt))
 
 (executable
- (name        client)
- (modules     client)
+ (name client)
+ (modules client)
  (public_name aeon.client)
- (package     aeon)
- (libraries   util dns_log transport eio_main dns cmdliner logs.fmt))
+ (package aeon)
+ (libraries util dns_log transport eio_main dns cmdliner logs.fmt))
 
 (library
- (name        server)
- (modules     server)
+ (name server)
+ (modules server)
  (public_name aeon.server)
- (libraries   util dns_log eio_main dns dns-server))
+ (libraries util dns_log eio_main dns dns-server))
 
 (library
- (name        dns_log)
- (modules     dns_log)
+ (name dns_log)
+ (modules dns_log)
  (public_name aeon.dns-log)
- (libraries   eio_main dns dns-server.zone))
+ (libraries eio_main dns dns-server.zone))
 
 (library
- (name        util)
- (modules     util)
+ (name util)
+ (modules util)
  (public_name aeon.util)
- (libraries   eio dns))
+ (libraries eio dns))
 
 (library
- (name        transport)
- (modules     transport)
+ (name transport)
+ (modules transport)
  (public_name aeon.transport)
- (libraries   eio dns))
+ (libraries eio dns))

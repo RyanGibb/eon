@@ -1,12 +1,13 @@
-
-let run zonefiles log_level data_subdomain = Eio_main.run @@ fun env ->
-  let log = (match log_level with
+let run zonefiles log_level data_subdomain =
+  Eio_main.run @@ fun env ->
+  let log =
+    (match log_level with
     | 0 -> Dns_log.log_level_0
     | 1 -> Dns_log.log_level_1
     | 2 -> Dns_log.log_level_2
     | 3 -> Dns_log.log_level_3
-    | _ -> if log_level < 0 then Dns_log.log_level_0 else Dns_log.log_level_2
-  ) Format.std_formatter
+    | _ -> if log_level < 0 then Dns_log.log_level_0 else Dns_log.log_level_2)
+      Format.std_formatter
   in
   let trie, keys = Zonefile.parse_zonefiles ~fs:(Eio.Stdenv.fs env) zonefiles in
   (* TODO modify ocaml-dns not to require this? *)
@@ -25,49 +26,66 @@ let run zonefiles log_level data_subdomain = Eio_main.run @@ fun env ->
     Eio.Flow.read_exact (Eio.Stdenv.secure_random env) buf;
     buf
   in
-  let server = ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie in
-  let handle_dns = Server.dns_handler
-    ~server
-    ~clock:(Eio.Stdenv.clock env)
-    ~mono_clock:(Eio.Stdenv.mono_clock env)
-    ~callback:(Transport.callback ~data_subdomain)
+  let server =
+    ref
+    @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
+         ~tsig_sign:Dns_tsig.sign trie
+  in
+  let handle_dns =
+    Server.dns_handler ~server ~clock:(Eio.Stdenv.clock env)
+      ~mono_clock:(Eio.Stdenv.mono_clock env)
+      ~callback:(Transport.callback ~data_subdomain)
   in
   Eio.Fiber.both
-  (fun () ->
-    Eio.Switch.run @@ fun sw ->
-    let sockUDP =
-      try
-        (* TODO make port configurable *)
-        Eio.Net.datagram_socket ~sw (Eio.Stdenv.net env) (`Udp (Eio.Net.Ipaddr.V6.any, 53))
-      with
-      (* TODO proper error handling *)
-      | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) -> Eio.traceln "error"; failwith "whoops"
-    in
-    Server.udp_listen log handle_dns sockUDP)
-  (fun () ->
-    Eio.Switch.run @@ fun sw ->
-    let sockTCP =
-      try
-        Eio.Net.listen ~sw ~backlog:4096 (Eio.Stdenv.net env) (`Tcp (Eio.Net.Ipaddr.V6.any, 53))
-      with
-      | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) -> Eio.traceln "error"; failwith "oops"
-    in
-    let connection_handler = Server.tcp_handle log handle_dns in
-    Server.tcp_listen sockTCP connection_handler);;
+    (fun () ->
+      Eio.Switch.run @@ fun sw ->
+      let sockUDP =
+        try
+          (* TODO make port configurable *)
+          Eio.Net.datagram_socket ~sw (Eio.Stdenv.net env)
+            (`Udp (Eio.Net.Ipaddr.V6.any, 53))
+        with
+        (* TODO proper error handling *)
+        | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) ->
+          Eio.traceln "error";
+          failwith "whoops"
+      in
+      Server.udp_listen log handle_dns sockUDP)
+    (fun () ->
+      Eio.Switch.run @@ fun sw ->
+      let sockTCP =
+        try
+          Eio.Net.listen ~sw ~backlog:4096 (Eio.Stdenv.net env)
+            (`Tcp (Eio.Net.Ipaddr.V6.any, 53))
+        with Unix.Unix_error (Unix.EADDRINUSE, "bind", _) ->
+          Eio.traceln "error";
+          failwith "oops"
+      in
+      let connection_handler = Server.tcp_handle log handle_dns in
+      Server.tcp_listen sockTCP connection_handler)
 
 let cmd =
   (* TODO add port argument *)
   let zonefiles =
-    Cmdliner.Arg.(value & opt_all string [] & info ["z"; "zonefile"] ~docv:"ZONEFILE_PATHS" ~doc:"Zonefile path.")
+    Cmdliner.Arg.(
+      value & opt_all string []
+      & info [ "z"; "zonefile" ] ~docv:"ZONEFILE_PATHS" ~doc:"Zonefile path.")
   in
   (* TODO add descriptions *)
   let logging =
-    Cmdliner.Arg.(value & opt int 1 & info ["l"; "log-level"] ~docv:"LOG_LEVEL" ~doc:"Log level.")
+    Cmdliner.Arg.(
+      value & opt int 1
+      & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc:"Log level.")
   in
   let data_subdomain =
-    Cmdliner.Arg.(value & opt string "rpc" & info ["d"; "data-subdomain"] ~docv:"DATA_SUBDOMAIN" ~doc:"Data subdoomain.")
+    Cmdliner.Arg.(
+      value & opt string "rpc"
+      & info [ "d"; "data-subdomain" ] ~docv:"DATA_SUBDOMAIN"
+          ~doc:"Data subdoomain.")
   in
-  let dns_t = Cmdliner.Term.(const run $ zonefiles $ logging $ data_subdomain) in
+  let dns_t =
+    Cmdliner.Term.(const run $ zonefiles $ logging $ data_subdomain)
+  in
   let info = Cmdliner.Cmd.info "dns" in
   Cmdliner.Cmd.v info dns_t
 

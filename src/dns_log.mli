@@ -1,6 +1,4 @@
-
 type dir = Rx | Tx
-
 type log = Format.formatter -> dir -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
 type formattedLog = dir -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
 
