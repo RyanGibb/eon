@@ -33,8 +33,7 @@ let domain_name_of_message root message =
 let callback ~data_subdomain _trie question =
   let name, qtype = question in
   match message_of_domain_name data_subdomain name with
-  | None ->
-    exit 1
+  | None -> None
   | Some (message, root) ->
     Eio.traceln "%s" message;
 
