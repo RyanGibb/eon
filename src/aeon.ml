@@ -102,7 +102,7 @@ let cmd =
     Cmdliner.Arg.(
       value & opt string "rpc"
       & info [ "d"; "data-subdomain" ] ~docv:"DATA_SUBDOMAIN"
-          ~doc:"Data subdoomain.")
+          ~doc:"Data subdomain.")
   in
   let port =
     Cmdliner.Arg.(
