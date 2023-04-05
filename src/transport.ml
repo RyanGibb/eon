@@ -38,7 +38,6 @@ let callback ~data_subdomain _trie question =
   | None -> None
   | Some (message, root) -> (
       Eio.traceln "%s" message;
-
       let reply =
         let rev x =
           let len = String.length x in
@@ -46,9 +45,7 @@ let callback ~data_subdomain _trie question =
         in
         rev message
       in
-
       let hostname = domain_name_of_message root reply in
-
       let flags = Dns.Packet.Flags.singleton `Authoritative in
       match qtype with
       | `K (Dns.Rr_map.K Dns.Rr_map.Cname) ->
