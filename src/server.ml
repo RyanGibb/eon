@@ -7,11 +7,12 @@ let dns_handler ~server ~clock ~mono_clock ~callback proto
     (* TODO modify ocaml-dns not to require this? *)
     let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
     let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
-    let src, port = match addr with
+    let ipaddr, port =
+      match addr with
       | `Udp (ip, p) | `Tcp (ip, p) -> (Ipaddr.of_octets_exn (ip :> string), p)
       | `Unix _ -> failwith "Unix sockets not supported"
     in
-    Dns_server.Primary.handle_buf !server now ts proto src port buf callback
+    Dns_server.Primary.handle_buf !server now ts proto ipaddr port buf callback
   in
   (* TODO is this thread safe? *)
   server := new_server;
