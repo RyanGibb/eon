@@ -38,12 +38,3 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/RyanGibb/aeon.git"
-pin-depends: [
-  # https://github.com/mirage/ocaml-ipaddr/issues/113
-  ["ipaddr.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
-  ["ipaddr-sexp.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
-  ["ipaddr-cstruct.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
-  ["macaddr.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
-  ["macaddr-sexp.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
-  ["macaddr-cstruct.dev" "git+https://github.com/mirage/ocaml-ipaddr.git#c60bae53a290e33b99a67b307188bb85b65f0ca6"]
-]
