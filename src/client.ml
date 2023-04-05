@@ -3,7 +3,8 @@ let udp_listen log sock handle_dns =
   while true do
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
-    let addr = Util.sockaddr_of_sockaddr_datagram addr in
+    (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
+    let addr = match addr with `Udp a -> `Udp a in
     log Dns_log.Rx addr trimmedBuf;
     handle_dns trimmedBuf
   done

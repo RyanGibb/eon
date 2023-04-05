@@ -1,12 +1,16 @@
 type handle_dns = Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
 
-let dns_handler ~server ~clock ~mono_clock ~callback proto addr buf =
+let dns_handler ~server ~clock ~mono_clock ~callback proto
+    (addr : Eio.Net.Sockaddr.t) buf =
   (* TODO handle notify, n, and key *)
   let new_server, answers, _notify, _n, _key =
     (* TODO modify ocaml-dns not to require this? *)
     let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
     let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
-    let src, port = Util.convert_eio_to_ipaddr addr in
+    let src, port = match addr with
+      | `Udp (ip, p) | `Tcp (ip, p) -> (Ipaddr.of_octets_exn (ip :> string), p)
+      | `Unix _ -> failwith "Unix sockets not supported"
+    in
     Dns_server.Primary.handle_buf !server now ts proto src port buf callback
   in
   (* TODO is this thread safe? *)
@@ -20,7 +24,8 @@ let udp_listen log handle_dns sock =
   while true do
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
-    let addr = Util.sockaddr_of_sockaddr_datagram addr in
+    (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
+    let addr = match addr with `Udp a -> `Udp a in
     log Dns_log.Rx addr trimmedBuf;
     let answers = handle_dns `Udp addr trimmedBuf in
     List.iter
@@ -44,7 +49,8 @@ let tcp_handle log handle_dns =
         let len = Cstruct.BE.get_uint16 prefix 0 in
         let buf = Cstruct.create len in
         Eio.Flow.read_exact sock buf;
-        let addr = Util.sockaddr_of_sockaddr_stream addr in
+        (* convert Eio.Net.Sockaddr.stream to Eio.Net.Sockaddr.t *)
+        let addr = match addr with `Tcp a -> `Tcp a | `Unix u -> `Unix u in
         log Dns_log.Rx addr buf;
         let answers = handle_dns `Tcp addr buf in
         List.iter
