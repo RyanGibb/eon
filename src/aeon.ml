@@ -40,26 +40,25 @@ let run zonefiles log_level data_subdomain =
     (fun () ->
       Eio.Switch.run @@ fun sw ->
       let sockUDP =
+        let addr : Eio.Net.Sockaddr.datagram = `Udp (Eio.Net.Ipaddr.V6.any, 53) in
         try
-          (* TODO make port configurable *)
-          Eio.Net.datagram_socket ~sw (Eio.Stdenv.net env)
-            (`Udp (Eio.Net.Ipaddr.V6.any, 53))
-        with
-        (* TODO proper error handling *)
-        | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) ->
-          Eio.traceln "error";
-          failwith "whoops"
+          Eio.Net.datagram_socket ~sw (Eio.Stdenv.net env) addr
+        with | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) ->
+          Format.fprintf Format.err_formatter "Error binding to %a"
+            Eio.Net.Sockaddr.pp addr;
+          exit 1
       in
       Server.udp_listen log handle_dns sockUDP)
     (fun () ->
       Eio.Switch.run @@ fun sw ->
       let sockTCP =
+        let addr : Eio.Net.Sockaddr.stream = `Tcp (Eio.Net.Ipaddr.V6.any, 53) in
         try
-          Eio.Net.listen ~sw ~backlog:4096 (Eio.Stdenv.net env)
-            (`Tcp (Eio.Net.Ipaddr.V6.any, 53))
-        with Unix.Unix_error (Unix.EADDRINUSE, "bind", _) ->
-          Eio.traceln "error";
-          failwith "oops"
+          Eio.Net.listen ~sw ~backlog:4096 (Eio.Stdenv.net env) addr
+        with | Unix.Unix_error (Unix.EADDRINUSE, "bind", _) ->
+          Format.fprintf Format.err_formatter "Error binding to %a"
+            Eio.Net.Sockaddr.pp addr;
+          exit 1
       in
       let connection_handler = Server.tcp_handle log handle_dns in
       Server.tcp_listen sockTCP connection_handler)
