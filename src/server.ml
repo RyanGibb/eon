@@ -4,7 +4,6 @@ let dns_handler ~server ~clock ~mono_clock ~callback proto
     (addr : Eio.Net.Sockaddr.t) buf =
   (* TODO handle notify, n, and key *)
   let new_server, answers, _notify, _n, _key =
-    (* TODO modify ocaml-dns not to require this? *)
     let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
     let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
     let ipaddr, port =
