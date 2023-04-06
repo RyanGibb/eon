@@ -1,48 +1,39 @@
-let run zonefiles log_level data_subdomain addresses port tcp udp =
-  Eio_main.run @@ fun env ->
+let get_log log_level =
+  (match log_level with
+  | 0 -> Dns_log.log_level_0
+  | 1 -> Dns_log.log_level_1
+  | 2 -> Dns_log.log_level_2
+  | 3 -> Dns_log.log_level_3
+  | _ -> if log_level < 0 then Dns_log.log_level_0 else Dns_log.log_level_2)
+    Format.std_formatter
+
+let parse_addresses port addressStrings =
+  List.map
+    (fun ip ->
+      match Ipaddr.with_port_of_string ~default:port ip with
+      | Ok (ip, p) ->
+          let eioIp = Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw in
+          (eioIp, p)
+      | Error (`Msg msg) ->
+          Format.fprintf Format.err_formatter "Error parsing address '%s': %s"
+            ip msg;
+          exit 1)
+    addressStrings
+
+let run zonefiles log_level data_subdomain addressStrings port tcp udp =
   (* command line parameter parsing *)
-  let log =
-    (match log_level with
-    | 0 -> Dns_log.log_level_0
-    | 1 -> Dns_log.log_level_1
-    | 2 -> Dns_log.log_level_2
-    | 3 -> Dns_log.log_level_3
-    | _ -> if log_level < 0 then Dns_log.log_level_0 else Dns_log.log_level_2)
-      Format.std_formatter
-  in
-  let addresses =
-    List.map
-      (fun ip ->
-        match Ipaddr.with_port_of_string ~default:port ip with
-        | Ok (ip, p) ->
-            let eioIp = Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw in
-            (eioIp, p)
-        | Error (`Msg msg) ->
-            Format.fprintf Format.err_formatter "Error parsing address '%s': %s"
-              ip msg;
-            exit 1)
-      addresses
-  in
+  let log = get_log log_level in
+  let addresses = parse_addresses port addressStrings in
 
   (* setup server *)
-  let trie, keys = Zonefile.parse_zonefiles ~fs:(Eio.Stdenv.fs env) zonefiles in
-  (* TODO modify ocaml-dns not to require this? *)
-  (* We listen on in6addr_any to bind to all interfaces. If we also listen on
-      INADDR_ANY, this collides with EADDRINUSE. However we can recieve IPv4 traffic
-      too via IPv4-mapped IPv6 addresses [0]. It might be useful to look at using
-      happy-eyeballs to choose between IPv4 and IPv6, however this may have
-      peformance implications [2]. Better might be to explicitly listen per
-      interface on IPv4 and/or Ipv6, which would allow the user granular control.
-      BSD's also disable IPv4-mapped IPv6 address be default, so this would enable
-      better portability.
-      [0] https://www.rfc-editor.org/rfc/rfc3493#section-3.7
-      [1] https://labs.apnic.net/presentations/store/2015-10-04-dns-dual-stack.pdf *)
-  let rng ?_g length =
-    let buf = Cstruct.create length in
-    Eio.Flow.read_exact (Eio.Stdenv.secure_random env) buf;
-    buf
-  in
+  Eio_main.run @@ fun env ->
   let server =
+    let trie, keys = Zonefile.parse_zonefiles ~fs:(Eio.Stdenv.fs env) zonefiles
+    and rng ?_g length =
+      let buf = Cstruct.create length in
+      Eio.Flow.read_exact (Eio.Stdenv.secure_random env) buf;
+      buf
+    in
     ref
     @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
          ~tsig_sign:Dns_tsig.sign trie
@@ -112,12 +103,12 @@ let cmd =
     let doc =
       "IP addresses to bind too.
       
+      By default `in6addr_any` '::' is used. If IPv4-mapped IPv6 (RFC3493) is not
+      supported, e.g. on OpenBSD, the user will need to specify an IPv4 address
+      in order to serve IPv4 traffic, e.g. `-a 127.0.0.1 -a '::'`.
+      
       A can be specified, e.g. with `[::]:5053`, otherwise the default
       `port` is used.
-
-      If IPv4-mapped IPv6 is not supported, e.g. on OpenBSD, the user will 
-      need to specify an IPv4 address in order to server IPv4 traffic, e.g.
-      `-a 127.0.0.1 -a '::'`.
 
       NB names, e.g. `localhost`, are not supported."
     in
