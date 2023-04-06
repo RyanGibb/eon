@@ -134,7 +134,7 @@ let cmd =
   Cmdliner.Cmd.v info dns_t
 
 let () =
-  (* TODO make this configurable *)
-  Logs.set_reporter (Logs_fmt.reporter ());
-  Logs.set_level (Some Logs.Error);
+  (* this is not domain safe *)
+  (* Logs.set_reporter (Logs_fmt.reporter ());
+     Logs.set_level (Some Logs.Error); *)
   exit (Cmdliner.Cmd.eval cmd)
