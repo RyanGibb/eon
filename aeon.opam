@@ -15,10 +15,7 @@ depends: [
   "dns-server" {>= "6.2.2"}
   "dns-tsig"
   "cmdliner"
-  "logs"
   "fmt"
-  "menhir"
-  "odoc" {with-doc}
 ]
 build: [
   ["dune" "subst"] {dev}

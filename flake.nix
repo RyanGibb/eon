@@ -19,6 +19,7 @@
     # create outputs for each default system
     flake-utils.lib.eachDefaultSystem (system:
       let
+        package = "aeon";
         pkgs = nixpkgs.legacyPackages.${system};
         opam-nix-lib = opam-nix.lib.${system};
         devPackagesQuery = {
@@ -34,7 +35,7 @@
           # recursive finds vendored dependancies in duniverse
           opam-nix-lib.buildOpamProject' { recursive = true; } ./. (query // devPackagesQuery);
         materialized-scope =
-          opam-nix-lib.materializedDefsToScope { sourceMap.aeon = ./.; sourceMap.aeon-client = ./.; } ./package-defs.json;
+          opam-nix-lib.materializedDefsToScope { sourceMap.${package} = ./.; } ./package-defs.json;
       in rec {
         packages = rec {
           resolved = resolved-scope;
@@ -45,7 +46,7 @@
             let file = opam-nix-lib.materializeOpamProject' { } ./. (query // devPackagesQuery); in
             pkgs.runCommand "package-defs.json" { } "cat ${file} > $out";
         };
-        defaultPackage = packages.materialized.aeon;
+        defaultPackage = packages.materialized.${package};
 
         devShells =
           let
@@ -54,7 +55,7 @@
                 devPackages = builtins.attrValues
                   (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope);
               in pkgs.mkShell {
-                inputsFrom = [ scope.aeon scope.aeon-client ];
+                inputsFrom = [ scope.${package} ];
                 buildInputs = devPackages;
               };
             dev-scope =

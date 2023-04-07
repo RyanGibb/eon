@@ -15,7 +15,7 @@
  (name server)
  (modules server)
  (public_name aeon.server)
- (libraries dns_log zonefile eio_main dns dns-tsig dns-server))
+ (libraries dns_log zonefile eio_main dns dns-tsig dns-server fmt))
 
 (library
  (name client)
