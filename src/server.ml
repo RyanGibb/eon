@@ -4,9 +4,9 @@ let dns_handler ~server ~clock ~mono_clock ~callback proto
     (addr : Eio.Net.Sockaddr.t) buf =
   (* TODO handle notify, n, and key *)
   let new_server, answers, _notify, _n, _key =
-    let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get in
-    let ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock in
-    let ipaddr, port =
+    let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get
+    and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock
+    and ipaddr, port =
       match addr with
       | `Udp (ip, p) | `Tcp (ip, p) -> (Ipaddr.of_octets_exn (ip :> string), p)
       | `Unix _ -> failwith "Unix sockets not supported"
