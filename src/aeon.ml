@@ -20,63 +20,23 @@ let parse_addresses port addressStrings =
           exit 1)
     addressStrings
 
-let run zonefiles log_level data_subdomain addressStrings port tcp udp =
-  (* command line parameter parsing *)
+let run zonefiles log_level addressStrings port tcp udp =
+  Eio_main.run @@ fun env ->
   let log = get_log log_level in
   let addresses = parse_addresses port addressStrings in
-
-  (* setup server *)
-  Eio_main.run @@ fun env ->
   let server =
-    let trie, keys = Zonefile.parse_zonefiles ~fs:(Eio.Stdenv.fs env) zonefiles
-    and rng ?_g length =
+    let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+    let rng ?_g length =
       let buf = Cstruct.create length in
-      Eio.Flow.read_exact (Eio.Stdenv.secure_random env) buf;
+      Eio.Flow.read_exact env#secure_random buf;
       buf
     in
     ref
-    @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
-         ~tsig_sign:Dns_tsig.sign trie
+    @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
   in
-  let handle_dns =
-    Server.dns_handler ~server ~clock:(Eio.Stdenv.clock env)
-      ~mono_clock:(Eio.Stdenv.mono_clock env)
-      ~callback:(Transport.callback ~data_subdomain)
-  in
-
-  (* bind to sockets with callback/conection handler *)
-  let listen_on_address addr =
-    let try_bind bind addr =
-      try bind addr
-      with Unix.Unix_error (error, "bind", _) ->
-        Format.fprintf Format.err_formatter "Error binding to %a %s\n"
-          Eio.Net.Sockaddr.pp addr (Unix.error_message error);
-        exit 2
-    in
-    (if udp then
-       [
-         (fun () ->
-           Eio.Switch.run @@ fun sw ->
-           let sockUDP =
-             try_bind (Eio.Net.datagram_socket ~sw env#net) (`Udp addr)
-           in
-           Server.udp_listen log handle_dns sockUDP);
-       ]
-     else [])
-    @
-    if tcp then
-      [
-        (fun () ->
-          Eio.Switch.run @@ fun sw ->
-          let sockTCP =
-            try_bind (Eio.Net.listen ~sw ~backlog:4096 env#net) (`Tcp addr)
-          in
-          let connection_handler = Server.tcp_handle log handle_dns in
-          Server.tcp_listen sockTCP connection_handler);
-      ]
-    else []
-  in
-  Eio.Fiber.all (List.flatten (List.map listen_on_address addresses))
+  Server.start ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock
+    ~tcp ~udp
+    server log addresses
 
 let cmd =
   let zonefiles =
@@ -88,12 +48,6 @@ let cmd =
     Cmdliner.Arg.(
       value & opt int 1
       & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc:"Log level.")
-  in
-  let data_subdomain =
-    Cmdliner.Arg.(
-      value & opt string "rpc"
-      & info [ "d"; "data-subdomain" ] ~docv:"DATA_SUBDOMAIN"
-          ~doc:"Data subdomain.")
   in
   let port =
     Cmdliner.Arg.(
@@ -127,8 +81,7 @@ let cmd =
   in
   let dns_t =
     Cmdliner.Term.(
-      const run $ zonefiles $ logging $ data_subdomain $ addresses $ port $ tcp
-      $ udp)
+      const run $ zonefiles $ logging $ addresses $ port $ tcp $ udp)
   in
   let info = Cmdliner.Cmd.info "dns" in
   Cmdliner.Cmd.v info dns_t
