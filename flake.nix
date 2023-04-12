@@ -27,6 +27,7 @@
           ocamlformat = "*";
           # 1.9.6 fails to build
           ocamlfind = "1.9.5";
+          utop = "*";
         };
         query = {
           ocaml-base-compiler = "*";
