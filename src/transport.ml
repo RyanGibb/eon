@@ -1,3 +1,11 @@
+(* rfc1035 section 2.3.4 *)
+(* TODO is this wrong? *)
+let max_name_len = 200 (* should be 255 *)
+let max_label_len = 63
+
+(* as base64 encodes 6 bits in a byte, this gives us 3/4 of the `max_name_len` rounded up  *)
+let max_encoded_len = 1 + ((max_name_len - 1) / 4 * 3)
+
 let message_of_domain_name sudbomain name =
   match Domain_name.find_label name (fun s -> String.equal sudbomain s) with
   | None -> None
@@ -16,35 +24,42 @@ let message_of_domain_name sudbomain name =
 let domain_name_of_message root message =
   let data = Base64.encode_exn message in
   let authority = Domain_name.to_string root in
-  assert (String.length data + String.length authority < 255);
-  let rec segment_string string =
-    let max_len = 63 in
+  assert (String.length data + String.length authority < max_name_len);
+  let rec labels_of_string string =
     let len = String.length string in
-    if len > max_len then
-      let segment = String.sub string 0 max_len in
-      let string = String.sub string max_len (len - max_len) in
-      let list = segment_string string in
-      segment :: list
+    if len > max_label_len then
+      let label = String.sub string 0 max_label_len in
+      let string = String.sub string max_label_len (len - max_label_len) in
+      let list = labels_of_string string in
+      label :: list
     else [ string ]
   in
-  let data_name = Array.of_list @@ segment_string data in
+  let data_name = Array.of_list @@ labels_of_string data in
   let name_array = Array.append (Domain_name.to_array root) data_name in
   let hostname = Domain_name.of_array name_array in
   hostname
 
-let callback ~data_subdomain _trie question =
+let get_callback ~data_subdomain ~inqueue ~outqueue : Dns_server.callback =
+ fun _trie question ->
   let name, qtype = question in
   match message_of_domain_name data_subdomain name with
   | None -> None
   | Some (message, root) -> (
-      Eio.traceln "%s" message;
-      let reply =
-        let rev x =
-          let len = String.length x in
-          String.init len (fun n -> String.get x (len - n - 1))
-        in
-        rev message
+      (* TODO synchronisation *)
+      if String.length message > 0 then
+        inqueue := Cstruct.of_string message :: !inqueue;
+
+      let buf =
+        let rootLen = String.length (Domain_name.to_string root) in
+        Cstruct.create (max_encoded_len - rootLen)
       in
+
+      (* TODO synchronisation *)
+      let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
+      outqueue := newOutqueue;
+
+      (* let buf = Cstruct.sub buf 0 read in *)
+      let reply = Cstruct.to_string buf in
       let hostname = domain_name_of_message root reply in
       let flags = Dns.Packet.Flags.singleton `Authoritative in
       match qtype with
@@ -52,11 +67,171 @@ let callback ~data_subdomain _trie question =
           let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
           let answer = Domain_name.Map.singleton name rr in
           let authority = Dns.Name_rr_map.empty in
-          (* Name_rr_map.remove_sub (Name_rr_map.singleton au Ns (ttl, ns)) answer *)
           let data = (answer, authority) in
           let additional = None in
           Some (flags, data, additional)
-      (* TODO support more RRs ? *)
-      | _ ->
-          Eio.traceln "unsupported RR";
-          None (* TODO proper logging *))
+      | `Axfr | `Ixfr ->
+          Format.fprintf Format.err_formatter
+            "Transport: unsupported operation zonetransfer";
+          None
+      | `Any ->
+          Format.fprintf Format.err_formatter "Transport: unsupported RR ANY";
+          None
+      | `K rr ->
+          Format.fprintf Format.err_formatter "Transport: unsupported RR %a"
+            Dns.Rr_map.ppk rr;
+          None)
+
+class virtual dns_flow =
+  object
+    inherit Eio.Flow.two_way
+  end
+
+let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server log
+    addresses =
+  let inqueue = ref [] and outqueue = ref [] in
+
+  Eio.Fiber.fork ~sw (fun () ->
+      Server.start ~net ~clock ~mono_clock ~tcp ~udp
+        ~callback:(get_callback ~data_subdomain ~inqueue ~outqueue)
+        server log addresses);
+  object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
+    method probe : type a. a Eio.Generic.ty -> a option = function _ -> None
+
+    method copy src =
+      let buf = Cstruct.create 4096 in
+      try
+        while true do
+          let got = Eio.Flow.single_read src buf in
+          self#write [ Cstruct.sub buf 0 got ]
+        done
+      with End_of_file -> ()
+  
+    method write bufs =
+      (* TODO synchronisation *)
+      outqueue := List.append !outqueue bufs
+
+    method read_methods = []
+
+    method read_into buf =
+      (* TODO synchronisation *)
+      while Cstruct.lenv !inqueue == 0 do
+        Eio.Fiber.yield ()
+      done;
+      let read, newInqueue = Cstruct.fillv ~src:!inqueue ~dst:buf in
+      inqueue := newInqueue;
+      read
+
+    method shutdown cmd = ()
+  end
+
+let dns_client ~sw ~net nameserver data_subdomain authority port log =
+  let inqueue = ref [] and outqueue = ref [] in
+
+  (* TODO support different queruies, or probing access *)
+  let record_type = Dns.Rr_map.Cname
+  and addr =
+    match
+      Eio.Net.getaddrinfo_datagram net ~service:(Int.to_string port) nameserver
+    with
+    (* just takes first returned value, which is probably ipv6 *)
+    | ipaddr :: _ ->
+        Eio.Net.Sockaddr.pp Format.std_formatter ipaddr;
+        ipaddr
+    | _ ->
+        Format.fprintf Format.err_formatter "Invalid address: %s" nameserver;
+        exit 1
+  in
+  let handle_dns _proto _addr buf =
+    match Dns.Packet.decode buf with
+    | Ok packet -> (
+        match packet.data with
+        | `Answer (answer, _authority) -> (
+            match Domain_name.Map.bindings answer with
+            | [ (_key, relevant_map) ] -> (
+                match Dns.Rr_map.find record_type relevant_map with
+                | None -> ()
+                | Some (_ttl, cname) -> (
+                    match message_of_domain_name data_subdomain cname with
+                    | None -> exit 1
+                    | Some (message, _root) ->
+                        (* TODO synchronisation *)
+                        if String.length message > 0 then
+                          inqueue := Cstruct.of_string message :: !inqueue;
+                        exit 0))
+            | _ -> Format.fprintf Format.err_formatter "Transport: no answer")
+        | _ ->
+            Format.fprintf Format.err_formatter "Transport: no answer section")
+    | Error err ->
+        Format.fprintf Format.err_formatter "Transport: error decoding %a"
+          Dns.Packet.pp_err err
+  in
+  let sock =
+    let proto =
+      match addr with
+      | `Udp (ipaddr, _p) ->
+          Eio.Net.Ipaddr.fold
+            ~v4:(fun _v4 -> `UdpV4)
+            ~v6:(fun _v6 -> `UdpV6)
+            ipaddr
+    in
+    Eio.Net.datagram_socket ~sw net proto
+  in
+  let send_fiber () =
+    let buf =
+      (* String.length (data_subdomain ^ "." ^ authority) *)
+      let rootLen =
+        String.length data_subdomain + 1 + String.length authority
+      in
+      Cstruct.create (max_encoded_len - rootLen)
+    in
+    while true do
+      (* TODO better timing *)
+      while Cstruct.lenv !outqueue == 0 do
+        Eio.Fiber.yield ()
+      done;
+
+      (* TODO synchronisation *)
+      let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
+      outqueue := newOutqueue;
+
+      (* let buf = Cstruct.sub buf 0 read in *)
+      let reply = Cstruct.to_string buf in
+      let hostname =
+        let root = Domain_name.of_array [| authority; data_subdomain |] in
+        domain_name_of_message root reply
+      in
+      Client.send_query 0 record_type hostname sock addr
+    done
+  in
+  Eio.Fiber.fork ~sw (fun () -> Client.listen sock log handle_dns);
+  Eio.Fiber.fork ~sw (fun () -> send_fiber ());
+
+  object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
+    method probe : type a. a Eio.Generic.ty -> a option = function _ -> None
+
+    method copy src =
+      let buf = Cstruct.create 4096 in
+      try
+        while true do
+          let got = Eio.Flow.single_read src buf in
+
+          self#write [ Cstruct.sub buf 0 got ]
+        done
+      with End_of_file -> ()
+
+    method write bufs = outqueue := List.append !outqueue bufs
+
+    method read_methods = []
+
+    method read_into buf =
+      (* TODO synchronisation *)
+      while Cstruct.lenv !inqueue == 0 do
+        Eio.Fiber.yield ()
+      done;
+      let read, newInqueue = Cstruct.fillv ~src:!inqueue ~dst:buf in
+      inqueue := newInqueue;
+      read
+
+    method shutdown cmd = ()
+  end

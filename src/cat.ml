@@ -20,8 +20,7 @@ let parse_addresses port addressStrings =
           exit 1)
     addressStrings
 
-let run zonefiles log_level addressStrings port tcp udp =
-  
+let run zonefiles log_level addressStrings data_subdomain port tcp udp =
   Eio_main.run @@ fun env ->
   let log = get_log log_level in
   let addresses = parse_addresses port addressStrings in
@@ -33,11 +32,25 @@ let run zonefiles log_level addressStrings port tcp udp =
       buf
     in
     ref
-    @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
+    @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
+         ~tsig_sign:Dns_tsig.sign trie
   in
-  Server.start ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock
-    ~tcp ~udp
-    server log addresses
+  Eio.Switch.run @@ fun sw ->
+  let server =
+    Transport.dns_server ~sw ~net:env#net ~clock:env#clock
+      ~mono_clock:env#mono_clock ~tcp ~udp data_subdomain server log addresses
+  in
+  let client =
+    Transport.dns_client ~sw ~net:env#net "127.0.0.1" data_subdomain
+      "example.org" port log
+  in
+  Eio.Fiber.both
+    (fun () -> Eio.Flow.copy env#stdin client)
+    (fun () -> Eio.Flow.copy server env#stdout)
+
+    (* TODO synthetic client queries *)
+    (* (fun () -> Eio.Flow.copy env#stdin server)
+    (fun () -> Eio.Flow.copy client env#stdout) *)
 
 let cmd =
   let zonefiles =
@@ -49,6 +62,12 @@ let cmd =
     Cmdliner.Arg.(
       value & opt int 1
       & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc:"Log level.")
+  in
+  let data_subdomain =
+    Cmdliner.Arg.(
+      value & opt string "rpc"
+      & info [ "d"; "data-subdomain" ] ~docv:"DATA_SUBDOMAIN"
+          ~doc:"Data subdomain.")
   in
   let port =
     Cmdliner.Arg.(
@@ -82,7 +101,8 @@ let cmd =
   in
   let dns_t =
     Cmdliner.Term.(
-      const run $ zonefiles $ logging $ addresses $ port $ tcp $ udp)
+      const run $ zonefiles $ logging $ addresses $ data_subdomain $ port $ tcp
+      $ udp)
   in
   let info = Cmdliner.Cmd.info "dns" in
   Cmdliner.Cmd.v info dns_t
