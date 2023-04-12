@@ -24,7 +24,7 @@ let run zonefiles log_level addressStrings port tcp udp =
   Eio_main.run @@ fun env ->
   let log = get_log log_level in
   let addresses = parse_addresses port addressStrings in
-  let server =
+  let serverState =
     let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
     let rng ?_g length =
       let buf = Cstruct.create length in
@@ -32,11 +32,11 @@ let run zonefiles log_level addressStrings port tcp udp =
       buf
     in
     ref
-    @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
+    @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
+         ~tsig_sign:Dns_tsig.sign trie
   in
-  Server.start ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock
-    ~tcp ~udp
-    server log addresses
+  Server.start ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~tcp
+    ~udp serverState log addresses
 
 let cmd =
   let zonefiles =
