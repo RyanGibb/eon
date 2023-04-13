@@ -60,7 +60,7 @@ let cmd =
   in
   let logging =
     Cmdliner.Arg.(
-      value & opt int 1
+      value & opt int 0
       & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc:"Log level.")
   in
   let data_subdomain =
