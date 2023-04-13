@@ -4,7 +4,7 @@ let max_label_len = 63
 
 let max_encoded_len =
   (* subtract the characters needed for label delimination *)
-  let max_name_non_label_len = max_name_len - max_name_len / max_label_len in
+  let max_name_non_label_len = max_name_len - (max_name_len / max_label_len) in
   (* as base64 encodes 6 bits in a byte, this gives us 3/4 of the `max_name_len` rounded up  *)
   1 + ((max_name_non_label_len - 1) / 4 * 3)
 
