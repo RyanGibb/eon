@@ -9,26 +9,25 @@ let max_encoded_len =
   1 + ((max_name_non_label_len - 1) / 4 * 3)
 
 let message_of_domain_name sudbomain name =
-  match Domain_name.find_label name (fun s -> String.equal sudbomain s) with
-  | None -> None
-  | Some i -> (
-      let data_name =
-        Domain_name.drop_label_exn ~rev:true
-          ~amount:(Domain_name.count_labels name - i)
-          name
-      in
-      let root = Domain_name.drop_label_exn ~amount:i name in
-      let data_array = Domain_name.to_array data_name in
-      let data = String.concat "" (Array.to_list data_array) in
-      if String.length data == 0 then None
-      else
-        try
-          let message = Base64.decode_exn data in
-          Some (message, root)
-        with Invalid_argument e ->
-          Format.fprintf Format.err_formatter "Transport: error decoding %s\n" e;
-          Format.pp_print_flush Format.err_formatter ();
-          None)
+  let ( let* ) = Option.bind in
+  let* i = Domain_name.find_label name (fun s -> String.equal sudbomain s) in
+  let data_name =
+    Domain_name.drop_label_exn ~rev:true
+      ~amount:(Domain_name.count_labels name - i)
+      name
+  in
+  let root = Domain_name.drop_label_exn ~amount:i name in
+  let data_array = Domain_name.to_array data_name in
+  let data = String.concat "" (Array.to_list data_array) in
+  if String.length data == 0 then None
+  else
+    try
+      let message = Base64.decode_exn data in
+      Some (message, root)
+    with Invalid_argument e ->
+      Format.fprintf Format.err_formatter "Transport: error decoding %s\n" e;
+      Format.pp_print_flush Format.err_formatter ();
+      None
 
 let domain_name_of_message root message =
   let data = Base64.encode_exn message in
@@ -60,52 +59,52 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server log
 
   let callback _trie question =
     let name, qtype = question in
-    match message_of_domain_name data_subdomain name with
-    | None -> None
-    | Some (message, root) -> (
-        (* TODO synchronisation *)
-        if String.length message > 0 then
-          inqueue := Cstruct.of_string message :: !inqueue;
+    let ( let* ) = Option.bind in
+    let* message, root = message_of_domain_name data_subdomain name in
 
-        let buf =
-          let rootLen = String.length (Domain_name.to_string root) in
-          Cstruct.create (max_encoded_len - rootLen)
-        in
+    (* TODO synchronisation *)
+    if String.length message > 0 then
+      inqueue := Cstruct.of_string message :: !inqueue;
 
-        (* TODO synchronisation *)
-        while Cstruct.lenv !outqueue == 0 do
-          Eio.Fiber.yield ()
-        done;
-        let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
-        outqueue := newOutqueue;
+    let buf =
+      let rootLen = String.length (Domain_name.to_string root) in
+      Cstruct.create (max_encoded_len - rootLen)
+    in
 
-        let buf = Cstruct.sub buf 0 read in
+    (* TODO synchronisation *)
+    while Cstruct.lenv !outqueue == 0 do
+      Eio.Fiber.yield ()
+    done;
+    let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
+    outqueue := newOutqueue;
 
-        let reply = Cstruct.to_string buf in
-        let hostname = domain_name_of_message root reply in
-        let flags = Dns.Packet.Flags.singleton `Authoritative in
-        match qtype with
-        | `K (Dns.Rr_map.K Dns.Rr_map.Cname) ->
-            let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
-            let answer = Domain_name.Map.singleton name rr in
-            let authority = Dns.Name_rr_map.empty in
-            let data = (answer, authority) in
-            let additional = None in
-            Some (flags, data, additional)
-        | `Axfr | `Ixfr ->
-            Format.fprintf Format.err_formatter
-              "Transport: unsupported operation zonetransfer";
-            Format.pp_print_flush Format.err_formatter ();
-            None
-        | `Any ->
-            Format.fprintf Format.err_formatter "Transport: unsupported RR ANY";
-            Format.pp_print_flush Format.err_formatter ();
-            None
-        | `K rr ->
-            Format.fprintf Format.err_formatter "Transport: unsupported RR %a"
-              Dns.Rr_map.ppk rr;
-            Format.pp_print_flush Format.err_formatter ();
-            None)
+    let buf = Cstruct.sub buf 0 read in
+
+    let reply = Cstruct.to_string buf in
+    let hostname = domain_name_of_message root reply in
+    let flags = Dns.Packet.Flags.singleton `Authoritative in
+    match qtype with
+    | `K (Dns.Rr_map.K Dns.Rr_map.Cname) ->
+        let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
+        let answer = Domain_name.Map.singleton name rr in
+        let authority = Dns.Name_rr_map.empty in
+        let data = (answer, authority) in
+        let additional = None in
+        Some (flags, data, additional)
+    | `Axfr | `Ixfr ->
+        Format.fprintf Format.err_formatter
+          "Transport: unsupported operation zonetransfer";
+        Format.pp_print_flush Format.err_formatter ();
+        None
+    | `Any ->
+        Format.fprintf Format.err_formatter "Transport: unsupported RR ANY";
+        Format.pp_print_flush Format.err_formatter ();
+        None
+    | `K rr ->
+        Format.fprintf Format.err_formatter "Transport: unsupported RR %a"
+          Dns.Rr_map.ppk rr;
+        Format.pp_print_flush Format.err_formatter ();
+        None
   in
 
   Eio.Fiber.fork ~sw (fun () ->
