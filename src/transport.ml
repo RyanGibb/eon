@@ -148,9 +148,7 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       Eio.Net.getaddrinfo_datagram net ~service:(Int.to_string port) nameserver
     with
     (* just takes first returned value, which is probably ipv6 *)
-    | ipaddr :: _ ->
-        Eio.Net.Sockaddr.pp Format.std_formatter ipaddr;
-        ipaddr
+    | ipaddr :: _ -> ipaddr
     | _ ->
         Format.fprintf Format.err_formatter "Invalid address: %s" nameserver;
         Format.pp_print_flush Format.err_formatter ();
