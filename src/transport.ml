@@ -49,56 +49,6 @@ let domain_name_of_message root message =
   let hostname = Domain_name.of_array name_array in
   hostname
 
-let get_callback ~data_subdomain ~inqueue ~outqueue : Dns_server.callback =
- fun _trie question ->
-  let name, qtype = question in
-  match message_of_domain_name data_subdomain name with
-  | None -> None
-  | Some (message, root) -> (
-      (* TODO synchronisation *)
-      if String.length message > 0 then
-        inqueue := Cstruct.of_string message :: !inqueue;
-
-      let buf =
-        let rootLen = String.length (Domain_name.to_string root) in
-        Cstruct.create (max_encoded_len - rootLen)
-      in
-
-      (* TODO synchronisation *)
-      while Cstruct.lenv !outqueue == 0 do
-        Eio.Fiber.yield ()
-      done;
-      let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
-      outqueue := newOutqueue;
-
-      let buf = Cstruct.sub buf 0 read in
-
-      let reply = Cstruct.to_string buf in
-      let hostname = domain_name_of_message root reply in
-      let flags = Dns.Packet.Flags.singleton `Authoritative in
-      match qtype with
-      | `K (Dns.Rr_map.K Dns.Rr_map.Cname) ->
-          let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
-          let answer = Domain_name.Map.singleton name rr in
-          let authority = Dns.Name_rr_map.empty in
-          let data = (answer, authority) in
-          let additional = None in
-          Some (flags, data, additional)
-      | `Axfr | `Ixfr ->
-          Format.fprintf Format.err_formatter
-            "Transport: unsupported operation zonetransfer";
-          Format.pp_print_flush Format.err_formatter ();
-          None
-      | `Any ->
-          Format.fprintf Format.err_formatter "Transport: unsupported RR ANY";
-          Format.pp_print_flush Format.err_formatter ();
-          None
-      | `K rr ->
-          Format.fprintf Format.err_formatter "Transport: unsupported RR %a"
-            Dns.Rr_map.ppk rr;
-          Format.pp_print_flush Format.err_formatter ();
-          None)
-
 class virtual dns_flow =
   object
     inherit Eio.Flow.two_way
@@ -108,10 +58,59 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server log
     addresses =
   let inqueue = ref [] and outqueue = ref [] in
 
+  let callback _trie question =
+    let name, qtype = question in
+    match message_of_domain_name data_subdomain name with
+    | None -> None
+    | Some (message, root) -> (
+        (* TODO synchronisation *)
+        if String.length message > 0 then
+          inqueue := Cstruct.of_string message :: !inqueue;
+
+        let buf =
+          let rootLen = String.length (Domain_name.to_string root) in
+          Cstruct.create (max_encoded_len - rootLen)
+        in
+
+        (* TODO synchronisation *)
+        while Cstruct.lenv !outqueue == 0 do
+          Eio.Fiber.yield ()
+        done;
+        let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
+        outqueue := newOutqueue;
+
+        let buf = Cstruct.sub buf 0 read in
+
+        let reply = Cstruct.to_string buf in
+        let hostname = domain_name_of_message root reply in
+        let flags = Dns.Packet.Flags.singleton `Authoritative in
+        match qtype with
+        | `K (Dns.Rr_map.K Dns.Rr_map.Cname) ->
+            let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
+            let answer = Domain_name.Map.singleton name rr in
+            let authority = Dns.Name_rr_map.empty in
+            let data = (answer, authority) in
+            let additional = None in
+            Some (flags, data, additional)
+        | `Axfr | `Ixfr ->
+            Format.fprintf Format.err_formatter
+              "Transport: unsupported operation zonetransfer";
+            Format.pp_print_flush Format.err_formatter ();
+            None
+        | `Any ->
+            Format.fprintf Format.err_formatter "Transport: unsupported RR ANY";
+            Format.pp_print_flush Format.err_formatter ();
+            None
+        | `K rr ->
+            Format.fprintf Format.err_formatter "Transport: unsupported RR %a"
+              Dns.Rr_map.ppk rr;
+            Format.pp_print_flush Format.err_formatter ();
+            None)
+  in
+
   Eio.Fiber.fork ~sw (fun () ->
-      Server.start ~net ~clock ~mono_clock ~tcp ~udp
-        ~callback:(get_callback ~data_subdomain ~inqueue ~outqueue)
-        server log addresses);
+      Server.start ~net ~clock ~mono_clock ~tcp ~udp ~callback server log
+        addresses);
   object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
     method probe : type a. a Eio.Generic.ty -> a option = function _ -> None
 
