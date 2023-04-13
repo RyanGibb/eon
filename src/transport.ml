@@ -1,10 +1,12 @@
 (* rfc1035 section 2.3.4 *)
-(* TODO is this wrong? *)
-let max_name_len = 200 (* should be 255 *)
+let max_name_len = 255
 let max_label_len = 63
 
-(* as base64 encodes 6 bits in a byte, this gives us 3/4 of the `max_name_len` rounded up  *)
-let max_encoded_len = 1 + ((max_name_len - 1) / 4 * 3)
+let max_encoded_len =
+  (* subtract the characters needed for label delimination *)
+  let max_name_non_label_len = max_name_len - max_name_len / max_label_len in
+  (* as base64 encodes 6 bits in a byte, this gives us 3/4 of the `max_name_len` rounded up  *)
+  1 + ((max_name_non_label_len - 1) / 4 * 3)
 
 let message_of_domain_name sudbomain name =
   match Domain_name.find_label name (fun s -> String.equal sudbomain s) with
@@ -31,7 +33,8 @@ let message_of_domain_name sudbomain name =
 let domain_name_of_message root message =
   let data = Base64.encode_exn message in
   let authority = Domain_name.to_string root in
-  assert (String.length data + String.length authority < max_name_len);
+  (* String.length (data_subdomain ^ "." ^ authority) *)
+  assert (String.length data + 1 + String.length authority < max_name_len);
   let rec labels_of_string string =
     let len = String.length string in
     if len > max_label_len then
@@ -68,7 +71,8 @@ let get_callback ~data_subdomain ~inqueue ~outqueue : Dns_server.callback =
       let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
       outqueue := newOutqueue;
 
-      (* let buf = Cstruct.sub buf 0 read in *)
+      let buf = Cstruct.sub buf 0 read in
+
       let reply = Cstruct.to_string buf in
       let hostname = domain_name_of_message root reply in
       let flags = Dns.Packet.Flags.singleton `Authoritative in
@@ -219,7 +223,8 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
       outqueue := newOutqueue;
 
-      (* let buf = Cstruct.sub buf 0 read in *)
+      let buf = Cstruct.sub buf 0 read in
+
       let reply = Cstruct.to_string buf in
       let hostname =
         let root = Domain_name.of_array [| authority; data_subdomain |] in
