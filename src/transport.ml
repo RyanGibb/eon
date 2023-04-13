@@ -57,6 +57,8 @@ class virtual dns_flow =
 type sync = {
   in_q : Cstruct.t list ref;
   out_q : Cstruct.t list ref;
+  in_mut : Eio.Mutex.t;
+  out_mut : Eio.Mutex.t;
   in_sem : Eio.Semaphore.t;
   out_sem : Eio.Semaphore.t;
 }
@@ -65,6 +67,8 @@ let sync_create () =
   {
     in_q = ref [];
     out_q = ref [];
+    in_mut = Eio.Mutex.create ();
+    out_mut = Eio.Mutex.create ();
     in_sem = Eio.Semaphore.make 0;
     out_sem = Eio.Semaphore.make 0;
   }
@@ -79,7 +83,8 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     let* message, root = message_of_domain_name data_subdomain name in
 
     if String.length message > 0 then (
-      sync.in_q := Cstruct.of_string message :: !(sync.in_q);
+      Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
+          sync.in_q := Cstruct.of_string message :: !(sync.in_q));
       Eio.Semaphore.release sync.in_sem);
 
     let buf =
@@ -88,8 +93,12 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     in
 
     Eio.Semaphore.acquire sync.out_sem;
-    let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
-    sync.out_q := new_out_q;
+    let read =
+      Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
+          let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
+          sync.out_q := new_out_q;
+          read)
+    in
 
     let buf = Cstruct.sub buf 0 read in
 
@@ -136,16 +145,18 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
       with End_of_file -> ()
 
     method write bufs =
-      sync.out_q := List.append !(sync.out_q) bufs;
+      Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
+          sync.out_q := List.append !(sync.out_q) bufs);
       Eio.Semaphore.release sync.out_sem
 
     method read_methods = []
 
     method read_into buf =
       Eio.Semaphore.acquire sync.in_sem;
-      let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
-      sync.in_q := new_in_q;
-      read
+      Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
+          let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
+          sync.in_q := new_in_q;
+          read)
 
     method shutdown _cmd = ()
   end
@@ -198,9 +209,9 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
     | None -> exit 1
     | Some (message, _root) ->
         if String.length message > 0 then (
-          sync.in_q := Cstruct.of_string message :: !(sync.in_q);
-          Eio.Semaphore.release sync.in_sem;
-          ())
+          Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
+              sync.in_q := Cstruct.of_string message :: !(sync.in_q));
+          Eio.Semaphore.release sync.in_sem)
   in
   let sock =
     let proto =
@@ -223,8 +234,12 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
     in
     while true do
       Eio.Semaphore.acquire sync.out_sem;
-      let read, newOut_queue = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
-      sync.out_q := newOut_queue;
+      let read =
+        Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
+            let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
+            sync.out_q := new_out_q;
+            read)
+      in
 
       let buf = Cstruct.sub buf 0 read in
 
@@ -254,16 +269,18 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       with End_of_file -> ()
 
     method write bufs =
-      sync.out_q := List.append !(sync.out_q) bufs;
+      Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
+          sync.out_q := List.append !(sync.out_q) bufs);
       Eio.Semaphore.release sync.out_sem
 
     method read_methods = []
 
     method read_into buf =
       Eio.Semaphore.acquire sync.in_sem;
-      let read, new_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
-      sync.in_q := new_q;
-      read
+      Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
+          let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
+          sync.in_q := new_in_q;
+          read)
 
     method shutdown _cmd = ()
   end
