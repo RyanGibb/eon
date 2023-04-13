@@ -125,7 +125,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server log
       inqueue := newInqueue;
       read
 
-    method shutdown cmd = ()
+    method shutdown _cmd = ()
   end
 
 let dns_client ~sw ~net nameserver data_subdomain authority port log =
@@ -236,5 +236,5 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       inqueue := newInqueue;
       read
 
-    method shutdown cmd = ()
+    method shutdown _cmd = ()
   end
