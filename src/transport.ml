@@ -225,6 +225,7 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
         let root = Domain_name.of_array [| authority; data_subdomain |] in
         domain_name_of_message root reply
       in
+      (* TODO query id *)
       Client.send_query log 0 record_type hostname sock addr
     done
   in
