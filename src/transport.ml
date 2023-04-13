@@ -53,7 +53,7 @@ class virtual dns_flow =
     inherit Eio.Flow.two_way
   end
 
-let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server log
+let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state log
     addresses =
   let inqueue = ref [] and outqueue = ref [] in
 
@@ -108,7 +108,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server log
   in
 
   Eio.Fiber.fork ~sw (fun () ->
-      Server.start ~net ~clock ~mono_clock ~tcp ~udp ~callback server log
+      Server.start ~net ~clock ~mono_clock ~tcp ~udp ~callback server_state log
         addresses);
   object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
     method probe : type a. a Eio.Generic.ty -> a option = function _ -> None

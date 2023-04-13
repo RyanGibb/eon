@@ -24,7 +24,7 @@ let run zonefiles log_level addressStrings data_subdomain port tcp udp =
   Eio_main.run @@ fun env ->
   let log = get_log log_level in
   let addresses = parse_addresses port addressStrings in
-  let server =
+  let server_state =
     let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
     let rng ?_g length =
       let buf = Cstruct.create length in
@@ -38,7 +38,7 @@ let run zonefiles log_level addressStrings data_subdomain port tcp udp =
   Eio.Switch.run @@ fun sw ->
   let server =
     Transport.dns_server ~sw ~net:env#net ~clock:env#clock
-      ~mono_clock:env#mono_clock ~tcp ~udp data_subdomain server log addresses
+      ~mono_clock:env#mono_clock ~tcp ~udp data_subdomain server_state log addresses
   in
   let client =
     Transport.dns_client ~sw ~net:env#net "127.0.0.1" data_subdomain
