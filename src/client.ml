@@ -21,8 +21,11 @@ let create_query identifier record_type name =
   let cs, _ = Dns.Packet.encode `Udp query in
   cs
 
-let send_query identifier record_type name sock addr =
+let send_query log identifier record_type name sock addr =
   let query = create_query identifier record_type name in
+  (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
+  let addr = match addr with `Udp a -> `Udp a in
+  log Dns_log.Tx addr query;
   Eio.Net.send sock addr query
 
 let listen sock log (handle_dns : dns_handler) = udp_listen log sock handle_dns

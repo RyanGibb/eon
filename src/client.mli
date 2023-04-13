@@ -1,6 +1,7 @@
 type dns_handler = Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
 
 val send_query :
+  Dns_log.formattedLog ->
   int ->
   'a Dns.Rr_map.rr ->
   'b Domain_name.t ->
