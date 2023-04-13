@@ -9,7 +9,7 @@ let max_encoded_len = 1 + ((max_name_len - 1) / 4 * 3)
 let message_of_domain_name sudbomain name =
   match Domain_name.find_label name (fun s -> String.equal sudbomain s) with
   | None -> None
-  | Some i ->
+  | Some i -> (
       let data_name =
         Domain_name.drop_label_exn ~rev:true
           ~amount:(Domain_name.count_labels name - i)
@@ -18,8 +18,15 @@ let message_of_domain_name sudbomain name =
       let root = Domain_name.drop_label_exn ~amount:i name in
       let data_array = Domain_name.to_array data_name in
       let data = String.concat "" (Array.to_list data_array) in
-      let message = Base64.decode_exn data in
-      Some (message, root)
+      if String.length data == 0 then None
+      else
+        try
+          let message = Base64.decode_exn data in
+          Some (message, root)
+        with Invalid_argument e ->
+          Format.fprintf Format.err_formatter "Transport: error decoding %s\n" e;
+          Format.pp_print_flush Format.err_formatter ();
+          None)
 
 let domain_name_of_message root message =
   let data = Base64.encode_exn message in
