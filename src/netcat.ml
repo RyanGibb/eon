@@ -38,7 +38,8 @@ let run zonefiles log_level addressStrings data_subdomain port tcp udp =
   Eio.Switch.run @@ fun sw ->
   let server =
     Transport.dns_server ~sw ~net:env#net ~clock:env#clock
-      ~mono_clock:env#mono_clock ~tcp ~udp data_subdomain server_state log addresses
+      ~mono_clock:env#mono_clock ~tcp ~udp data_subdomain server_state log
+      addresses
   in
   let client =
     Transport.dns_client ~sw ~net:env#net "127.0.0.1" data_subdomain
