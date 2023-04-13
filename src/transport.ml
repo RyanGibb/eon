@@ -119,7 +119,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server log
           self#write [ Cstruct.sub buf 0 got ]
         done
       with End_of_file -> ()
-  
+
     method write bufs =
       (* TODO synchronisation *)
       outqueue := List.append !outqueue bufs
@@ -247,7 +247,6 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       with End_of_file -> ()
 
     method write bufs = outqueue := List.append !outqueue bufs
-
     method read_methods = []
 
     method read_into buf =
