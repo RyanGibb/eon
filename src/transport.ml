@@ -83,13 +83,16 @@ let get_callback ~data_subdomain ~inqueue ~outqueue : Dns_server.callback =
       | `Axfr | `Ixfr ->
           Format.fprintf Format.err_formatter
             "Transport: unsupported operation zonetransfer";
+          Format.pp_print_flush Format.err_formatter ();
           None
       | `Any ->
           Format.fprintf Format.err_formatter "Transport: unsupported RR ANY";
+          Format.pp_print_flush Format.err_formatter ();
           None
       | `K rr ->
           Format.fprintf Format.err_formatter "Transport: unsupported RR %a"
             Dns.Rr_map.ppk rr;
+          Format.pp_print_flush Format.err_formatter ();
           None)
 
 class virtual dns_flow =
@@ -150,6 +153,7 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
         ipaddr
     | _ ->
         Format.fprintf Format.err_formatter "Invalid address: %s" nameserver;
+        Format.pp_print_flush Format.err_formatter ();
         exit 1
   in
   let handle_dns _proto _addr buf : unit =
