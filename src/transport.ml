@@ -160,14 +160,17 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
                     | Some (message, _root) ->
                         (* TODO synchronisation *)
                         if String.length message > 0 then
-                          inqueue := Cstruct.of_string message :: !inqueue;
-                        exit 0))
-            | _ -> Format.fprintf Format.err_formatter "Transport: no answer")
+                          inqueue := Cstruct.of_string message :: !inqueue))
+            | _ ->
+                Format.fprintf Format.err_formatter "Transport: no answer";
+                Format.pp_print_flush Format.err_formatter ())
         | _ ->
-            Format.fprintf Format.err_formatter "Transport: no answer section")
+            Format.fprintf Format.err_formatter "Transport: no answer section";
+            Format.pp_print_flush Format.err_formatter ())
     | Error err ->
         Format.fprintf Format.err_formatter "Transport: error decoding %a"
-          Dns.Packet.pp_err err
+          Dns.Packet.pp_err err;
+        Format.pp_print_flush Format.err_formatter ()
   in
   let sock =
     let proto =
