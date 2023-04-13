@@ -53,30 +53,30 @@ class virtual dns_flow =
     inherit Eio.Flow.two_way
   end
 
-let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state log
-    addresses =
-  let inqueue = ref [] and outqueue = ref [] in
+let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
+    log addresses =
+  let in_queue = ref []
+  and out_queue = ref []
+  and in_sem = Eio.Semaphore.make 0
+  and out_sem = Eio.Semaphore.make 0 in
 
   let callback _trie question =
     let name, qtype = question in
     let ( let* ) = Option.bind in
     let* message, root = message_of_domain_name data_subdomain name in
 
-    (* TODO synchronisation *)
-    if String.length message > 0 then
-      inqueue := Cstruct.of_string message :: !inqueue;
+    if String.length message > 0 then (
+      in_queue := Cstruct.of_string message :: !in_queue;
+      Eio.Semaphore.release in_sem);
 
     let buf =
       let rootLen = String.length (Domain_name.to_string root) in
       Cstruct.create (max_encoded_len - rootLen)
     in
 
-    (* TODO synchronisation *)
-    while Cstruct.lenv !outqueue == 0 do
-      Eio.Fiber.yield ()
-    done;
-    let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
-    outqueue := newOutqueue;
+    Eio.Semaphore.acquire out_sem;
+    let read, newOut_queue = Cstruct.fillv ~src:!out_queue ~dst:buf in
+    out_queue := newOut_queue;
 
     let buf = Cstruct.sub buf 0 read in
 
@@ -123,27 +123,27 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
       with End_of_file -> ()
 
     method write bufs =
-      (* TODO synchronisation *)
-      outqueue := List.append !outqueue bufs
+      out_queue := List.append !out_queue bufs;
+      Eio.Semaphore.release out_sem;
 
     method read_methods = []
 
     method read_into buf =
-      (* TODO synchronisation *)
-      while Cstruct.lenv !inqueue == 0 do
-        Eio.Fiber.yield ()
-      done;
-      let read, newInqueue = Cstruct.fillv ~src:!inqueue ~dst:buf in
-      inqueue := newInqueue;
+      Eio.Semaphore.acquire in_sem;
+      let read, newIn_queue = Cstruct.fillv ~src:!in_queue ~dst:buf in
+      in_queue := newIn_queue;
       read
 
     method shutdown _cmd = ()
   end
 
 let dns_client ~sw ~net nameserver data_subdomain authority port log =
-  let inqueue = ref [] and outqueue = ref [] in
+  let in_queue = ref []
+  and out_queue = ref []
+  and in_sem = Eio.Semaphore.make 0
+  and out_sem = Eio.Semaphore.make 0 in
 
-  (* TODO support different queruies, or probing access *)
+  (* TODO support different queries, or probing access *)
   let record_type = Dns.Rr_map.Cname
   and addr =
     match
@@ -187,10 +187,10 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
     match message_of_domain_name data_subdomain cname with
     | None -> exit 1
     | Some (message, _root) ->
-        (* TODO synchronisation *)
-        if String.length message > 0 then
-          inqueue := Cstruct.of_string message :: !inqueue;
-        ()
+        if String.length message > 0 then (
+          in_queue := Cstruct.of_string message :: !in_queue;
+          Eio.Semaphore.release in_sem;
+          ())
   in
   let sock =
     let proto =
@@ -212,14 +212,9 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       Cstruct.create (max_encoded_len - rootLen)
     in
     while true do
-      (* TODO better timing *)
-      while Cstruct.lenv !outqueue == 0 do
-        Eio.Fiber.yield ()
-      done;
-
-      (* TODO synchronisation *)
-      let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
-      outqueue := newOutqueue;
+      Eio.Semaphore.acquire out_sem;
+      let read, newOut_queue = Cstruct.fillv ~src:!out_queue ~dst:buf in
+      out_queue := newOut_queue;
 
       let buf = Cstruct.sub buf 0 read in
 
@@ -248,16 +243,16 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
         done
       with End_of_file -> ()
 
-    method write bufs = outqueue := List.append !outqueue bufs
+    method write bufs =
+      out_queue := List.append !out_queue bufs;
+      Eio.Semaphore.release out_sem
+
     method read_methods = []
 
     method read_into buf =
-      (* TODO synchronisation *)
-      while Cstruct.lenv !inqueue == 0 do
-        Eio.Fiber.yield ()
-      done;
-      let read, newInqueue = Cstruct.fillv ~src:!inqueue ~dst:buf in
-      inqueue := newInqueue;
+      Eio.Semaphore.acquire in_sem;
+      let read, newIn_queue = Cstruct.fillv ~src:!in_queue ~dst:buf in
+      in_queue := newIn_queue;
       read
 
     method shutdown _cmd = ()
