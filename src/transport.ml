@@ -145,32 +145,41 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
         Format.fprintf Format.err_formatter "Invalid address: %s" nameserver;
         exit 1
   in
-  let handle_dns _proto _addr buf =
-    match Dns.Packet.decode buf with
-    | Ok packet -> (
-        match packet.data with
-        | `Answer (answer, _authority) -> (
-            match Domain_name.Map.bindings answer with
-            | [ (_key, relevant_map) ] -> (
-                match Dns.Rr_map.find record_type relevant_map with
-                | None -> ()
-                | Some (_ttl, cname) -> (
-                    match message_of_domain_name data_subdomain cname with
-                    | None -> exit 1
-                    | Some (message, _root) ->
-                        (* TODO synchronisation *)
-                        if String.length message > 0 then
-                          inqueue := Cstruct.of_string message :: !inqueue))
-            | _ ->
-                Format.fprintf Format.err_formatter "Transport: no answer";
-                Format.pp_print_flush Format.err_formatter ())
-        | _ ->
-            Format.fprintf Format.err_formatter "Transport: no answer section";
-            Format.pp_print_flush Format.err_formatter ())
-    | Error err ->
-        Format.fprintf Format.err_formatter "Transport: error decoding %a"
-          Dns.Packet.pp_err err;
-        Format.pp_print_flush Format.err_formatter ()
+  let handle_dns _proto _addr buf : unit =
+    let ( let* ) o f = match o with None -> () | Some v -> f v in
+    let* packet =
+      match Dns.Packet.decode buf with
+      | Ok packet -> Some packet
+      | Error err ->
+          Format.fprintf Format.err_formatter "Transport: error decoding %a"
+            Dns.Packet.pp_err err;
+          Format.pp_print_flush Format.err_formatter ();
+          None
+    in
+    let* answer =
+      match packet.data with
+      | `Answer (answer, _authority) -> Some answer
+      | _ ->
+          Format.fprintf Format.err_formatter "Transport: no answer section";
+          Format.pp_print_flush Format.err_formatter ();
+          None
+    in
+    let* map =
+      match Domain_name.Map.bindings answer with
+      | [ (_key, map) ] -> Some map
+      | _ ->
+          Format.fprintf Format.err_formatter "Transport: no answer";
+          Format.pp_print_flush Format.err_formatter ();
+          None
+    in
+    let* _ttl, cname = Dns.Rr_map.find record_type map in
+    match message_of_domain_name data_subdomain cname with
+    | None -> exit 1
+    | Some (message, _root) ->
+        (* TODO synchronisation *)
+        if String.length message > 0 then
+          inqueue := Cstruct.of_string message :: !inqueue;
+        ()
   in
   let sock =
     let proto =
