@@ -3728,7 +3728,10 @@ module Packet = struct
           in
           match alias with
           | None -> (names, off), count
-          | Some n -> encode_one names off count n
+          | Some n ->
+            (* if the alias is the same as the query, terminate the infinite recursion *)
+            if Domain_name.equal n qname then (names, off), count else
+            encode_one names off count n
       in
       encode_one names off 0 qname
 
