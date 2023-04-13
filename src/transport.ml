@@ -55,6 +55,9 @@ let get_callback ~data_subdomain ~inqueue ~outqueue : Dns_server.callback =
       in
 
       (* TODO synchronisation *)
+      while Cstruct.lenv !outqueue == 0 do
+        Eio.Fiber.yield ()
+      done;
       let read, newOutqueue = Cstruct.fillv ~src:!outqueue ~dst:buf in
       outqueue := newOutqueue;
 
