@@ -1,3 +1,8 @@
+class virtual dns_flow =
+  object
+    inherit Eio.Flow.two_way
+  end
+
 (* rfc1035 section 2.3.4 *)
 let max_name_len = 255
 let max_label_len = 63
@@ -48,60 +53,95 @@ let domain_name_of_message root message =
   let hostname = Domain_name.of_array name_array in
   hostname
 
-class virtual dns_flow =
-  object
-    inherit Eio.Flow.two_way
-  end
+module CstructStream : sig
+  type t
 
-(* structures for synchronisation of I/O *)
-type sync = {
-  in_q : Cstruct.t list ref;
-  out_q : Cstruct.t list ref;
-  in_mut : Eio.Mutex.t;
-  out_mut : Eio.Mutex.t;
-  in_cond : Eio.Condition.t;
-  out_cond : Eio.Condition.t;
-}
-
-let sync_create () =
-  {
-    in_q = ref [];
-    out_q = ref [];
-    in_mut = Eio.Mutex.create ();
-    out_mut = Eio.Mutex.create ();
-    in_sem = Eio.Semaphore.make 0;
-    out_sem = Eio.Semaphore.make 0;
+  val create : unit -> t
+  val to_flow : t -> t -> Eio.Flow.two_way
+  val add : t -> Cstruct.t -> unit
+  val pop : t -> Cstruct.t -> int
+end = struct
+  type t = {
+    items : Cstruct.t list ref;
+    mut : Eio.Mutex.t;
+    cond : Eio.Condition.t;
   }
+
+  let create () =
+    {
+      items = ref [];
+      mut = Eio.Mutex.create ();
+      cond = Eio.Condition.create ();
+    }
+
+  let add q buf =
+    Eio.Mutex.use_rw q.mut ~protect:true (fun () ->
+        q.items := buf :: !(q.items);
+        Eio.Condition.broadcast q.cond)
+
+  let pop q buf =
+    Eio.Mutex.use_rw q.mut ~protect:true (fun () ->
+        while !(q.items) == [] || Cstruct.lenv !(q.items) == 0 do
+          Eio.Condition.await q.cond q.mut
+        done;
+        let read, new_items = Cstruct.fillv ~src:!(q.items) ~dst:buf in
+        q.items := new_items;
+        read)
+
+  let to_flow inc_q out_q =
+    object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
+      method probe : type a. a Eio.Generic.ty -> a option = function _ -> None
+
+      method copy src =
+        let buf = Cstruct.create 4096 in
+        try
+          while true do
+            let got = Eio.Flow.single_read src buf in
+
+            self#write [ Cstruct.sub buf 0 got ]
+          done
+        with End_of_file -> ()
+
+      method write bufs =
+        Eio.Mutex.use_rw out_q.mut ~protect:true (fun () ->
+            out_q.items := List.append !(out_q.items) bufs;
+            Eio.Condition.broadcast out_q.cond)
+
+      method read_methods = []
+
+      method read_into buf =
+        Eio.Mutex.use_rw inc_q.mut ~protect:true (fun () ->
+            (* we don't add empty messages to the in_q, so we shouldn't ever return 0 *)
+            while !(inc_q.items) == [] do
+              Eio.Condition.await inc_q.cond inc_q.mut
+            done;
+            let read, new_items = Cstruct.fillv ~src:!(inc_q.items) ~dst:buf in
+            inc_q.items := new_items;
+            read)
+
+      method shutdown _cmd = ()
+    end
+end
 
 let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     log addresses =
-  let sync = sync_create () in
+  let server_inc_q = CstructStream.create ()
+  and server_out_q = CstructStream.create () in
 
   let callback _trie question =
     let name, qtype = question in
     let ( let* ) = Option.bind in
     let* message, root = message_of_domain_name data_subdomain name in
 
-    if String.length message > 0 then (
-      Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
-          sync.in_q := Cstruct.of_string message :: !(sync.in_q);
-          Eio.Condition.broadcast sync.in_cond
-          )
-      );
+    if String.length message > 0 then
+      CstructStream.add server_inc_q (Cstruct.of_string message);
 
     let buf =
       let rootLen = String.length (Domain_name.to_string root) in
       Cstruct.create (max_encoded_len - rootLen)
     in
 
-    let read = Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
-      while !(sync.out_q) == [] || Cstruct.lenv !(sync.out_q) == 0 do
-        Eio.Condition.await sync.out_cond sync.out_mut;
-      done;
-      let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
-      sync.out_q := new_out_q;
-      read
-    ) in
+    let read = CstructStream.pop server_out_q buf in
 
     let buf = Cstruct.sub buf 0 read in
 
@@ -135,40 +175,11 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   Eio.Fiber.fork ~sw (fun () ->
       Server.start ~net ~clock ~mono_clock ~tcp ~udp ~callback server_state log
         addresses);
-  object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
-    method probe : type a. a Eio.Generic.ty -> a option = function _ -> None
-
-    method copy src =
-      let buf = Cstruct.create 4096 in
-      try
-        while true do
-          let got = Eio.Flow.single_read src buf in
-          self#write [ Cstruct.sub buf 0 got ]
-        done
-      with End_of_file -> ()
-
-    method write bufs =
-      Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
-        sync.out_q := List.append !(sync.out_q) bufs;
-        Eio.Condition.broadcast sync.out_cond
-      )
-
-    method read_methods = []
-
-    method read_into buf =
-      Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
-        (* we don't add empty messages to the in_q, so we shouldn't ever return 0 *)
-        while !(sync.in_q) == [] do Eio.Condition.await sync.in_cond sync.in_mut done;
-        let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
-        sync.in_q := new_in_q;
-        read
-      )
-
-    method shutdown _cmd = ()
-  end
+  CstructStream.to_flow server_inc_q server_out_q
 
 let dns_client ~sw ~net nameserver data_subdomain authority port log =
-  let sync = sync_create () in
+  let client_inc_q = CstructStream.create ()
+  and client_out_q = CstructStream.create () in
 
   (* TODO support different queries, or probing access *)
   let record_type = Dns.Rr_map.Cname
@@ -214,12 +225,8 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
     match message_of_domain_name data_subdomain cname with
     | None -> exit 1
     | Some (message, _root) ->
-        if String.length message > 0 then (
-          Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
-            sync.in_q := Cstruct.of_string message :: !(sync.in_q);
-            Eio.Condition.broadcast sync.in_cond
-            )
-        )
+        if String.length message > 0 then
+          CstructStream.add client_inc_q (Cstruct.of_string message)
   in
   let sock =
     let proto =
@@ -241,14 +248,7 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       Cstruct.create (max_encoded_len - rootLen)
     in
     while true do
-      let read = Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
-        while !(sync.out_q) == [] || Cstruct.lenv !(sync.out_q) == 0 do
-          Eio.Condition.await sync.out_cond sync.out_mut;
-        done;
-        let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
-        sync.out_q := new_out_q;
-        read
-      ) in
+      let read = CstructStream.pop client_out_q buf in
 
       let buf = Cstruct.sub buf 0 read in
 
@@ -263,36 +263,4 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
   in
   Eio.Fiber.fork ~sw (fun () -> Client.listen sock log handle_dns);
   Eio.Fiber.fork ~sw (fun () -> send_fiber ());
-
-  object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
-    method probe : type a. a Eio.Generic.ty -> a option = function _ -> None
-
-    method copy src =
-      let buf = Cstruct.create 4096 in
-      try
-        while true do
-          let got = Eio.Flow.single_read src buf in
-
-          self#write [ Cstruct.sub buf 0 got ]
-        done
-      with End_of_file -> ()
-
-    method write bufs =
-      Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
-        sync.out_q := List.append !(sync.out_q) bufs;
-        Eio.Condition.broadcast sync.out_cond
-      )
-
-    method read_methods = []
-
-    method read_into buf =
-      Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
-        (* we don't add empty messages to the in_q, so we shouldn't ever return 0 *)
-        while !(sync.in_q) == [] do Eio.Condition.await sync.in_cond sync.in_mut done;
-        let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
-        sync.in_q := new_in_q;
-        read
-      )
-
-    method shutdown _cmd = ()
-  end
+  CstructStream.to_flow client_inc_q client_out_q
