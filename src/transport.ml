@@ -91,8 +91,10 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
       let rootLen = String.length (Domain_name.to_string root) in
       Cstruct.create (max_encoded_len - rootLen)
     in
+    
+    if !(sync.out_q) == [] then
+      Eio.Semaphore.acquire sync.out_sem;
 
-    Eio.Semaphore.acquire sync.out_sem;
     let read =
       Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
           let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
@@ -152,7 +154,8 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     method read_methods = []
 
     method read_into buf =
-      Eio.Semaphore.acquire sync.in_sem;
+      if !(sync.in_q) == [] then
+        Eio.Semaphore.acquire sync.in_sem;
       Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
           let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
           sync.in_q := new_in_q;
@@ -233,7 +236,8 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       Cstruct.create (max_encoded_len - rootLen)
     in
     while true do
-      Eio.Semaphore.acquire sync.out_sem;
+      if !(sync.out_q) == [] then
+        Eio.Semaphore.acquire sync.out_sem;
       let read =
         Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
             let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
@@ -276,7 +280,8 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
     method read_methods = []
 
     method read_into buf =
-      Eio.Semaphore.acquire sync.in_sem;
+      if !(sync.in_q) == [] then
+        Eio.Semaphore.acquire sync.in_sem;
       Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
           let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
           sync.in_q := new_in_q;
