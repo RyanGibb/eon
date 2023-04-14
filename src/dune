@@ -5,11 +5,18 @@
  (package aeon)
  (libraries server cmdliner))
 
+(executable
+ (name netcat)
+ (modules netcat)
+ (public_name aeon.netcat)
+ (package aeon)
+ (libraries transport server_args))
+
 (library
  (name transport)
  (modules transport)
  (public_name aeon.transport)
- (libraries server))
+ (libraries server client))
 
 (library
  (name server)
