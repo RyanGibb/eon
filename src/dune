@@ -3,7 +3,7 @@
  (modules aeon)
  (public_name aeon)
  (package aeon)
- (libraries server cmdliner))
+ (libraries server server_args))
 
 (executable
  (name netcat)
@@ -11,6 +11,12 @@
  (public_name aeon.netcat)
  (package aeon)
  (libraries transport server_args))
+
+(library
+ (name server_args)
+ (modules server_args)
+ (public_name aeon.server-args)
+ (libraries cmdliner))
 
 (library
  (name transport)

@@ -52,62 +52,28 @@ let run zonefiles log_level addressStrings data_subdomain port tcp udp =
       (fun () -> Eio.Flow.copy client env#stdout);
     ]
 
-let cmd =
-  let zonefiles =
-    Cmdliner.Arg.(
-      value & opt_all string []
-      & info [ "z"; "zonefile" ] ~docv:"ZONEFILE_PATHS" ~doc:"Zonefile path.")
-  in
-  let logging =
-    Cmdliner.Arg.(
-      value & opt int 0
-      & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc:"Log level.")
-  in
-  let data_subdomain =
-    Cmdliner.Arg.(
-      value & opt string "rpc"
-      & info [ "d"; "data-subdomain" ] ~docv:"DATA_SUBDOMAIN"
-          ~doc:"Data subdomain.")
-  in
-  let port =
-    Cmdliner.Arg.(
-      value & opt int 53 & info [ "p"; "port" ] ~docv:"PORT" ~doc:"Port.")
-  in
-  let addresses =
-    let doc =
-      "IP addresses to bind too.
-      
-      By default `in6addr_any` '::' is used. If IPv4-mapped IPv6 (RFC3493) is not
-      supported, e.g. on OpenBSD, the user will need to specify an IPv4 address
-      in order to serve IPv4 traffic, e.g. `-a 127.0.0.1 -a '::'`.
-      
-      A can be specified, e.g. with `[::]:5053`, otherwise the default
-      `port` is used.
-
-      NB names, e.g. `localhost`, are not supported."
-    in
-    Cmdliner.Arg.(
-      (* :: is IPv6 local *)
-      value & opt_all string [ "::" ]
-      & info [ "a"; "address" ] ~docv:"ADDRESSES" ~doc)
-  in
-  let tcp =
-    let doc = "Whether to use TCP." in
-    Cmdliner.Arg.(value & opt bool true & info [ "t"; "tcp" ] ~docv:"TCP" ~doc)
-  in
-  let udp =
-    let doc = "Whether to use UDP." in
-    Cmdliner.Arg.(value & opt bool true & info [ "u"; "udp" ] ~docv:"UDP" ~doc)
-  in
-  let dns_t =
-    Cmdliner.Term.(
-      const run $ zonefiles $ logging $ addresses $ data_subdomain $ port $ tcp
-      $ udp)
-  in
-  let info = Cmdliner.Cmd.info "dns" in
-  Cmdliner.Cmd.v info dns_t
-
 let () =
+  let cmd =
+    let netcat_logging =
+      Cmdliner.Arg.(
+        value & opt int 0
+        & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc:"Log level.")
+    in
+    let data_subdomain =
+      Cmdliner.Arg.(
+        value & opt string "rpc"
+        & info [ "d"; "data-subdomain" ] ~docv:"DATA_SUBDOMAIN"
+            ~doc:"Data subdomain.")
+    in
+    let dns_t =
+      Cmdliner.Term.(
+        let open Server_args in
+        const run $ zonefiles $ netcat_logging $ addresses $ data_subdomain
+        $ port $ tcp $ udp)
+    in
+    let info = Cmdliner.Cmd.info "dns" in
+    Cmdliner.Cmd.v info dns_t
+  in
   (* this is not domain safe *)
   (* Logs.set_reporter (Logs_fmt.reporter ());
      Logs.set_level (Some Logs.Error); *)
