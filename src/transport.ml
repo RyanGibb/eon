@@ -53,8 +53,7 @@ let domain_name_of_message root message =
   let name_array = Array.append (Domain_name.to_array root) data_name in
   let hostname = Domain_name.of_array name_array in
   (* if the message is empty, just return the root *)
-  if String.length message == 0 then root
-  else hostname
+  if String.length message == 0 then root else hostname
 
 module CstructStream : sig
   type t
@@ -63,7 +62,7 @@ module CstructStream : sig
 
   val create : unit -> t
   val to_flow : t -> t -> Eio.Flow.two_way
-  val add : t -> Cstruct.t -> unit
+  val add : t -> Cstruct.t list -> unit
   val pop : t -> Cstruct.t -> int
   val peek : t -> Cstruct.t -> int
 end = struct
@@ -82,9 +81,9 @@ end = struct
       cond = Eio.Condition.create ();
     }
 
-  let add q buf =
+  let add q bufs =
     Eio.Mutex.use_rw q.mut ~protect:true (fun () ->
-        q.items := buf :: !(q.items);
+        q.items := !(q.items) @ bufs;
         Eio.Condition.broadcast q.cond)
 
   let pop q buf =
@@ -116,28 +115,13 @@ end = struct
         try
           while true do
             let got = Eio.Flow.single_read src buf in
-
             self#write [ Cstruct.sub buf 0 got ]
           done
         with End_of_file -> ()
 
-      method write bufs =
-        Eio.Mutex.use_rw out_q.mut ~protect:true (fun () ->
-            out_q.items := List.append !(out_q.items) bufs;
-            Eio.Condition.broadcast out_q.cond)
-
+      method write bufs = add out_q bufs
       method read_methods = []
-
-      method read_into buf =
-        Eio.Mutex.use_rw inc_q.mut ~protect:true (fun () ->
-            (* we don't add empty messages to the in_q, so we shouldn't ever return 0 *)
-            while !(inc_q.items) == [] do
-              Eio.Condition.await inc_q.cond inc_q.mut
-            done;
-            let read, new_items = Cstruct.fillv ~src:!(inc_q.items) ~dst:buf in
-            inc_q.items := new_items;
-            read)
-
+      method read_into buf = pop inc_q buf
       method shutdown _cmd = ()
     end
 end
@@ -153,7 +137,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     let* message, root = message_of_domain_name data_subdomain name in
 
     if String.length message > 0 then
-      CstructStream.add server_inc_q (Cstruct.of_string message);
+      CstructStream.add server_inc_q [ Cstruct.of_string message ];
 
     let buf =
       let rootLen = String.length (Domain_name.to_string root) in
@@ -248,7 +232,7 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
     | None -> exit 1
     | Some (message, _root) ->
         if String.length message > 0 then
-          CstructStream.add client_inc_q (Cstruct.of_string message)
+          CstructStream.add client_inc_q [ Cstruct.of_string message ]
   in
   let sock =
     let proto =
