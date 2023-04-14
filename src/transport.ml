@@ -59,8 +59,8 @@ type sync = {
   out_q : Cstruct.t list ref;
   in_mut : Eio.Mutex.t;
   out_mut : Eio.Mutex.t;
-  in_sem : Eio.Semaphore.t;
-  out_sem : Eio.Semaphore.t;
+  in_cond : Eio.Condition.t;
+  out_cond : Eio.Condition.t;
 }
 
 let sync_create () =
@@ -84,23 +84,24 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
 
     if String.length message > 0 then (
       Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
-          sync.in_q := Cstruct.of_string message :: !(sync.in_q));
-      Eio.Semaphore.release sync.in_sem);
+          sync.in_q := Cstruct.of_string message :: !(sync.in_q);
+          Eio.Condition.broadcast sync.in_cond
+          )
+      );
 
     let buf =
       let rootLen = String.length (Domain_name.to_string root) in
       Cstruct.create (max_encoded_len - rootLen)
     in
-    
-    if !(sync.out_q) == [] then
-      Eio.Semaphore.acquire sync.out_sem;
 
-    let read =
-      Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
-          let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
-          sync.out_q := new_out_q;
-          read)
-    in
+    let read = Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
+      while !(sync.out_q) == [] || Cstruct.lenv !(sync.out_q) == 0 do
+        Eio.Condition.await sync.out_cond sync.out_mut;
+      done;
+      let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
+      sync.out_q := new_out_q;
+      read
+    ) in
 
     let buf = Cstruct.sub buf 0 read in
 
@@ -148,18 +149,20 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
 
     method write bufs =
       Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
-          sync.out_q := List.append !(sync.out_q) bufs);
-      Eio.Semaphore.release sync.out_sem
+        sync.out_q := List.append !(sync.out_q) bufs;
+        Eio.Condition.broadcast sync.out_cond
+      )
 
     method read_methods = []
 
     method read_into buf =
-      if !(sync.in_q) == [] then
-        Eio.Semaphore.acquire sync.in_sem;
       Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
-          let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
-          sync.in_q := new_in_q;
-          read)
+        (* we don't add empty messages to the in_q, so we shouldn't ever return 0 *)
+        while !(sync.in_q) == [] do Eio.Condition.await sync.in_cond sync.in_mut done;
+        let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
+        sync.in_q := new_in_q;
+        read
+      )
 
     method shutdown _cmd = ()
   end
@@ -213,8 +216,10 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
     | Some (message, _root) ->
         if String.length message > 0 then (
           Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
-              sync.in_q := Cstruct.of_string message :: !(sync.in_q));
-          Eio.Semaphore.release sync.in_sem)
+            sync.in_q := Cstruct.of_string message :: !(sync.in_q);
+            Eio.Condition.broadcast sync.in_cond
+            )
+        )
   in
   let sock =
     let proto =
@@ -236,14 +241,14 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       Cstruct.create (max_encoded_len - rootLen)
     in
     while true do
-      if !(sync.out_q) == [] then
-        Eio.Semaphore.acquire sync.out_sem;
-      let read =
-        Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
-            let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
-            sync.out_q := new_out_q;
-            read)
-      in
+      let read = Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
+        while !(sync.out_q) == [] || Cstruct.lenv !(sync.out_q) == 0 do
+          Eio.Condition.await sync.out_cond sync.out_mut;
+        done;
+        let read, new_out_q = Cstruct.fillv ~src:!(sync.out_q) ~dst:buf in
+        sync.out_q := new_out_q;
+        read
+      ) in
 
       let buf = Cstruct.sub buf 0 read in
 
@@ -274,18 +279,20 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
 
     method write bufs =
       Eio.Mutex.use_rw sync.out_mut ~protect:true (fun () ->
-          sync.out_q := List.append !(sync.out_q) bufs);
-      Eio.Semaphore.release sync.out_sem
+        sync.out_q := List.append !(sync.out_q) bufs;
+        Eio.Condition.broadcast sync.out_cond
+      )
 
     method read_methods = []
 
     method read_into buf =
-      if !(sync.in_q) == [] then
-        Eio.Semaphore.acquire sync.in_sem;
       Eio.Mutex.use_rw sync.in_mut ~protect:true (fun () ->
-          let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
-          sync.in_q := new_in_q;
-          read)
+        (* we don't add empty messages to the in_q, so we shouldn't ever return 0 *)
+        while !(sync.in_q) == [] do Eio.Condition.await sync.in_cond sync.in_mut done;
+        let read, new_in_q = Cstruct.fillv ~src:!(sync.in_q) ~dst:buf in
+        sync.in_q := new_in_q;
+        read
+      )
 
     method shutdown _cmd = ()
   end
