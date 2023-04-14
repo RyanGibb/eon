@@ -161,7 +161,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     in
 
     let read = CstructStream.pop server_out_q buf in
-
+    (* truncate buffer to the number of bytes read *)
     let buf = Cstruct.sub buf 0 read in
 
     let reply = Cstruct.to_string buf in
@@ -276,7 +276,7 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
         with CstructStream.Empty ->
           if !sent_id <= !recv_id then 0 else CstructStream.pop client_out_q buf
       in
-
+      (* truncate buffer to the number of bytes read *)
       let buf = Cstruct.sub buf 0 read in
 
       let reply = Cstruct.to_string buf in
