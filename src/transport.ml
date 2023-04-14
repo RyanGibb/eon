@@ -24,7 +24,8 @@ let message_of_domain_name sudbomain name =
   let root = Domain_name.drop_label_exn ~amount:i name in
   let data_array = Domain_name.to_array data_name in
   let data = String.concat "" (Array.to_list data_array) in
-  if String.length data == 0 then None
+  (* if there is no data encoded, return an empty string *)
+  if String.length data == 0 then Some ("", root)
   else
     try
       let message = Base64.decode_exn data in
@@ -51,21 +52,28 @@ let domain_name_of_message root message =
   let data_name = Array.of_list @@ labels_of_string data in
   let name_array = Array.append (Domain_name.to_array root) data_name in
   let hostname = Domain_name.of_array name_array in
-  hostname
+  (* if the message is empty, just return the root *)
+  if String.length message == 0 then root
+  else hostname
 
 module CstructStream : sig
   type t
+
+  exception Empty
 
   val create : unit -> t
   val to_flow : t -> t -> Eio.Flow.two_way
   val add : t -> Cstruct.t -> unit
   val pop : t -> Cstruct.t -> int
+  val peek : t -> Cstruct.t -> int
 end = struct
   type t = {
     items : Cstruct.t list ref;
     mut : Eio.Mutex.t;
     cond : Eio.Condition.t;
   }
+
+  exception Empty
 
   let create () =
     {
@@ -87,6 +95,17 @@ end = struct
         let read, new_items = Cstruct.fillv ~src:!(q.items) ~dst:buf in
         q.items := new_items;
         read)
+
+  let peek q buf =
+    let read, empty =
+      Eio.Mutex.use_rw ~protect:true q.mut (fun () ->
+          if !(q.items) == [] || Cstruct.lenv !(q.items) == 0 then (0, true)
+          else
+            let read, new_items = Cstruct.fillv ~src:!(q.items) ~dst:buf in
+            q.items := new_items;
+            (read, false))
+    in
+    if empty then raise Empty else read
 
   let to_flow inc_q out_q =
     object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
@@ -194,6 +213,7 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
         Format.pp_print_flush Format.err_formatter ();
         exit 1
   in
+  let recv_id = ref 0 in
   let handle_dns _proto _addr buf : unit =
     let ( let* ) o f = match o with None -> () | Some v -> f v in
     let* packet =
@@ -205,6 +225,8 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
           Format.pp_print_flush Format.err_formatter ();
           None
     in
+    let id, _flags = packet.header in
+    if id > !recv_id then recv_id := id;
     let* answer =
       match packet.data with
       | `Answer (answer, _authority) -> Some answer
@@ -239,6 +261,7 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
     in
     Eio.Net.datagram_socket ~sw net proto
   in
+  let sent_id = ref 0 in
   let send_fiber () =
     let buf =
       (* String.length (data_subdomain ^ "." ^ authority) *)
@@ -248,7 +271,11 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       Cstruct.create (max_encoded_len - rootLen)
     in
     while true do
-      let read = CstructStream.pop client_out_q buf in
+      let read =
+        try CstructStream.peek client_out_q buf
+        with CstructStream.Empty ->
+          if !sent_id <= !recv_id then 0 else CstructStream.pop client_out_q buf
+      in
 
       let buf = Cstruct.sub buf 0 read in
 
@@ -258,7 +285,8 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
         domain_name_of_message root reply
       in
       (* TODO query id *)
-      Client.send_query log 0 record_type hostname sock addr
+      sent_id := !sent_id + 1;
+      Client.send_query log !sent_id record_type hostname sock addr
     done
   in
   Eio.Fiber.fork ~sw (fun () -> Client.listen sock log handle_dns);
