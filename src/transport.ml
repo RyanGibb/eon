@@ -180,7 +180,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
         addresses);
   CstructStream.to_flow server_inc_q server_out_q
 
-let dns_client ~sw ~net nameserver data_subdomain authority port log =
+let dns_client ~sw ~net ~random nameserver data_subdomain authority port log =
   let client_inc_q = CstructStream.create ()
   and client_out_q = CstructStream.create () in
 
@@ -197,7 +197,10 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
         Format.pp_print_flush Format.err_formatter ();
         exit 1
   in
-  let recv_id = ref 0 in
+
+  (* keep track of sent and recieved query ids *)
+  let last_recv_id = ref 0 and last_sent_id = ref 0 in
+
   let handle_dns _proto _addr buf : unit =
     let ( let* ) o f = match o with None -> () | Some v -> f v in
     let* packet =
@@ -210,7 +213,7 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
           None
     in
     let id, _flags = packet.header in
-    if id > !recv_id then recv_id := id;
+    if id > !last_recv_id then last_recv_id := id;
     let* answer =
       match packet.data with
       | `Answer (answer, _authority) -> Some answer
@@ -245,7 +248,6 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
     in
     Eio.Net.datagram_socket ~sw net proto
   in
-  let sent_id = ref 0 in
   let send_fiber () =
     let buf =
       (* String.length (data_subdomain ^ "." ^ authority) *)
@@ -258,8 +260,13 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
       let read =
         try CstructStream.try_pop client_out_q buf
         with CstructStream.Empty ->
-          if !sent_id <= !recv_id then 0 else CstructStream.pop client_out_q buf
+          (* if we have recieved an answer to our last query, send an empty query *)
+          if !last_sent_id == !last_recv_id then 0
+            (* otherwise, wait for data to send *)
+            (* TODO timeout and send a query refresh *)
+          else CstructStream.pop client_out_q buf
       in
+
       (* truncate buffer to the number of bytes read *)
       let buf = Cstruct.sub buf 0 read in
 
@@ -268,9 +275,14 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
         let root = Domain_name.of_array [| authority; data_subdomain |] in
         domain_name_of_message root reply
       in
-      (* TODO query id *)
-      sent_id := !sent_id + 1;
-      Client.send_query log !sent_id record_type hostname sock addr
+      last_sent_id :=
+        (* gets a random uint16 *)
+        Cstruct.LE.get_uint16
+          (let b = Cstruct.create 2 in
+           Eio.Flow.read_exact random b;
+           b)
+          0;
+      Client.send_query log !last_sent_id record_type hostname sock addr
     done
   in
   Eio.Fiber.fork ~sw (fun () -> Client.listen sock log handle_dns);
