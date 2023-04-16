@@ -64,7 +64,7 @@ module CstructStream : sig
   val to_flow : t -> t -> Eio.Flow.two_way
   val add : t -> Cstruct.t list -> unit
   val pop : t -> Cstruct.t -> int
-  val peek : t -> Cstruct.t -> int
+  val try_pop : t -> Cstruct.t -> int
 end = struct
   type t = {
     items : Cstruct.t list ref;
@@ -95,7 +95,7 @@ end = struct
         q.items := new_items;
         read)
 
-  let peek q buf =
+  let try_pop q buf =
     let read, empty =
       Eio.Mutex.use_rw ~protect:true q.mut (fun () ->
           if !(q.items) == [] || Cstruct.lenv !(q.items) == 0 then (0, true)
@@ -256,7 +256,7 @@ let dns_client ~sw ~net nameserver data_subdomain authority port log =
     in
     while true do
       let read =
-        try CstructStream.peek client_out_q buf
+        try CstructStream.try_pop client_out_q buf
         with CstructStream.Empty ->
           if !sent_id <= !recv_id then 0 else CstructStream.pop client_out_q buf
       in
