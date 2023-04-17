@@ -61,13 +61,14 @@ module CstructStream : sig
   exception Empty
 
   val create : unit -> t
-  val to_flow : t -> t -> Eio.Flow.two_way
   val add : t -> Cstruct.t list -> unit
   val add_if_waiter : t -> Cstruct.t list -> bool
   val pop : t -> Cstruct.t -> int
   val try_pop : t -> Cstruct.t -> int
+  val to_flow : t -> t -> Eio.Flow.two_way
 end = struct
   type t = {
+    (* As `Cstruct.*v` functions take a `Cstruct.t list` *)
     items : Cstruct.t list ref;
     mut : Eio.Mutex.t;
     cond : Eio.Condition.t;
