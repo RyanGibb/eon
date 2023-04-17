@@ -131,9 +131,11 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   let server_inc_q = CstructStream.create ()
   and server_out_q = CstructStream.create () in
 
-  let callback _trie question =
-    let name, qtype = question in
+  let packet_callback (p : Dns.Packet.t) : Dns.Packet.t option =
     let ( let* ) = Option.bind in
+    let* name, qtype =
+      match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
+    in
     let* message, root = message_of_domain_name data_subdomain name in
 
     if String.length message > 0 then
@@ -149,35 +151,43 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     let buf = Cstruct.sub buf 0 read in
 
     let reply = Cstruct.to_string buf in
+
+    (* Only process CNAME queries *)
+    let* _ =
+      match qtype with
+      | `K (Dns.Rr_map.K Dns.Rr_map.Cname) -> Some ()
+      | `Axfr | `Ixfr ->
+          Format.fprintf Format.err_formatter
+            "Transport: unsupported operation zonetransfer";
+          Format.pp_print_flush Format.err_formatter ();
+          None
+      | `Any ->
+          Format.fprintf Format.err_formatter "Transport: unsupported RR ANY";
+          Format.pp_print_flush Format.err_formatter ();
+          None
+      | `K rr ->
+          Format.fprintf Format.err_formatter "Transport: unsupported RR %a"
+            Dns.Rr_map.ppk rr;
+          Format.pp_print_flush Format.err_formatter ();
+          None
+    in
+
     let hostname = domain_name_of_message root reply in
+    let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
+    let answer = Domain_name.Map.singleton name rr in
+    let authority = Dns.Name_rr_map.empty in
+    let data = `Answer (answer, authority) in
+    let additional = None in
     let flags = Dns.Packet.Flags.singleton `Authoritative in
-    match qtype with
-    | `K (Dns.Rr_map.K Dns.Rr_map.Cname) ->
-        let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
-        let answer = Domain_name.Map.singleton name rr in
-        let authority = Dns.Name_rr_map.empty in
-        let data = (answer, authority) in
-        let additional = None in
-        Some (flags, data, additional)
-    | `Axfr | `Ixfr ->
-        Format.fprintf Format.err_formatter
-          "Transport: unsupported operation zonetransfer";
-        Format.pp_print_flush Format.err_formatter ();
-        None
-    | `Any ->
-        Format.fprintf Format.err_formatter "Transport: unsupported RR ANY";
-        Format.pp_print_flush Format.err_formatter ();
-        None
-    | `K rr ->
-        Format.fprintf Format.err_formatter "Transport: unsupported RR %a"
-          Dns.Rr_map.ppk rr;
-        Format.pp_print_flush Format.err_formatter ();
-        None
+    let packet =
+      Dns.Packet.create ?additional (fst p.header, flags) p.question data
+    in
+    Some packet
   in
 
   Eio.Fiber.fork ~sw (fun () ->
-      Server.start ~net ~clock ~mono_clock ~tcp ~udp ~callback server_state log
-        addresses);
+      Server.start ~net ~clock ~mono_clock ~tcp ~udp ~packet_callback
+        server_state log addresses);
   CstructStream.to_flow server_inc_q server_out_q
 
 let dns_client ~sw ~net ~random nameserver data_subdomain authority port log =

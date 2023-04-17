@@ -4,7 +4,7 @@ val start :
   mono_clock:#Eio.Time.Mono.t ->
   ?tcp:bool ->
   ?udp:bool ->
-  ?callback:Dns_server.callback ->
+  ?packet_callback:Dns_server.packet_callback ->
   Dns_server.Primary.s ref ->
   Dns_log.formattedLog ->
   (Eio.Net.Ipaddr.v4v6 * int) list ->

@@ -1,7 +1,8 @@
 type dns_handler =
   Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
 
-let get_dns_handler ~server_state ~clock ~mono_clock ~callback : dns_handler =
+let get_dns_handler ~server_state ~clock ~mono_clock ~packet_callback :
+    dns_handler =
  fun proto (addr : Eio.Net.Sockaddr.t) buf ->
   (* TODO handle notify, n, and key *)
   let new_server_state, answers, _notify, _n, _key =
@@ -13,7 +14,7 @@ let get_dns_handler ~server_state ~clock ~mono_clock ~callback : dns_handler =
       | `Unix _ -> failwith "Unix sockets not supported"
     in
     Dns_server.Primary.handle_buf !server_state now ts proto ipaddr port buf
-      callback
+      packet_callback
   in
   (* TODO is this thread safe? *)
   server_state := new_server_state;
@@ -75,8 +76,10 @@ let tcp_listen listeningSock connection_handler =
   done
 
 let start ~net ~clock ~mono_clock ?(tcp = true) ?(udp = true)
-    ?(callback = fun _t _q -> None) server_state log addresses =
-  let handle_dns = get_dns_handler ~server_state ~clock ~mono_clock ~callback in
+    ?(packet_callback = fun _q -> None) server_state log addresses =
+  let handle_dns =
+    get_dns_handler ~server_state ~clock ~mono_clock ~packet_callback
+  in
 
   (* bind to sockets with callback/conection handler *)
   let listen_on_address addr =
