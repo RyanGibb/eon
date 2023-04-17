@@ -21,21 +21,26 @@ let get_dns_handler ~server_state ~clock ~mono_clock ~packet_callback :
   answers
 
 let udp_listen log handle_dns sock =
-  (* Support queries of up to 4kB.
-     The 512B limit described in rfc1035 section 2.3.4 is outdated) *)
-  let buf = Cstruct.create 4096 in
+  Eio.Switch.run @@ fun sw ->
   while true do
+    (* Create a new buffer for every recv.
+       Support queries of up to 4kB.
+       The 512B limit described in rfc1035 section 2.3.4 is outdated) *)
+    let buf = Cstruct.create 4096 in
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
     (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
     let addr = match addr with `Udp a -> `Udp a in
     log Dns_log.Rx addr trimmedBuf;
-    let answers = handle_dns `Udp addr trimmedBuf in
-    List.iter
-      (fun b ->
-        log Dns_log.Tx addr b;
-        Eio.Net.send sock addr b)
-      answers
+    (* fork a thread to process packet and reply, so we can continue to listen for packets *)
+    Eio.Fiber.fork ~sw (fun () ->
+        let answers = handle_dns `Udp addr trimmedBuf in
+        (* TODO do we need a mutex over sending? *)
+        List.iter
+          (fun b ->
+            log Dns_log.Tx addr b;
+            Eio.Net.send sock addr b)
+          answers)
   done
 
 type connection_handler =
@@ -43,6 +48,7 @@ type connection_handler =
 
 let tcp_handle log handle_dns : connection_handler =
  fun sock addr ->
+  Eio.Switch.run @@ fun sw ->
   (* Persist connection until EOF, rfc7766 section 6.2.1 *)
   try
     while true do
@@ -55,15 +61,17 @@ let tcp_handle log handle_dns : connection_handler =
       (* convert Eio.Net.Sockaddr.stream to Eio.Net.Sockaddr.t *)
       let addr = match addr with `Tcp a -> `Tcp a | `Unix u -> `Unix u in
       log Dns_log.Rx addr buf;
-      let answers = handle_dns `Tcp addr buf in
-      List.iter
-        (fun b ->
-          log Dns_log.Tx addr b;
-          (* add prefix, described in rfc1035 section 4.2.2 *)
-          let prefix = Cstruct.create 2 in
-          Cstruct.BE.set_uint16 prefix 0 b.len;
-          Eio.Flow.write sock [ prefix; b ])
-        answers
+      (* fork a thread to process packet and reply, so we can continue to listen for packets *)
+      Eio.Fiber.fork ~sw (fun () ->
+          let answers = handle_dns `Tcp addr buf in
+          List.iter
+            (fun b ->
+              log Dns_log.Tx addr b;
+              (* add prefix, described in rfc1035 section 4.2.2 *)
+              let prefix = Cstruct.create 2 in
+              Cstruct.BE.set_uint16 prefix 0 b.len;
+              Eio.Flow.write sock [ prefix; b ])
+            answers)
     done
     (* ignore EOF *)
   with End_of_file -> ()

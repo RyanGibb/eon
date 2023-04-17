@@ -63,6 +63,7 @@ module CstructStream : sig
   val create : unit -> t
   val to_flow : t -> t -> Eio.Flow.two_way
   val add : t -> Cstruct.t list -> unit
+  val add_if_waiter : t -> Cstruct.t list -> bool
   val pop : t -> Cstruct.t -> int
   val try_pop : t -> Cstruct.t -> int
 end = struct
@@ -70,6 +71,7 @@ end = struct
     items : Cstruct.t list ref;
     mut : Eio.Mutex.t;
     cond : Eio.Condition.t;
+    waiters : int ref;
   }
 
   exception Empty
@@ -79,6 +81,7 @@ end = struct
       items = ref [];
       mut = Eio.Mutex.create ();
       cond = Eio.Condition.create ();
+      waiters = ref 0;
     }
 
   let add q bufs =
@@ -86,11 +89,21 @@ end = struct
         q.items := !(q.items) @ bufs;
         Eio.Condition.broadcast q.cond)
 
+  let add_if_waiter q bufs =
+    Eio.Mutex.use_rw q.mut ~protect:true (fun () ->
+        let are_waiters = !(q.waiters) > 0 in
+        if are_waiters then (
+          q.items := !(q.items) @ bufs;
+          Eio.Condition.broadcast q.cond);
+        are_waiters)
+
   let pop q buf =
     Eio.Mutex.use_rw q.mut ~protect:true (fun () ->
+        q.waiters := !(q.waiters) + 1;
         while !(q.items) == [] || Cstruct.lenv !(q.items) == 0 do
           Eio.Condition.await q.cond q.mut
         done;
+        q.waiters := !(q.waiters) - 1;
         let read, new_items = Cstruct.fillv ~src:!(q.items) ~dst:buf in
         q.items := new_items;
         read)
@@ -132,6 +145,10 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   and server_out_q = CstructStream.create () in
 
   let packet_callback (p : Dns.Packet.t) : Dns.Packet.t option =
+    (* respond with nothing to previous queries *)
+    ignore @@ CstructStream.add_if_waiter server_out_q [ Cstruct.create 0 ];
+    Eio.Fiber.yield ();
+
     let ( let* ) = Option.bind in
     let* name, qtype =
       match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
