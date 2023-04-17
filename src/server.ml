@@ -1,3 +1,5 @@
+exception Ignore of unit
+
 type dns_handler =
   Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
 
@@ -34,7 +36,9 @@ let udp_listen log handle_dns sock =
     log Dns_log.Rx addr trimmedBuf;
     (* fork a thread to process packet and reply, so we can continue to listen for packets *)
     Eio.Fiber.fork ~sw (fun () ->
-        let answers = handle_dns `Udp addr trimmedBuf in
+        let answers =
+          try handle_dns `Udp addr trimmedBuf with Ignore _ -> []
+        in
         (* TODO do we need a mutex over sending? *)
         List.iter
           (fun b ->
@@ -63,7 +67,7 @@ let tcp_handle log handle_dns : connection_handler =
       log Dns_log.Rx addr buf;
       (* fork a thread to process packet and reply, so we can continue to listen for packets *)
       Eio.Fiber.fork ~sw (fun () ->
-          let answers = handle_dns `Tcp addr buf in
+          let answers = try handle_dns `Tcp addr buf with Ignore _ -> [] in
           List.iter
             (fun b ->
               log Dns_log.Tx addr b;

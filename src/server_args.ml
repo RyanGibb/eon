@@ -14,16 +14,17 @@ let port =
 
 let addresses =
   let doc =
-    "IP addresses to bind too.
-      
-    By default `in6addr_any` '::' is used. If IPv4-mapped IPv6 (RFC3493) is not
-    supported, e.g. on OpenBSD, the user will need to specify an IPv4 address
-    in order to serve IPv4 traffic, e.g. `-a 127.0.0.1 -a '::'`.
-    
-    A can be specified, e.g. with `[::]:5053`, otherwise the default
-    `port` is used.
-
-    NB names, e.g. `localhost`, are not supported."
+    "IP addresses to bind too.\n\
+    \      \n\
+    \    By default `in6addr_any` '::' is used. If IPv4-mapped IPv6 (RFC3493) \
+     is not\n\
+    \    supported, e.g. on OpenBSD, the user will need to specify an IPv4 \
+     address\n\
+    \    in order to serve IPv4 traffic, e.g. `-a 127.0.0.1 -a '::'`.\n\
+    \    \n\
+    \    A can be specified, e.g. with `[::]:5053`, otherwise the default\n\
+    \    `port` is used.\n\n\
+    \    NB names, e.g. `localhost`, are not supported."
   in
   Cmdliner.Arg.(
     (* :: is IPv6 local *)
