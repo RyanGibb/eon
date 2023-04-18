@@ -152,7 +152,16 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   (* TODO what if resolver retries? keep set of previous headers? *)
   let cancel = ref false in
 
-  (* let last_recv_id = ref None in *)
+  (* The id of the last data packet recieved from the client.
+     Used to avoid duplicating data from a retransmission due to a lost ack. *)
+  let last_recv_id = ref 0
+  (* The id of the last data packet sent to the client.
+     Used to retransmit a lost data packet, notified by the the client sending a query with the same id. *)
+  and last_sent_id = ref 0 in
+
+  let buf = Cstruct.create max_encoded_len in
+  let bufLen = ref 0 in
+
   let packet_callback (p : Dns.Packet.t) : Dns.Packet.t option =
     (* respond with nothing to previous queries *)
     CstructStream.add_if_waiter server_out_q [ Cstruct.create 0 ] cancel;
@@ -162,28 +171,40 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
       match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
     in
     let* message, root = message_of_domain_name data_subdomain name in
+    let id, _flags = p.header in
 
     let reply =
       (* if this is a data carrying packet, reply with an ack *)
       if String.length message > 0 then (
-        CstructStream.add server_inc_q [ Cstruct.of_string message ];
-        "")
+        (* if we haven't already recieved this id *)
+        (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver *)
+        if !last_recv_id != id then
+          CstructStream.add server_inc_q [ Cstruct.of_string message ];
+        last_recv_id := id;
+        (* an ack is a packet carrying no data *)
+        Cstruct.empty)
+      else if !last_sent_id == id then
+        (* if this is a duplicate id, retransmit *)
+        Cstruct.sub buf 0 !bufLen
       else
-        (* otherwise, reply with data *)
-        (* TODO a rogue packet from a bad actor could break this stream *)
-        (* need a way to muliplex client streams *)
-        (* TODO retransmit based on last_recv_id *)
-        let buf =
+        (* otherwise, send new data *)
+        (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver,
+           by making the server not retransmit when it's required.
+            We need a way to muliplex client streams.
+            We could do by client socket address, but that would prevent mobility. *)
+        let readBuf =
+          (* truncate buffer to only read what can fit in a domain name encoding with root *)
           let rootLen = String.length (Domain_name.to_string root) in
-          Cstruct.create (max_encoded_len - rootLen)
+          Cstruct.sub buf 0 (max_encoded_len - rootLen)
         in
-        let read = CstructStream.pop server_out_q buf in
+        let read = CstructStream.pop server_out_q readBuf in
         if !cancel then (
           cancel := false;
           raise @@ Server.Ignore ());
+        bufLen := read;
+        last_sent_id := id;
         (* truncate buffer to the number of bytes read *)
-        let buf = Cstruct.sub buf 0 read in
-        Cstruct.to_string buf
+        Cstruct.sub readBuf 0 read
     in
 
     (* Only process CNAME queries *)
@@ -206,7 +227,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
           None
     in
 
-    let hostname = domain_name_of_message root reply in
+    let hostname = domain_name_of_message root (Cstruct.to_string reply) in
     let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
     let answer = Domain_name.Map.singleton name rr in
     let authority = Dns.Name_rr_map.empty in
