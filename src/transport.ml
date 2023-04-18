@@ -281,7 +281,7 @@ let dns_client ~sw ~net ~random nameserver data_subdomain authority port log =
         if String.length message > 0 then
           CstructStream.add client_inc_q [ Cstruct.of_string message ];
         (* reply with empty query, so the server has a way to send us data *)
-        ignore @@ CstructStream.add client_out_q [ Cstruct.create 0 ]
+        CstructStream.add client_out_q [ Cstruct.empty ]
   in
   let sock =
     let proto =
