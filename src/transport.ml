@@ -63,8 +63,8 @@ module CstructStream : sig
   val create : unit -> t
   val add : t -> Cstruct.t list -> unit
   val cancel_waiter : t -> unit
-  val pop : t -> Cstruct.t -> int
-  val pop_cancellable : t -> Cstruct.t -> int option
+  val take : t -> Cstruct.t -> int
+  val take_cancellable : t -> Cstruct.t -> int option
   val to_flow : t -> t -> Eio.Flow.two_way
 end = struct
   type t = {
@@ -100,7 +100,7 @@ end = struct
           q.cancel := true;
           Eio.Condition.broadcast q.cond))
 
-  let pop q buf =
+  let take q buf =
     Eio.Mutex.use_rw q.mut ~protect:true (fun () ->
         q.waiters := !(q.waiters) + 1;
         (* if `Cstruct.lenv !(q.items) == 0` we just send an empty packet *)
@@ -112,7 +112,7 @@ end = struct
         q.items := new_items;
         read)
 
-  let pop_cancellable q buf =
+  let take_cancellable q buf =
     Eio.Mutex.use_rw q.mut ~protect:true (fun () ->
         q.waiters := !(q.waiters) + 1;
         (* if `Cstruct.lenv !(q.items) == 0` we just send an empty packet *)
@@ -144,7 +144,7 @@ end = struct
 
       method write bufs = add out_q bufs
       method read_methods = []
-      method read_into buf = pop inc_q buf
+      method read_into buf = take inc_q buf
       method shutdown _cmd = ()
     end
 end
@@ -202,7 +202,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
           Cstruct.sub buf 0 (max_encoded_len - rootLen)
         in
         let read =
-          match CstructStream.pop_cancellable server_out_q readBuf with
+          match CstructStream.take_cancellable server_out_q readBuf with
           | Some r -> r
           | None ->
               (* could also reply with nothing to stop resolvers retrying *)
@@ -356,7 +356,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       Cstruct.create (max_encoded_len - rootLen)
     in
     while true do
-      let read = CstructStream.pop client_out_q buf in
+      let read = CstructStream.take client_out_q buf in
       (* truncate buffer to the number of bytes read *)
       let buf = Cstruct.sub buf 0 read in
       let hostname = domain_name_of_message root (Cstruct.to_string buf) in
