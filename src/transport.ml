@@ -64,7 +64,7 @@ module CstructStream : sig
   val add : t -> Cstruct.t list -> unit
   val add_if_waiter : t -> Cstruct.t list -> bool ref -> unit
   val pop : t -> Cstruct.t -> int
-  val try_pop : t -> Cstruct.t -> int
+  val try_pop : t -> Cstruct.t -> int option
   val to_flow : t -> t -> Eio.Flow.two_way
 end = struct
   type t = {
@@ -121,7 +121,7 @@ end = struct
             q.items := new_items;
             (read, false))
     in
-    if empty then raise Empty else read
+    if empty then None else Some read
 
   let to_flow inc_q out_q =
     object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
@@ -325,13 +325,14 @@ let dns_client ~sw ~net ~random nameserver data_subdomain authority port log =
     in
     while true do
       let read =
-        try CstructStream.try_pop client_out_q buf
-        with CstructStream.Empty ->
-          (* if we have recieved an answer to our last query, send an empty query *)
-          if !last_sent_id == !last_recv_id then 0
-            (* otherwise, wait for data to send *)
-            (* TODO timeout and send a query refresh *)
-          else CstructStream.pop client_out_q buf
+        match CstructStream.try_pop client_out_q buf with
+        | Some r -> r
+        | None ->
+            (* if we have recieved an answer to our last query, send an empty query *)
+            if !last_sent_id == !last_recv_id then 0
+              (* otherwise, wait for data to send *)
+              (* TODO timeout and send a query refresh *)
+            else CstructStream.pop client_out_q buf
       in
 
       (* truncate buffer to the number of bytes read *)
