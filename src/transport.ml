@@ -62,7 +62,7 @@ module CstructStream : sig
 
   val create : unit -> t
   val add : t -> Cstruct.t list -> unit
-  val add_if_waiter : t -> Cstruct.t list -> bool ref -> bool
+  val add_if_waiter : t -> Cstruct.t list -> bool ref -> unit
   val pop : t -> Cstruct.t -> int
   val try_pop : t -> Cstruct.t -> int
   val to_flow : t -> t -> Eio.Flow.two_way
@@ -97,8 +97,7 @@ end = struct
           (* only cancel if there are waiters -- stops fiber cancelling itself *)
           cancel := true;
           q.items := !(q.items) @ bufs;
-          Eio.Condition.broadcast q.cond);
-        are_waiters)
+          Eio.Condition.broadcast q.cond))
 
   let pop q buf =
     Eio.Mutex.use_rw q.mut ~protect:true (fun () ->
@@ -156,9 +155,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   (* let last_recv_id = ref None in *)
   let packet_callback (p : Dns.Packet.t) : Dns.Packet.t option =
     (* respond with nothing to previous queries *)
-    ignore
-    @@ CstructStream.add_if_waiter server_out_q [ Cstruct.create 0 ] cancel;
-    Eio.Fiber.yield ();
+    CstructStream.add_if_waiter server_out_q [ Cstruct.create 0 ] cancel;
 
     let ( let* ) = Option.bind in
     let* name, qtype =
