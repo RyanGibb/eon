@@ -62,9 +62,9 @@ module CstructStream : sig
 
   val create : unit -> t
   val add : t -> Cstruct.t list -> unit
-  val add_if_waiter : t -> Cstruct.t list -> bool ref -> unit
+  val cancel_waiter : t -> unit
   val pop : t -> Cstruct.t -> int
-  val try_pop : t -> Cstruct.t -> int option
+  val pop_cancellable : t -> Cstruct.t -> int option
   val to_flow : t -> t -> Eio.Flow.two_way
 end = struct
   type t = {
@@ -73,6 +73,7 @@ end = struct
     mut : Eio.Mutex.t;
     cond : Eio.Condition.t;
     waiters : int ref;
+    cancel : bool ref;
   }
 
   exception Empty
@@ -83,6 +84,7 @@ end = struct
       mut = Eio.Mutex.create ();
       cond = Eio.Condition.create ();
       waiters = ref 0;
+      cancel = ref false;
     }
 
   let add q bufs =
@@ -90,13 +92,12 @@ end = struct
         q.items := !(q.items) @ bufs;
         Eio.Condition.broadcast q.cond)
 
-  let add_if_waiter q bufs cancel =
+  let cancel_waiter q =
     Eio.Mutex.use_rw q.mut ~protect:true (fun () ->
         let are_waiters = !(q.waiters) > 0 in
         if are_waiters then (
           (* only cancel if there are waiters -- stops fiber cancelling itself *)
-          cancel := true;
-          q.items := !(q.items) @ bufs;
+          q.cancel := true;
           Eio.Condition.broadcast q.cond))
 
   let pop q buf =
@@ -111,17 +112,22 @@ end = struct
         q.items := new_items;
         read)
 
-  let try_pop q buf =
-    let read, empty =
-      Eio.Mutex.use_rw ~protect:true q.mut (fun () ->
-          (* if `Cstruct.lenv !(q.items) == 0` we just send an empty packet *)
-          if !(q.items) == [] then (0, true)
-          else
-            let read, new_items = Cstruct.fillv ~src:!(q.items) ~dst:buf in
-            q.items := new_items;
-            (read, false))
-    in
-    if empty then None else Some read
+  let pop_cancellable q buf =
+    Eio.Mutex.use_rw q.mut ~protect:true (fun () ->
+        q.waiters := !(q.waiters) + 1;
+        (* if `Cstruct.lenv !(q.items) == 0` we just send an empty packet *)
+        while !(q.items) == [] || !(q.cancel) do
+          Eio.Condition.await q.cond q.mut
+        done;
+        q.waiters := !(q.waiters) - 1;
+        if !(q.cancel) then (
+          (* could make generic to n waiters, but we don't need that right now *)
+          q.cancel := false;
+          None)
+        else
+          let read, new_items = Cstruct.fillv ~src:!(q.items) ~dst:buf in
+          q.items := new_items;
+          Some read)
 
   let to_flow inc_q out_q =
     object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
@@ -148,24 +154,17 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   let server_inc_q = CstructStream.create ()
   and server_out_q = CstructStream.create () in
 
-  (* don't want to reply with empty packet as we can't guarantee the ordering *)
-  (* TODO what if resolver retries? keep set of previous headers? *)
-  let cancel = ref false in
-
   (* The id of the last data packet recieved from the client.
      Used to avoid duplicating data from a retransmission due to a lost ack. *)
-  let last_recv_id = ref 0
+  let last_recv_data_id = ref 0
   (* The id of the last data packet sent to the client.
      Used to retransmit a lost data packet, notified by the the client sending a query with the same id. *)
-  and last_sent_id = ref 0 in
+  and last_sent_data_id = ref 0 in
 
   let buf = Cstruct.create max_encoded_len in
   let bufLen = ref 0 in
 
   let packet_callback (p : Dns.Packet.t) : Dns.Packet.t option =
-    (* respond with nothing to previous queries *)
-    CstructStream.add_if_waiter server_out_q [ Cstruct.create 0 ] cancel;
-
     let ( let* ) = Option.bind in
     let* name, qtype =
       match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
@@ -178,33 +177,41 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
       if String.length message > 0 then (
         (* if we haven't already recieved this id *)
         (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver *)
-        if !last_recv_id != id then
+        if !last_recv_data_id != id then
           CstructStream.add server_inc_q [ Cstruct.of_string message ];
-        last_recv_id := id;
+        last_recv_data_id := id;
         (* an ack is a packet carrying no data *)
         Cstruct.empty)
-      else if !last_sent_id == id then
+      else if !last_sent_data_id == id then
         (* if this is a duplicate id, retransmit *)
         Cstruct.sub buf 0 !bufLen
-      else
+      else (
         (* otherwise, send new data *)
+
         (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver,
            by making the server not retransmit when it's required.
             We need a way to muliplex client streams.
             We could do by client socket address, but that would prevent mobility. *)
+
+        (* cancel threads for previous empty queries *)
+        CstructStream.cancel_waiter server_out_q;
+
         let readBuf =
           (* truncate buffer to only read what can fit in a domain name encoding with root *)
           let rootLen = String.length (Domain_name.to_string root) in
           Cstruct.sub buf 0 (max_encoded_len - rootLen)
         in
-        let read = CstructStream.pop server_out_q readBuf in
-        if !cancel then (
-          cancel := false;
-          raise @@ Server.Ignore ());
+        let read =
+          match CstructStream.pop_cancellable server_out_q readBuf with
+          | Some r -> r
+          | None ->
+              (* could also reply with nothing to stop resolvers retrying *)
+              raise @@ Server.Ignore ()
+        in
         bufLen := read;
-        last_sent_id := id;
+        last_sent_data_id := id;
         (* truncate buffer to the number of bytes read *)
-        Cstruct.sub readBuf 0 read
+        Cstruct.sub readBuf 0 read)
     in
 
     (* Only process CNAME queries *)
@@ -245,7 +252,8 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
         server_state log addresses);
   CstructStream.to_flow server_inc_q server_out_q
 
-let dns_client ~sw ~net ~random nameserver data_subdomain authority port log =
+let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
+    log =
   let client_inc_q = CstructStream.create ()
   and client_out_q = CstructStream.create () in
 
@@ -263,10 +271,17 @@ let dns_client ~sw ~net ~random nameserver data_subdomain authority port log =
         exit 1
   in
 
-  (* keep track of sent and recieved query ids *)
-  (* TODO mutexes *)
-  let last_recv_id = ref 0 and last_sent_id = ref 0 in
+  (* TODO mutexes? *)
+  let recv_data_mut = Eio.Mutex.create ()
+  and recv_empty_mut = Eio.Mutex.create () in
+  let last_recv_empty_id = ref 0
+  and last_recv_data_id = ref 0
+  and last_sent_data_id = ref 0 in
+  let recv_data = Eio.Condition.create ()
+  and recv_empty = Eio.Condition.create () in
+
   let handle_dns _proto _addr buf : unit =
+    Eio.traceln "ho";
     let ( let* ) o f = match o with None -> () | Some v -> f v in
     let* packet =
       match Dns.Packet.decode buf with
@@ -278,7 +293,6 @@ let dns_client ~sw ~net ~random nameserver data_subdomain authority port log =
           None
     in
     let id, _flags = packet.header in
-    last_recv_id := id;
     let* answer =
       match packet.data with
       | `Answer (answer, _authority) -> Some answer
@@ -300,9 +314,19 @@ let dns_client ~sw ~net ~random nameserver data_subdomain authority port log =
     | None -> exit 1
     | Some (message, _root) ->
         if String.length message > 0 then
-          CstructStream.add client_inc_q [ Cstruct.of_string message ];
-        (* reply with empty query, so the server has a way to send us data *)
-        CstructStream.add client_out_q [ Cstruct.empty ]
+          Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
+              (* if we haven't already recieved this id *)
+              if !last_recv_data_id != id then
+                CstructStream.add client_inc_q [ Cstruct.of_string message ];
+              last_recv_data_id := id;
+              Eio.traceln "hi";
+              Eio.Condition.broadcast recv_data)
+        else
+          Eio.Mutex.use_rw recv_empty_mut ~protect:true (fun () ->
+              (* ignore if this not the ack for the most recent data packet *)
+              if id == !last_sent_data_id then (
+                last_recv_empty_id := id;
+                Eio.Condition.broadcast recv_empty))
   in
   let sock =
     let proto =
@@ -315,7 +339,15 @@ let dns_client ~sw ~net ~random nameserver data_subdomain authority port log =
     in
     Eio.Net.datagram_socket ~sw net proto
   in
-  let send_fiber () =
+  let root = Domain_name.of_array [| authority; data_subdomain |] in
+  let get_id () =
+    Cstruct.LE.get_uint16
+      (let b = Cstruct.create 2 in
+       Eio.Flow.read_exact random b;
+       b)
+      0
+  in
+  let send_data_fiber () =
     let buf =
       (* String.length (data_subdomain ^ "." ^ authority) *)
       let rootLen =
@@ -324,37 +356,38 @@ let dns_client ~sw ~net ~random nameserver data_subdomain authority port log =
       Cstruct.create (max_encoded_len - rootLen)
     in
     while true do
-      let read =
-        match CstructStream.try_pop client_out_q buf with
-        | Some r -> r
-        | None ->
-            (* if we have recieved an answer to our last query, send an empty query *)
-            if !last_sent_id == !last_recv_id then 0
-              (* otherwise, wait for data to send *)
-              (* TODO timeout and send a query refresh *)
-            else CstructStream.pop client_out_q buf
-      in
-
+      let read = CstructStream.pop client_out_q buf in
       (* truncate buffer to the number of bytes read *)
       let buf = Cstruct.sub buf 0 read in
+      let hostname = domain_name_of_message root (Cstruct.to_string buf) in
+      let id = get_id () in
+      Eio.Mutex.use_rw recv_empty_mut ~protect:true (fun () ->
+          last_sent_data_id := id;
+          (* retransmit *)
+          while id != !last_recv_empty_id do
+            Client.send_query log id record_type hostname sock addr;
+            ignore
+            @@ Eio.Time.with_timeout clock 1. (fun () ->
+                   Eio.Condition.await recv_empty recv_empty_mut;
+                   Ok ())
+          done)
+    done
+  in
+  let send_empty_query_fiber () =
+    while true do
+      let id = get_id () in
 
-      let reply = Cstruct.to_string buf in
-      let hostname =
-        let root = Domain_name.of_array [| authority; data_subdomain |] in
-        domain_name_of_message root reply
-      in
-      let id =
-        (* gets a random uint16 *)
-        Cstruct.LE.get_uint16
-          (let b = Cstruct.create 2 in
-           Eio.Flow.read_exact random b;
-           b)
-          0
-      in
-      last_sent_id := id;
-      Client.send_query log id record_type hostname sock addr
+      Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
+          while id != !last_recv_data_id do
+            Client.send_query log id record_type root sock addr;
+            ignore
+            @@ Eio.Time.with_timeout clock 1. (fun () ->
+                   Eio.Condition.await recv_data recv_data_mut;
+                   Ok ())
+          done)
     done
   in
   Eio.Fiber.fork ~sw (fun () -> Client.listen sock log handle_dns);
-  Eio.Fiber.fork ~sw (fun () -> send_fiber ());
+  Eio.Fiber.fork ~sw (fun () -> send_data_fiber ());
+  Eio.Fiber.fork ~sw (fun () -> send_empty_query_fiber ());
   CstructStream.to_flow client_inc_q client_out_q

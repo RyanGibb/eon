@@ -42,8 +42,9 @@ let run zonefiles log_level addressStrings data_subdomain port tcp udp =
       addresses
   in
   let client =
-    Transport.dns_client ~sw ~net:env#net ~random:env#secure_random "127.0.0.1"
-      data_subdomain "example.org" port log
+    Transport.dns_client ~sw ~net:env#net ~clock:env#clock
+      ~random:env#secure_random "127.0.0.1" data_subdomain "example.org" port
+      log
   in
   Eio.Fiber.all
     [

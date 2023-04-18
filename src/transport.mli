@@ -20,6 +20,7 @@ val dns_server :
 val dns_client :
   sw:Eio.Switch.t ->
   net:#Eio.Net.t ->
+  clock:#Eio.Time.clock ->
   random:#Eio.Flow.source ->
   string ->
   string ->
