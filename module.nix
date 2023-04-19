@@ -22,6 +22,10 @@ let cfg = config.services.aeon; in
       type = lib.types.int;
       default = 1;
     };
+    netcat = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+    };
   };
   
   config = mkIf cfg.enable {
@@ -31,7 +35,10 @@ let cfg = config.services.aeon; in
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        ExecStart = "${pkgs.aeon.out}/bin/aeon -z ${cfg.zoneFile} -l ${builtins.toString cfg.logLevel}";
+        ExecStart =
+          "${pkgs.aeon.out}/bin/aeon${if cfg.netcat then ".netcat" else ""} " +
+            "-z ${cfg.zoneFile} " +
+            "-l ${builtins.toString cfg.logLevel}";
         Restart = "always";
         RestartSec = "1s";
         User = cfg.user;
