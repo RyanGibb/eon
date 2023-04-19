@@ -154,12 +154,9 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   let server_inc = CstructStream.create ()
   and server_out = CstructStream.create () in
 
-  (* The id of the last data packet recieved from the client.
-     Used to avoid duplicating data from a retransmission due to a lost ack. *)
   let last_recv_data_id = ref 0
-  (* The id of the last data packet sent to the client.
-     Used to retransmit a lost data packet, notified by the the client sending a query with the same id. *)
-  and last_sent_data_id = ref 0 in
+  and last_sent_data_id = ref 0
+  and last_recv_empty_id = ref 0 in
 
   let buf = Cstruct.create max_encoded_len in
   let bufLen = ref 0 in
@@ -193,8 +190,14 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
             We need a way to muliplex client streams.
             We could do by client socket address, but that would prevent mobility. *)
 
-        (* cancel threads for previous empty queries *)
-        CstructStream.cancel_waiter server_out;
+        (* if there's already a thread waiting on data to reply to this query *)
+        if !last_recv_empty_id == id then
+          (* ignore it *)
+          raise @@ Server.Ignore ()
+        else (
+          last_recv_empty_id := id;
+          (* if it's not the same id, cancel it *)
+          CstructStream.cancel_waiter server_out);
 
         let readBuf =
           (* truncate buffer to only read what can fit in a domain name encoding with root *)
