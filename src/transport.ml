@@ -62,7 +62,7 @@ module CstructStream : sig
 
   val create : unit -> t
   val add : t -> Cstruct.t list -> unit
-  val cancel_waiter : t -> unit
+  val cancel_waiters : t -> unit
   val take : t -> Cstruct.t -> int
   val take_cancellable : t -> Cstruct.t -> int option
   val to_flow : t -> t -> Eio.Flow.two_way
@@ -92,13 +92,17 @@ end = struct
         t.items := !(t.items) @ bufs;
         Eio.Condition.broadcast t.cond)
 
-  let cancel_waiter t =
+  let cancel_waiters t =
     Eio.Mutex.use_rw t.mut ~protect:true (fun () ->
-        let are_waiters = !(t.waiters) > 0 in
-        if are_waiters then (
-          (* only cancel if there are waiters -- stops fiber cancelling itself *)
+        while !(t.waiters) > 0 do
           t.cancel := true;
-          Eio.Condition.broadcast t.cond))
+          Eio.Condition.broadcast t.cond;
+          (* yield with unlocked mutex to allow waiters to be cancelled *)
+          Eio.Mutex.unlock t.mut;
+          Eio.Fiber.yield ();
+          Eio.Mutex.lock t.mut
+        done;
+        t.cancel := false)
 
   let take t buf =
     Eio.Mutex.use_rw t.mut ~protect:true (fun () ->
@@ -120,10 +124,7 @@ end = struct
           Eio.Condition.await t.cond t.mut
         done;
         t.waiters := !(t.waiters) - 1;
-        if !(t.cancel) then (
-          (* could make generic to n waiters, but we don't need that right now *)
-          t.cancel := false;
-          None)
+        if !(t.cancel) then None
         else
           let read, new_items = Cstruct.fillv ~src:!(t.items) ~dst:buf in
           t.items := new_items;
@@ -197,7 +198,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
         else (
           last_recv_empty_id := id;
           (* if it's not the same id, cancel it *)
-          CstructStream.cancel_waiter server_out);
+          CstructStream.cancel_waiters server_out);
 
         let readBuf =
           (* truncate buffer to only read what can fit in a domain name encoding with root *)
