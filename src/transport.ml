@@ -321,7 +321,6 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
               if !last_recv_data_id != id then
                 CstructStream.add client_inc [ Cstruct.of_string message ];
               last_recv_data_id := id;
-              Eio.traceln "hi";
               Eio.Condition.broadcast recv_data)
         else
           Eio.Mutex.use_rw recv_empty_mut ~protect:true (fun () ->
