@@ -281,7 +281,6 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
   and recv_empty = Eio.Condition.create () in
 
   let handle_dns _proto _addr buf : unit =
-    Eio.traceln "ho";
     let ( let* ) o f = match o with None -> () | Some v -> f v in
     let* packet =
       match Dns.Packet.decode buf with
