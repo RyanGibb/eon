@@ -28,8 +28,9 @@ let log_helper fmt (direction : dir) addr buf log_packet =
 
 let log_level_1 fmt (direction : dir) addr buf =
   let log_packet (packet : Dns.Packet.t) =
-    Format.fprintf fmt "question %a@ data %a@" Dns.Packet.Question.pp
-      packet.question Dns.Packet.pp_data packet.data
+    let id, _flags = packet.header in
+    Format.fprintf fmt "header %04X question %a@ data %a@" id
+      Dns.Packet.Question.pp packet.question Dns.Packet.pp_data packet.data
   in
   log_helper fmt direction addr buf log_packet
 
