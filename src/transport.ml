@@ -268,8 +268,8 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
     with
     (* just takes first returned value, which is probably ipv6 *)
     | ipaddr :: _ -> ipaddr
-    | _ ->
-        Format.fprintf Format.err_formatter "Invalid address: %s" nameserver;
+    | [] ->
+        Format.fprintf Format.err_formatter "Invalid address: %s\n" nameserver;
         Format.pp_print_flush Format.err_formatter ();
         exit 1
   in

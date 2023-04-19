@@ -20,38 +20,39 @@ let parse_addresses port addressStrings =
           exit 1)
     addressStrings
 
-let run zonefiles log_level addressStrings data_subdomain port tcp udp =
+let run zonefiles log_level addressStrings data_subdomain port tcp udp
+    enable_server nameserver =
   Eio_main.run @@ fun env ->
   let log = get_log log_level in
-  let addresses = parse_addresses port addressStrings in
-  let server_state =
-    let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
-    let rng ?_g length =
-      let buf = Cstruct.create length in
-      Eio.Flow.read_exact env#secure_random buf;
-      buf
-    in
-    ref
-    @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
-         ~tsig_sign:Dns_tsig.sign trie
-  in
   Eio.Switch.run @@ fun sw ->
-  let server =
-    Transport.dns_server ~sw ~net:env#net ~clock:env#clock
-      ~mono_clock:env#mono_clock ~tcp ~udp data_subdomain server_state log
-      addresses
-  in
-  let client =
-    Transport.dns_client ~sw ~net:env#net ~clock:env#clock
-      ~random:env#secure_random "127.0.0.1" data_subdomain "example.org" port
-      log
-  in
-  Eio.Fiber.all
-    [
-      (fun () -> Eio.Flow.copy env#stdin client);
-      (fun () -> Eio.Flow.copy server server);
-      (fun () -> Eio.Flow.copy client env#stdout);
-    ]
+  if enable_server then
+    let addresses = parse_addresses port addressStrings in
+    let server_state =
+      let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+      let rng ?_g length =
+        let buf = Cstruct.create length in
+        Eio.Flow.read_exact env#secure_random buf;
+        buf
+      in
+      ref
+      @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
+           ~tsig_sign:Dns_tsig.sign trie
+    in
+    let server =
+      Transport.dns_server ~sw ~net:env#net ~clock:env#clock
+        ~mono_clock:env#mono_clock ~tcp ~udp data_subdomain server_state log
+        addresses
+    in
+    Eio.Flow.copy server server
+  else
+    let client =
+      Transport.dns_client ~sw ~net:env#net ~clock:env#clock
+        ~random:env#secure_random nameserver data_subdomain "example.org" port
+        log
+    in
+    Eio.Fiber.both
+      (fun () -> Eio.Flow.copy env#stdin client)
+      (fun () -> Eio.Flow.copy client env#stdout)
 
 let () =
   let cmd =
@@ -66,11 +67,21 @@ let () =
         & info [ "d"; "data-subdomain" ] ~docv:"DATA_SUBDOMAIN"
             ~doc:"Data subdomain.")
     in
+    let server =
+      Cmdliner.Arg.(
+        value & opt bool true
+        & info [ "s"; "server" ] ~docv:"SERVER" ~doc:"Server.")
+    in
+    let nameserver =
+      Cmdliner.Arg.(
+        value & opt string "127.0.0.1"
+        & info [ "n"; "nameserver" ] ~docv:"NAMESERVER" ~doc:"Nameserver.")
+    in
     let dns_t =
       Cmdliner.Term.(
         let open Server_args in
         const run $ zonefiles $ netcat_logging $ addresses $ data_subdomain
-        $ port $ tcp $ udp)
+        $ port $ tcp $ udp $ server $ nameserver)
     in
     let info = Cmdliner.Cmd.info "dns" in
     Cmdliner.Cmd.v info dns_t
