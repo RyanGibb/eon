@@ -116,7 +116,7 @@ end = struct
     Eio.Mutex.use_rw t.mut ~protect:true (fun () ->
         t.waiters := !(t.waiters) + 1;
         (* if `Cstruct.lenv !(t.items) == 0` we just send an empty packet *)
-        while !(t.items) == [] || !(t.cancel) do
+        while !(t.items) == [] && not !(t.cancel) do
           Eio.Condition.await t.cond t.mut
         done;
         t.waiters := !(t.waiters) - 1;
