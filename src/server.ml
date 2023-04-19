@@ -110,7 +110,7 @@ let start ~net ~clock ~mono_clock ?(tcp = true) ?(udp = true)
          (fun () ->
            Eio.Switch.run @@ fun sw ->
            let sockUDP =
-             try_bind (Eio.Net.datagram_socket ~sw net) (`Udp addr)
+             try_bind (Eio.Net.datagram_socket ~sw ~reuse_addr:true net) (`Udp addr)
            in
            udp_listen log handle_dns sockUDP);
        ]
@@ -121,7 +121,7 @@ let start ~net ~clock ~mono_clock ?(tcp = true) ?(udp = true)
         (fun () ->
           Eio.Switch.run @@ fun sw ->
           let sockTCP =
-            try_bind (Eio.Net.listen ~sw ~backlog:4096 net) (`Tcp addr)
+            try_bind (Eio.Net.listen ~sw ~reuse_addr:true ~backlog:4096 net) (`Tcp addr)
           in
           let connection_handler = tcp_handle log handle_dns in
           tcp_listen sockTCP connection_handler);
