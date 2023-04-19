@@ -42,13 +42,13 @@ let () =
   (* this is not domain safe *)
   (* Logs.set_reporter (Logs_fmt.reporter ());
      Logs.set_level (Some Logs.Error); *)
+  let open Cmdliner in
+  let open Server_args in
   let cmd =
-    let dns_t =
-      Cmdliner.Term.(
-        let open Server_args in
-        const run $ zonefiles $ logging $ addresses $ port $ tcp $ udp)
+    let term =
+      Term.(const run $ zonefiles $ logging $ addresses $ port $ tcp $ udp)
     in
-    let info = Cmdliner.Cmd.info "dns" in
-    Cmdliner.Cmd.v info dns_t
+    let info = Cmd.info "aeon" ~man in
+    Cmd.v info term
   in
-  exit (Cmdliner.Cmd.eval cmd)
+  exit (Cmd.eval cmd)

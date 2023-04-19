@@ -20,7 +20,7 @@ let parse_addresses port addressStrings =
           exit 1)
     addressStrings
 
-let run zonefiles log_level addressStrings data_subdomain port tcp udp
+let run zonefiles log_level addressStrings domain subdomain port tcp udp
     enable_server nameserver =
   Eio_main.run @@ fun env ->
   let log = get_log log_level in
@@ -40,51 +40,62 @@ let run zonefiles log_level addressStrings data_subdomain port tcp udp
     in
     let server =
       Transport.dns_server ~sw ~net:env#net ~clock:env#clock
-        ~mono_clock:env#mono_clock ~tcp ~udp data_subdomain server_state log
+        ~mono_clock:env#mono_clock ~tcp ~udp subdomain server_state log
         addresses
     in
     Eio.Flow.copy server server
   else
     let client =
       Transport.dns_client ~sw ~net:env#net ~clock:env#clock
-        ~random:env#secure_random nameserver data_subdomain "example.org" port
-        log
+        ~random:env#secure_random nameserver subdomain domain port log
     in
     Eio.Fiber.both
       (fun () -> Eio.Flow.copy env#stdin client)
       (fun () -> Eio.Flow.copy client env#stdout)
 
 let () =
+  let open Cmdliner in
+  let open Server_args in
   let cmd =
-    let netcat_logging =
-      Cmdliner.Arg.(
-        value & opt int 0
-        & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc:"Log level.")
-    in
-    let data_subdomain =
-      Cmdliner.Arg.(
+    let subdomain =
+      let doc =
+        "Sudomain to use custom processing on. This will be combined with the \
+         root DOMAIN to form <SUBDOMAIN>.<DOMAIN>, e.g. rpc.example.org. Data \
+         will be encoded as a base 64 string as a sudomain of this domain \
+         giving <DATA>.<SUBDOMAIN>.<DOMAIN>, e.g. aGVsbG8K.rpc.example.org."
+      in
+      Arg.(
         value & opt string "rpc"
-        & info [ "d"; "data-subdomain" ] ~docv:"DATA_SUBDOMAIN"
-            ~doc:"Data subdomain.")
+        & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
+    in
+    let domain =
+      let doc = "Domain that the NAMESERVER is authorative for." in
+      Arg.(
+        value & opt string "example.org"
+        & info [ "d"; "domain" ] ~docv:"DOMAIN" ~doc)
     in
     let server =
-      Cmdliner.Arg.(
-        value & opt bool true
-        & info [ "s"; "server" ] ~docv:"SERVER" ~doc:"Server.")
+      let doc = "Whether to enable server mode" in
+      Arg.(value & flag & info [ "s"; "server" ] ~docv:"SERVER" ~doc)
     in
     let nameserver =
-      Cmdliner.Arg.(
+      let doc =
+        "The address of the nameserver to query. The first result returned by \
+         getaddrinfo will be used. If this may return multiple values, e.g. an \
+         IPv4 and IPv6 address for a host, and a specific one is desired it \
+         should be specified."
+      in
+      Arg.(
         value & opt string "127.0.0.1"
-        & info [ "n"; "nameserver" ] ~docv:"NAMESERVER" ~doc:"Nameserver.")
+        & info [ "n"; "nameserver" ] ~docv:"NAMESERVER" ~doc)
     in
-    let dns_t =
-      Cmdliner.Term.(
-        let open Server_args in
-        const run $ zonefiles $ netcat_logging $ addresses $ data_subdomain
-        $ port $ tcp $ udp $ server $ nameserver)
+    let term =
+      Term.(
+        const run $ zonefiles $ logging_default 0 $ addresses $ domain
+        $ subdomain $ port $ tcp $ udp $ server $ nameserver)
     in
-    let info = Cmdliner.Cmd.info "dns" in
-    Cmdliner.Cmd.v info dns_t
+    let info = Cmd.info "netcat" ~man in
+    Cmd.v info term
   in
   (* this is not domain safe *)
   (* Logs.set_reporter (Logs_fmt.reporter ());

@@ -8,7 +8,7 @@
 (executable
  (name netcat)
  (modules netcat)
- (public_name aeon.netcat)
+ (public_name netcat)
  (package aeon)
  (libraries transport server_args))
 

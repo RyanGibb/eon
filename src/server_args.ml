@@ -1,40 +1,77 @@
-let zonefiles =
-  Cmdliner.Arg.(
-    value & opt_all string []
-    & info [ "z"; "zonefile" ] ~docv:"ZONEFILE_PATHS" ~doc:"Zonefile path.")
+open Cmdliner
 
-let logging =
-  Cmdliner.Arg.(
-    value & opt int 1
-    & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc:"Log level.")
+let zonefiles =
+  Arg.(
+    value & opt_all string []
+    & info [ "z"; "zonefile" ] ~docv:"ZONEFILE_PATHS" ~doc:"Zonefile paths.")
+
+let logging_default default =
+  let doc = "Log level for DNS packets. See the LOGGING section." in
+  Arg.(
+    value & opt int default & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc)
+
+let logging = logging_default 1
 
 let port =
-  Cmdliner.Arg.(
-    value & opt int 53 & info [ "p"; "port" ] ~docv:"PORT" ~doc:"Port.")
+  let doc =
+    "Port to bind on. By default 53 is used. See the BINDING section."
+  in
+  Arg.(value & opt int 53 & info [ "p"; "port" ] ~docv:"PORT" ~doc)
 
 let addresses =
   let doc =
-    "IP addresses to bind too.\n\
-    \      \n\
-    \    By default `in6addr_any` '::' is used. If IPv4-mapped IPv6 (RFC3493) \
-     is not\n\
-    \    supported, e.g. on OpenBSD, the user will need to specify an IPv4 \
-     address\n\
-    \    in order to serve IPv4 traffic, e.g. `-a 127.0.0.1 -a '::'`.\n\
-    \    \n\
-    \    A can be specified, e.g. with `[::]:5053`, otherwise the default\n\
-    \    `port` is used.\n\n\
-    \    NB names, e.g. `localhost`, are not supported."
+    "Socket addresses to bind too. By default `in6addr_any` ('::') is used. \
+     See the BINDING section."
   in
-  Cmdliner.Arg.(
+  Arg.(
     (* :: is IPv6 local *)
     value & opt_all string [ "::" ]
     & info [ "a"; "address" ] ~docv:"ADDRESSES" ~doc)
 
 let tcp =
-  let doc = "Whether to use TCP." in
-  Cmdliner.Arg.(value & opt bool true & info [ "t"; "tcp" ] ~docv:"TCP" ~doc)
+  let doc = "Whether to bind TCP sockets to ADDRESSES." in
+  Arg.(value & flag & info [ "t"; "tcp" ] ~docv:"TCP" ~doc)
 
 let udp =
-  let doc = "Whether to use UDP." in
-  Cmdliner.Arg.(value & opt bool true & info [ "u"; "udp" ] ~docv:"UDP" ~doc)
+  let doc = "Whether to bind UDP sockets to ADDRESSES." in
+  Arg.(value & flag & info [ "u"; "udp" ] ~docv:"TCP" ~doc)
+
+let man =
+  let help_secs =
+    [
+      `S Manpage.s_options;
+      `S "LOGGING";
+      `Pre
+        "Log levels are defined by the LOG_LEVEL option as one of these \
+         possible values:\n\
+        \    0 - No logging\n\
+        \    1 - Log query id, question, and anwer\n\
+        \    2 - Log all fields of DNS packets\n\
+        \    3 - Log hex dumps of DNS packets\n\
+         A level specified outside of this range will default to the closest.";
+      `S "BINDING";
+      `P
+        "The socket(s) the server binds too can be configured with the \
+         ADDRESSES and PORT options. This allows different IP addresses and \
+         ports to be used. Specifying IP addresses can be useful for \
+         restricting the network interfaces to listen on, as localhost listens \
+         on all interfaces by default";
+      `P
+        "If IPv4-mapped IPv6 (RFC3493) is not supported, e.g. on OpenBSD, the \
+         user will need to additionally specify an IPv4 address in order to \
+         serve IPv4 traffic, e.g. '-a 127.0.0.1 -a '::''.";
+      `P
+        "A port can be sepecified as defined in RFC4038 Section 5.1, e.g. \
+         '[::]:53' or '127.0.0.1::53', otherwise the default PORT is used.";
+      `P
+        "Note that names as might be used by `getaddrinfo`, e.g. 'localhost', \
+         are not supported.";
+      `S Manpage.s_bugs;
+      `P "Check bug reports at https://github.com/RyanGibb/aeon/issues.";
+    ]
+  in
+  [
+    `S Manpage.s_description;
+    `P "Prints help about darcs commands and other subjects…";
+    `Blocks help_secs;
+  ]
