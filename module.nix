@@ -26,7 +26,7 @@ let cfg = config.services.aeon; in
   
   config = mkIf cfg.enable {
     systemd.services.aeon = {
-      description = "OCaml DNS Server using effects-based direct-style IO";
+      description = "aeon";
       after = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
 
@@ -42,7 +42,7 @@ let cfg = config.services.aeon; in
 
     users.users = {
       "${cfg.user}" = {
-        description = "OCaml DNS Server using effects-based direct-style IO";
+        description = "aeon";
         useDefaultShell = true;
         group = cfg.group;
         isSystemUser = true;
