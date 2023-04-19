@@ -82,7 +82,7 @@ let tcp_handle log handle_dns : connection_handler =
 
 let tcp_listen listeningSock connection_handler =
   while true do
-    let on_error = Eio.traceln "Error handling connection: %a" Fmt.exn in
+    let on_error = Format.fprintf Format.err_formatter "Error handling connection: %a" Fmt.exn in
     Eio.Switch.run @@ fun sw ->
     Eio.Net.accept_fork ~sw listeningSock ~on_error connection_handler
   done
