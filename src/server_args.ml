@@ -28,13 +28,13 @@ let addresses =
     value & opt_all string [ "::" ]
     & info [ "a"; "address" ] ~docv:"ADDRESSES" ~doc)
 
-let tcp =
-  let doc = "Whether to bind TCP sockets to ADDRESSES." in
-  Arg.(value & flag & info [ "t"; "tcp" ] ~docv:"TCP" ~doc)
+let no_tcp =
+  let doc = "Whether to disable binding TCP sockets to ADDRESSES." in
+  Arg.(value & flag & info [ "t"; "no-tcp" ] ~docv:"TCP" ~doc)
 
-let udp =
-  let doc = "Whether to bind UDP sockets to ADDRESSES." in
-  Arg.(value & flag & info [ "u"; "udp" ] ~docv:"TCP" ~doc)
+let no_udp =
+  let doc = "Whether to disable binding UDP sockets to ADDRESSES." in
+  Arg.(value & flag & info [ "u"; "no-udp" ] ~docv:"TCP" ~doc)
 
 let man =
   let help_secs =

@@ -20,7 +20,12 @@ let parse_addresses port addressStrings =
           exit 1)
     addressStrings
 
-let run zonefiles log_level addressStrings port tcp udp =
+let run zonefiles log_level addressStrings port no_tcp no_udp =
+  if no_tcp && no_udp then (
+    Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
+    Format.pp_print_flush Format.err_formatter ();
+    exit 1);
+  let tcp = not no_tcp and udp = not no_udp in
   Eio_main.run @@ fun env ->
   let log = get_log log_level in
   let addresses = parse_addresses port addressStrings in
@@ -46,7 +51,8 @@ let () =
   let open Server_args in
   let cmd =
     let term =
-      Term.(const run $ zonefiles $ logging $ addresses $ port $ tcp $ udp)
+      Term.(
+        const run $ zonefiles $ logging $ addresses $ port $ no_tcp $ no_udp)
     in
     let info = Cmd.info "aeon" ~man in
     Cmd.v info term

@@ -20,8 +20,13 @@ let parse_addresses port addressStrings =
           exit 1)
     addressStrings
 
-let run zonefiles log_level addressStrings domain subdomain port tcp udp
+let run zonefiles log_level addressStrings domain subdomain port no_tcp no_udp
     enable_server nameserver =
+  if no_tcp && no_udp then (
+    Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
+    Format.pp_print_flush Format.err_formatter ();
+    exit 1);
+  let tcp = not no_tcp and udp = not no_udp in
   Eio_main.run @@ fun env ->
   let log = get_log log_level in
   Eio.Switch.run @@ fun sw ->
@@ -92,7 +97,7 @@ let () =
     let term =
       Term.(
         const run $ zonefiles $ logging_default 0 $ addresses $ domain
-        $ subdomain $ port $ tcp $ udp $ server $ nameserver)
+        $ subdomain $ port $ no_tcp $ no_udp $ server $ nameserver)
     in
     let info = Cmd.info "netcat" ~man in
     Cmd.v info term
