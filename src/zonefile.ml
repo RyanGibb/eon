@@ -4,7 +4,7 @@ let parse_zonefiles ~fs zonefiles =
       (fun (trie, keys) zonefile ->
         match (Eio.Path.load @@ Eio.Path.(fs / zonefile)) |> Dns_zone.parse with
         | Error (`Msg msg) ->
-            Format.fprintf Format.std_formatter "ignoring zonefile %s: %s"
+            Format.fprintf Format.std_formatter "ignoring zonefile %s: %s\n"
               zonefile msg;
             (trie, keys)
         | Ok rrs ->
@@ -16,7 +16,7 @@ let parse_zonefiles ~fs zonefiles =
                 with
                 | Error (`Msg msg) ->
                     Format.fprintf Format.std_formatter
-                      "ignoring zonefile %s: %s" zonefile msg;
+                      "ignoring zonefile %s: %s\n" zonefile msg;
                     keys
                 | Ok rrs ->
                     let keys' =
@@ -25,7 +25,7 @@ let parse_zonefiles ~fs zonefiles =
                           match Dns.Rr_map.(find Dnskey data) with
                           | None ->
                               Format.fprintf Format.std_formatter
-                                "no dnskey found %a" Domain_name.pp n;
+                                "no dnskey found %a\n" Domain_name.pp n;
                               acc
                           | Some (_, keys) -> (
                               match Dns.Rr_map.Dnskey_set.elements keys with
@@ -33,14 +33,14 @@ let parse_zonefiles ~fs zonefiles =
                               | xs ->
                                   Format.fprintf Format.std_formatter
                                     "ignoring %d dnskeys for %a (only one \
-                                     supported)"
+                                     supported)\n"
                                     (List.length xs) Domain_name.pp n;
                                   acc))
                         rrs Domain_name.Map.empty
                     in
                     let f key a _b =
                       Format.fprintf Format.std_formatter
-                        "encountered deplicate key %a" Domain_name.pp key;
+                        "encountered deplicate key %a\n" Domain_name.pp key;
                       Some a
                     in
                     Domain_name.Map.union f keys keys'

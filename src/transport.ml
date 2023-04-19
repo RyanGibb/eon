@@ -224,15 +224,15 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
       | `K (Dns.Rr_map.K Dns.Rr_map.Cname) -> Some ()
       | `Axfr | `Ixfr ->
           Format.fprintf Format.err_formatter
-            "Transport: unsupported operation zonetransfer";
+            "Transport: unsupported operation zonetransfer\n";
           Format.pp_print_flush Format.err_formatter ();
           None
       | `Any ->
-          Format.fprintf Format.err_formatter "Transport: unsupported RR ANY";
+          Format.fprintf Format.err_formatter "Transport: unsupported RR ANY\n";
           Format.pp_print_flush Format.err_formatter ();
           None
       | `K rr ->
-          Format.fprintf Format.err_formatter "Transport: unsupported RR %a"
+          Format.fprintf Format.err_formatter "Transport: unsupported RR %a\n"
             Dns.Rr_map.ppk rr;
           Format.pp_print_flush Format.err_formatter ();
           None
@@ -290,7 +290,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       match Dns.Packet.decode buf with
       | Ok packet -> Some packet
       | Error err ->
-          Format.fprintf Format.err_formatter "Transport: error decoding %a"
+          Format.fprintf Format.err_formatter "Transport: error decoding %a\n"
             Dns.Packet.pp_err err;
           Format.pp_print_flush Format.err_formatter ();
           None
@@ -300,7 +300,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       match packet.data with
       | `Answer (answer, _authority) -> Some answer
       | _ ->
-          Format.fprintf Format.err_formatter "Transport: no answer section";
+          Format.fprintf Format.err_formatter "Transport: no answer section\n";
           Format.pp_print_flush Format.err_formatter ();
           None
     in
@@ -308,7 +308,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       match Domain_name.Map.bindings answer with
       | [ (_key, map) ] -> Some map
       | _ ->
-          Format.fprintf Format.err_formatter "Transport: no answer";
+          Format.fprintf Format.err_formatter "Transport: no answer\n";
           Format.pp_print_flush Format.err_formatter ();
           None
     in

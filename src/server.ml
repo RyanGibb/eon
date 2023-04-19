@@ -83,7 +83,7 @@ let tcp_handle log handle_dns : connection_handler =
 let tcp_listen listeningSock connection_handler =
   while true do
     let on_error =
-      Format.fprintf Format.err_formatter "Error handling connection: %a"
+      Format.fprintf Format.err_formatter "Error handling connection: %a\n"
         Fmt.exn
     in
     Eio.Switch.run @@ fun sw ->

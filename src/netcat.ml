@@ -15,7 +15,7 @@ let parse_addresses port addressStrings =
           let eioIp = Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw in
           (eioIp, p)
       | Error (`Msg msg) ->
-          Format.fprintf Format.err_formatter "Error parsing address '%s': %s"
+          Format.fprintf Format.err_formatter "Error parsing address '%s': %s\n"
             ip msg;
           exit 1)
     addressStrings
