@@ -36,7 +36,7 @@ let cfg = config.services.aeon; in
 
       serviceConfig = {
         ExecStart =
-          "${pkgs.aeon.out}/bin/aeon${if cfg.netcat then ".netcat" else ""} " +
+          "${pkgs.aeon.out}/bin/${if cfg.netcat then "netcat -s" else "aeon"} " +
             "-z ${cfg.zoneFile} " +
             "-l ${builtins.toString cfg.logLevel}";
         Restart = "always";
