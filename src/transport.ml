@@ -374,7 +374,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
           done)
     done
   in
-  let send_emptyuery_fiber () =
+  let send_empty_query_fiber () =
     while true do
       let id = get_id () in
 
@@ -390,5 +390,5 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
   in
   Eio.Fiber.fork ~sw (fun () -> Client.listen sock log handle_dns);
   Eio.Fiber.fork ~sw (fun () -> send_data_fiber ());
-  Eio.Fiber.fork ~sw (fun () -> send_emptyuery_fiber ());
+  Eio.Fiber.fork ~sw (fun () -> send_empty_query_fiber ());
   CstructStream.to_flow client_inc client_out
