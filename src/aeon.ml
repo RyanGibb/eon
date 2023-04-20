@@ -1,25 +1,3 @@
-let get_log log_level =
-  (match log_level with
-  | 0 -> Dns_log.log_level_0
-  | 1 -> Dns_log.log_level_1
-  | 2 -> Dns_log.log_level_2
-  | 3 -> Dns_log.log_level_3
-  | _ -> if log_level < 0 then Dns_log.log_level_0 else Dns_log.log_level_2)
-    Format.std_formatter
-
-let parse_addresses port addressStrings =
-  List.map
-    (fun ip ->
-      match Ipaddr.with_port_of_string ~default:port ip with
-      | Ok (ip, p) ->
-          let eioIp = Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw in
-          (eioIp, p)
-      | Error (`Msg msg) ->
-          Format.fprintf Format.err_formatter "Error parsing address '%s': %s"
-            ip msg;
-          exit 1)
-    addressStrings
-
 let run zonefiles log_level addressStrings port no_tcp no_udp =
   if no_tcp && no_udp then (
     Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
@@ -27,8 +5,8 @@ let run zonefiles log_level addressStrings port no_tcp no_udp =
     exit 1);
   let tcp = not no_tcp and udp = not no_udp in
   Eio_main.run @@ fun env ->
-  let log = get_log log_level in
-  let addresses = parse_addresses port addressStrings in
+  let log = (Dns_log.get_log log_level) Format.std_formatter in
+  let addresses = Server_args.parse_addresses port addressStrings in
   let server_state =
     let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
     let rng ?_g length =

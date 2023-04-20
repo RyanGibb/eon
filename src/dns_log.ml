@@ -52,3 +52,11 @@ let log_level_3 fmt (direction : dir) addr buf =
   Cstruct.hexdump buf;
   Format.print_space ();
   Format.print_flush ()
+
+let get_log log_level =
+  match log_level with
+  | 0 -> log_level_0
+  | 1 -> log_level_1
+  | 2 -> log_level_2
+  | 3 -> log_level_3
+  | _ -> if log_level < 0 then log_level_0 else log_level_2

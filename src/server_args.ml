@@ -28,6 +28,19 @@ let addresses =
     value & opt_all string [ "::" ]
     & info [ "a"; "address" ] ~docv:"ADDRESSES" ~doc)
 
+let parse_addresses port addressStrings =
+  List.map
+    (fun ip ->
+      match Ipaddr.with_port_of_string ~default:port ip with
+      | Ok (ip, p) ->
+          let eioIp = Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw in
+          (eioIp, p)
+      | Error (`Msg msg) ->
+          Format.fprintf Format.err_formatter "Error parsing address '%s': %s"
+            ip msg;
+          exit 1)
+    addressStrings
+
 let no_tcp =
   let doc = "Whether to disable binding TCP sockets to ADDRESSES." in
   Arg.(value & flag & info [ "t"; "no-tcp" ] ~docv:"TCP" ~doc)

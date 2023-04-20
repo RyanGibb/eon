@@ -7,3 +7,4 @@ val log_level_0 : log
 val log_level_1 : log
 val log_level_2 : log
 val log_level_3 : log
+val get_log : int -> log

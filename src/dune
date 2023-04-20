@@ -3,20 +3,20 @@
  (modules aeon)
  (public_name aeon)
  (package aeon)
- (libraries server server_args))
+ (libraries server server_args dns_log))
 
 (executable
  (name netcat)
  (modules netcat)
  (public_name netcat)
  (package aeon)
- (libraries transport server_args))
+ (libraries transport server_args dns_log))
 
 (library
  (name server_args)
  (modules server_args)
  (public_name aeon.server-args)
- (libraries cmdliner))
+ (libraries cmdliner ipaddr eio))
 
 (library
  (name transport)
