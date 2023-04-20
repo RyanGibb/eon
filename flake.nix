@@ -42,10 +42,8 @@
           resolved = resolved-scope;
           materialized = materialized-scope;
           # to generate:
-          #   nix build .#materializeOpamProject; cat result > package-defs.json; rm result
-          materializeOpamProject =
-            let file = opam-nix-lib.materializeOpamProject' { } ./. (query // devPackagesQuery); in
-            pkgs.runCommand "package-defs.json" { } "cat ${file} > $out";
+          #   cat $(nix eval .#package-defs --raw) > package-defs.json
+          package-defs = opam-nix-lib.materializeOpamProject' { } ./. (query // devPackagesQuery);
         };
         defaultPackage = packages.materialized.${package};
 
