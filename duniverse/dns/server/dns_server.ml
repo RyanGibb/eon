@@ -1075,7 +1075,7 @@ module Primary = struct
       Log.err (fun m -> m "ignoring unsolicited %a" Packet.pp_data p);
       (t, m, l, ns), None, [], None
 
-  let handle_buf t now ts proto ip port buf packet_callback =
+  let handle_buf ?(packet_callback = fun _q -> None) t now ts proto ip port buf =
     match
       let* res = safe_decode buf in
       Log.debug (fun m -> m "from %a received:@[%a@]" Ipaddr.pp ip
@@ -1838,7 +1838,7 @@ module Secondary = struct
         | Some (Processing_axfr (_, _, mac, _, _), _, _) -> Some mac
         | _ -> None
 
-  let handle_buf t now ts proto ip buf packet_callback =
+  let handle_buf ?(packet_callback = fun _q -> None) t now ts proto ip buf =
     match
       let* res = safe_decode buf in
       Log.debug (fun m -> m "received a packet from %a: %a" Ipaddr.pp ip

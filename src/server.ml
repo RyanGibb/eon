@@ -16,7 +16,7 @@ let get_dns_handler ~server_state ~clock ~mono_clock ~packet_callback :
       | `Unix _ -> failwith "Unix sockets not supported"
     in
     Dns_server.Primary.handle_buf !server_state now ts proto ipaddr port buf
-      packet_callback
+      ~packet_callback
   in
   (* TODO is this thread safe? *)
   server_state := new_server_state;
