@@ -38,6 +38,7 @@ let parse_addresses port addressStrings =
       | Error (`Msg msg) ->
           Format.fprintf Format.err_formatter "Error parsing address '%s': %s"
             ip msg;
+          Format.pp_print_flush Format.err_formatter ();
           exit 1)
     addressStrings
 

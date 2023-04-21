@@ -82,9 +82,10 @@ let tcp_handle log handle_dns : connection_handler =
 
 let tcp_listen listeningSock connection_handler =
   while true do
-    let on_error =
+    let on_error err =
       Format.fprintf Format.err_formatter "Error handling connection: %a\n"
-        Fmt.exn
+        Fmt.exn err;
+      Format.pp_print_flush Format.err_formatter ()
     in
     Eio.Switch.run @@ fun sw ->
     Eio.Net.accept_fork ~sw listeningSock ~on_error connection_handler
@@ -103,6 +104,7 @@ let start ~net ~clock ~mono_clock ?(tcp = true) ?(udp = true)
       with Unix.Unix_error (error, "bind", _) ->
         Format.fprintf Format.err_formatter "Error binding to %a %s\n"
           Eio.Net.Sockaddr.pp addr (Unix.error_message error);
+        Format.pp_print_flush Format.err_formatter ();
         exit 2
     in
     (if udp then
