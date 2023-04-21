@@ -32,3 +32,11 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/RyanGibb/aeon.git"
+pin-depends: [
+  # for sod: https://github.com/ocaml-multicore/eio/pull/472
+  ["eio.dev" "git+https://github.com/ocaml-multicore/eio.git#dd66ff981e15c1a75cea48f736ccdea83497f8ee"]
+  ["eio_main.dev" "git+https://github.com/ocaml-multicore/eio.git#dd66ff981e15c1a75cea48f736ccdea83497f8ee"]
+  ["eio_linux.dev" "git+https://github.com/ocaml-multicore/eio.git#dd66ff981e15c1a75cea48f736ccdea83497f8ee"]
+  ["eio_posix.dev" "git+https://github.com/ocaml-multicore/eio.git#dd66ff981e15c1a75cea48f736ccdea83497f8ee"]
+  ["eio_luv.dev" "git+https://github.com/ocaml-multicore/eio.git#dd66ff981e15c1a75cea48f736ccdea83497f8ee"]
+]
