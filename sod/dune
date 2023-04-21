@@ -1,0 +1,34 @@
+(executable
+ (name sodd)
+ (modules sodd)
+ (public_name sodd)
+ (libraries
+  pty
+  fork_actions
+  eio_main
+  eio_linux
+  cmdliner
+  aeon.transport
+  aeon.server-args))
+
+(executable
+ (name sod)
+ (modules sod)
+ (public_name sod)
+ (libraries pty eio_main eio_linux cmdliner aeon.transport aeon.server-args))
+
+(library
+ (name pty)
+ (modules pty)
+ (libraries unix)
+ (foreign_stubs
+  (language c)
+  (names pty)))
+
+(library
+ (name fork_actions)
+ (modules fork_actions)
+ (libraries eio_main)
+ (foreign_stubs
+  (language c)
+  (names fork_actions)))
