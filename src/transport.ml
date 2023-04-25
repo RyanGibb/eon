@@ -341,7 +341,10 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
     in
     Eio.Net.datagram_socket ~sw net proto
   in
-  let root = Domain_name.of_array [| authority; data_subdomain |] in
+  let root =
+    Domain_name.of_strings_exn
+      (data_subdomain :: String.split_on_char '.' authority)
+  in
   let get_id () =
     Cstruct.LE.get_uint16
       (let b = Cstruct.create 2 in
