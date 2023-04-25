@@ -32,17 +32,27 @@
         query = {
           ocaml-base-compiler = "*";
         };
+        # filters vendored dependencies from a scope
+        filterVendored =
+          let repo = opam-nix-lib.makeOpamRepo' true ./.; in
+          pkgs.lib.attrsets.filterAttrs (n: _v: !builtins.hasAttr n (opam-nix-lib.listRepo repo) || n == package);
         resolved-scope =
-          # recursive finds vendored dependancies in duniverse
-          opam-nix-lib.buildOpamProject' { recursive = true; } ./. (query // devPackagesQuery);
+          # with `recursive = false;` so we don't pick up vendored dependencies
+          # this is because we don't need all of them, and some have conflicting depdnancy versions
+          # specifically for mirage-crypto-rng for dns-cli and capnp-rpc-unix
+          let scope = opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery); in
+          # to avoid building vendored dependencies twice, we filter them out of the resulting scope
+          filterVendored scope;
         materialized-scope =
-          opam-nix-lib.materializedDefsToScope { sourceMap.${package} = ./.; } ./package-defs.json;
+          let scope = opam-nix-lib.materializedDefsToScope { sourceMap.${package} = ./.; } ./package-defs.json; in
+          filterVendored scope;
       in rec {
         packages = rec {
           resolved = resolved-scope;
           materialized = materialized-scope;
           # to generate:
           #   cat $(nix eval .#package-defs --raw) > package-defs.json
+          # NB `recursive = false;` (see resolved-scope comments)
           package-defs = opam-nix-lib.materializeOpamProject' { } ./. (query // devPackagesQuery);
         };
         defaultPackage = packages.materialized.${package};
@@ -50,18 +60,16 @@
         devShells =
           let
             mkDevShell = scope:
-              let
-                devPackages = builtins.attrValues
-                  (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope);
-              in pkgs.mkShell {
-                inputsFrom = [ scope.${package} ];
-                buildInputs = devPackages;
+              pkgs.mkShell {
+                buildInputs = builtins.attrValues (pkgs.lib.attrsets.filterAttrs (_n: v: pkgs.lib.attrsets.isDerivation v) scope);
               };
             dev-scope =
               # don't pick up duniverse deps
-              # it can be slow to build vendored dependancies in a deriviation before getting an error
-              opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery);
-          in rec {
+              # it can be slow to build vendored dependencies in a deriviation before getting an error
+              let scope = opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery); in
+              # remove any dependencies vendored in the project, i.e. ${package} and duniverse/ contents
+              filterVendored scope;
+        in rec {
             resolved = mkDevShell resolved-scope;
             materialized = mkDevShell materialized-scope;
             # use for fast development as it doesn't building vendored sources in seperate derivations

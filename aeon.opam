@@ -16,6 +16,11 @@ depends: [
   "dns-tsig"
   "cmdliner"
   "fmt"
+  "capnp-rpc-lwt"
+  "capnp-rpc-unix"
+  "mirage-crypto-rng" {
+    # before mirage-crypto-rng and mirage-crypto-rng-lwt split, so duniverse/capnp-rpc/unix continues to work
+    < "0.11.0"}
 ]
 build: [
   ["dune" "subst"] {dev}
@@ -39,4 +44,9 @@ pin-depends: [
   ["eio_linux.dev" "git+https://github.com/ocaml-multicore/eio.git#dd66ff981e15c1a75cea48f736ccdea83497f8ee"]
   ["eio_posix.dev" "git+https://github.com/ocaml-multicore/eio.git#dd66ff981e15c1a75cea48f736ccdea83497f8ee"]
   ["eio_luv.dev" "git+https://github.com/ocaml-multicore/eio.git#dd66ff981e15c1a75cea48f736ccdea83497f8ee"]
+  # https://github.com/mirage/capnp-rpc/pull/256
+  ["capnp-rpc.dev" "git+https://github.com/talex5/capnp-rpc.git#c06e767b8a4ec5a87a07e62958cdb55d0d59c59d"]
+  ["capnp-rpc-lwt.dev" "git+https://github.com/talex5/capnp-rpc.git#c06e767b8a4ec5a87a07e62958cdb55d0d59c59d"]
+  ["capnp-rpc-net.dev" "git+https://github.com/talex5/capnp-rpc.git#c06e767b8a4ec5a87a07e62958cdb55d0d59c59d"]
+  ["capnp-rpc-unix.dev" "git+https://github.com/talex5/capnp-rpc.git#c06e767b8a4ec5a87a07e62958cdb55d0d59c59d"]
 ]

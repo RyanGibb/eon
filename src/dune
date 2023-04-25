@@ -47,3 +47,22 @@
  (modules zonefile)
  (public_name aeon.zonefile)
  (libraries eio_main dns dns-server.zone))
+
+(executables
+ (names rpc)
+ (modules rpc)
+ (libraries eio_main pipe capnp-rpc-unix logs.fmt))
+
+(library
+ (name pipe)
+ (modules pipe pipe_api)
+ (public_name aeon.pipe)
+ (libraries eio_main capnp-rpc-lwt)
+ (flags
+  (:standard -w -53-55)))
+
+(rule
+ (targets pipe_api.ml pipe_api.mli)
+ (deps pipe_api.capnp)
+ (action
+  (run capnp compile -o %{bin:capnpc-ocaml} %{deps})))
