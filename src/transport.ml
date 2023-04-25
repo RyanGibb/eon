@@ -170,6 +170,26 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     let* message, root = message_of_domain_name data_subdomain name in
     let id, _flags = p.header in
 
+    (* Only process CNAME queries *)
+    let* _ =
+      match qtype with
+      | `K (Dns.Rr_map.K Dns.Rr_map.Cname) -> Some ()
+      | `Axfr | `Ixfr ->
+          Format.fprintf Format.err_formatter
+            "Transport: unsupported operation zonetransfer\n";
+          Format.pp_print_flush Format.err_formatter ();
+          None
+      | `Any ->
+          Format.fprintf Format.err_formatter "Transport: unsupported RR ANY\n";
+          Format.pp_print_flush Format.err_formatter ();
+          None
+      | `K rr ->
+          Format.fprintf Format.err_formatter "Transport: unsupported RR %a\n"
+            Dns.Rr_map.ppk rr;
+          Format.pp_print_flush Format.err_formatter ();
+          None
+    in
+
     let reply =
       (* if this is a data carrying packet, reply with an ack *)
       if String.length message > 0 then (
@@ -216,26 +236,6 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
         last_sent_data_id := id;
         (* truncate buffer to the number of bytes read *)
         Cstruct.sub readBuf 0 read)
-    in
-
-    (* Only process CNAME queries *)
-    let* _ =
-      match qtype with
-      | `K (Dns.Rr_map.K Dns.Rr_map.Cname) -> Some ()
-      | `Axfr | `Ixfr ->
-          Format.fprintf Format.err_formatter
-            "Transport: unsupported operation zonetransfer\n";
-          Format.pp_print_flush Format.err_formatter ();
-          None
-      | `Any ->
-          Format.fprintf Format.err_formatter "Transport: unsupported RR ANY\n";
-          Format.pp_print_flush Format.err_formatter ();
-          None
-      | `K rr ->
-          Format.fprintf Format.err_formatter "Transport: unsupported RR %a\n"
-            Dns.Rr_map.ppk rr;
-          Format.pp_print_flush Format.err_formatter ();
-          None
     in
 
     let hostname = domain_name_of_message root (Cstruct.to_string reply) in
