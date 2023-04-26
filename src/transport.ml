@@ -203,22 +203,20 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
       else if !last_sent_data_id == id then
         (* if this is a duplicate id, retransmit *)
         Cstruct.sub buf 0 !bufLen
-      else (
+      else if
+        (* if there's already a thread waiting on data to reply to this query *)
+        !last_recv_empty_id == id
+      then Cstruct.empty
         (* otherwise, send new data *)
 
         (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver,
-           by making the server not retransmit when it's required.
+            by making the server not retransmit when it's required.
             We need a way to muliplex client streams.
             We could do by client socket address, but that would prevent mobility. *)
-
-        (* if there's already a thread waiting on data to reply to this query *)
-        if !last_recv_empty_id == id then
-          (* ignore it *)
-          raise @@ Server.Ignore ()
-        else (
-          last_recv_empty_id := id;
-          (* if it's not the same id, cancel it *)
-          CstructStream.cancel_waiters server_out);
+      else (
+        last_recv_empty_id := id;
+        (* if it's not the same id, cancel it *)
+        CstructStream.cancel_waiters server_out;
 
         let readBuf =
           (* truncate buffer to only read what can fit in a domain name encoding with root *)
@@ -228,9 +226,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
         let read =
           match CstructStream.take_cancellable server_out readBuf with
           | Some r -> r
-          | None ->
-              (* could also reply with nothing to stop resolvers retrying *)
-              raise @@ Server.Ignore ()
+          | None -> 0
         in
         bufLen := read;
         last_sent_data_id := id;
