@@ -13,7 +13,7 @@ let max_encoded_len =
   (* as base64 encodes 6 bits in a byte, this gives us 3/4 of the `max_name_len` rounded up  *)
   1 + ((max_name_non_label_len - 1) / 4 * 3)
 
-let message_of_domain_name sudbomain name =
+let buf_of_domain_name sudbomain name =
   let ( let* ) = Option.bind in
   let* i = Domain_name.find_label name (fun s -> String.equal sudbomain s) in
   let data_name =
@@ -24,19 +24,19 @@ let message_of_domain_name sudbomain name =
   let root = Domain_name.drop_label_exn ~amount:i name in
   let data_array = Domain_name.to_array data_name in
   let data = String.concat "" (Array.to_list data_array) in
-  (* if there is no data encoded, return an empty string *)
-  if String.length data == 0 then Some ("", root)
+  (* if there is no data encoded, return an empty buffer *)
+  if String.length data == 0 then Some (Cstruct.empty, root)
   else
     try
-      let message = Base64.decode_exn data in
-      Some (message, root)
+      let cstruct = Cstruct.of_string @@ Base64.decode_exn data in
+      Some (cstruct, root)
     with Invalid_argument e ->
       Format.fprintf Format.err_formatter "Transport: error decoding %s\n" e;
       Format.pp_print_flush Format.err_formatter ();
       None
 
-let domain_name_of_message root message =
-  let data = Base64.encode_exn message in
+let domain_name_of_buf root cstruct =
+  let data = Base64.encode_exn @@ Cstruct.to_string cstruct in
   let authority = Domain_name.to_string root in
   (* String.length (data_subdomain ^ "." ^ authority) *)
   assert (String.length data + 1 + String.length authority < max_name_len);
@@ -53,7 +53,27 @@ let domain_name_of_message root message =
   let name_array = Array.append (Domain_name.to_array root) data_name in
   let hostname = Domain_name.of_array name_array in
   (* if the message is empty, just return the root *)
-  if String.length message == 0 then root else hostname
+  if Cstruct.length cstruct == 0 then root else hostname
+
+module Packet : sig
+  type t = { seq_no : int; data : Cstruct.t }
+
+  val decode : Cstruct.t -> t
+  val encode : t -> Cstruct.t
+end = struct
+  type t = { seq_no : int; data : Cstruct.t }
+
+  let decode buf =
+    let seq_no = Cstruct.BE.get_uint16 buf 0 in
+    let data = Cstruct.sub buf 2 (Cstruct.length buf - 2) in
+   { seq_no; data }
+
+  let encode t =
+    let buf = Cstruct.create (2 + Cstruct.length t.data) in
+    Cstruct.BE.set_uint16 buf 0 t.seq_no;
+    Cstruct.blit t.data 0 buf 2 (Cstruct.length t.data);
+    buf
+end
 
 module CstructStream : sig
   type t
@@ -158,6 +178,8 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   let last_recv_data_id = ref 0
   and last_sent_data_id = ref 0
   and last_recv_empty_id = ref 0 in
+  (* TODO mutex *)
+  let seq_no = ref 0 in
 
   let buf = Cstruct.create max_encoded_len in
   let bufLen = ref 0 in
@@ -167,7 +189,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     let* name, qtype =
       match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
     in
-    let* message, root = message_of_domain_name data_subdomain name in
+    let* recv_buf, root = buf_of_domain_name data_subdomain name in
     let id, _flags = p.header in
 
     (* Only process CNAME queries *)
@@ -190,13 +212,16 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
           None
     in
 
+    let packet = Packet.decode recv_buf in
+    seq_no := max packet.seq_no !seq_no;
+
     let reply =
       (* if this is a data carrying packet, reply with an ack *)
-      if String.length message > 0 then (
+      if Cstruct.length packet.data > 0 then (
         (* if we haven't already recieved this id *)
         (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver *)
         if !last_recv_data_id != id then
-          CstructStream.add server_inc [ Cstruct.of_string message ];
+          CstructStream.add server_inc [ packet.data ];
         last_recv_data_id := id;
         (* an ack is a packet carrying no data *)
         Cstruct.empty)
@@ -234,7 +259,9 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
         Cstruct.sub readBuf 0 read)
     in
 
-    let hostname = domain_name_of_message root (Cstruct.to_string reply) in
+    let reply_buf = Packet.encode { seq_no=(!seq_no); data=reply } in
+    seq_no := !seq_no + 1;
+    let hostname = domain_name_of_buf root reply_buf in
     let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
     let answer = Domain_name.Map.singleton name rr in
     let authority = Dns.Name_rr_map.empty in
@@ -279,6 +306,8 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
   and last_sent_data_id = ref 0 in
   let recv_data = Eio.Condition.create ()
   and recv_empty = Eio.Condition.create () in
+  (* TODO mutex *)
+  let seq_no = ref 0 in
 
   let handle_dns _proto _addr buf : unit =
     let ( let* ) o f = match o with None -> () | Some v -> f v in
@@ -309,14 +338,16 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
           None
     in
     let* _ttl, cname = Dns.Rr_map.find record_type map in
-    match message_of_domain_name data_subdomain cname with
+    match buf_of_domain_name data_subdomain cname with
     | None -> exit 1
-    | Some (message, _root) ->
-        if String.length message > 0 then
+    | Some (recv_buf, _root) ->
+        let packet = Packet.decode recv_buf in
+        seq_no := max packet.seq_no !seq_no;
+        if Cstruct.length packet.data > 0 then
           Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
               (* if we haven't already recieved this id *)
               if !last_recv_data_id != id then
-                CstructStream.add client_inc [ Cstruct.of_string message ];
+                CstructStream.add client_inc [ packet.data ];
               last_recv_data_id := id;
               Eio.Condition.broadcast recv_data)
         else
@@ -360,7 +391,9 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       let read = CstructStream.take client_out buf in
       (* truncate buffer to the number of bytes read *)
       let buf = Cstruct.sub buf 0 read in
-      let hostname = domain_name_of_message root (Cstruct.to_string buf) in
+      let reply_buf = Packet.encode { seq_no=(!seq_no); data=buf } in
+      seq_no := !seq_no + 1;
+      let hostname = domain_name_of_buf root reply_buf in
       let id = get_id () in
       Eio.Mutex.use_rw recv_empty_mut ~protect:true (fun () ->
           last_sent_data_id := id;
@@ -380,7 +413,12 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
 
       Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
           while id != !last_recv_data_id do
-            Client.send_query log id record_type root sock addr;
+
+            let reply_buf = Packet.encode { seq_no=(!seq_no); data=Cstruct.empty } in
+            seq_no := !seq_no + 1;
+            let hostname = domain_name_of_buf root reply_buf in
+
+            Client.send_query log id record_type hostname sock addr;
             ignore
             @@ Eio.Time.with_timeout clock 1. (fun () ->
                    Eio.Condition.await recv_data recv_data_mut;
