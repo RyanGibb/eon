@@ -65,13 +65,13 @@ end = struct
     (* The only purpose of the sequence number at present is to make the encoded domain name unique.
        This prevents a result caching the result of an empty query. *)
     seq_no : int;
-    data : Cstruct.t
+    data : Cstruct.t;
   }
 
   let decode buf =
     let seq_no = Cstruct.BE.get_uint16 buf 0 in
     let data = Cstruct.sub buf 2 (Cstruct.length buf - 2) in
-   { seq_no; data }
+    { seq_no; data }
 
   let encode seq_no data =
     let buf = Cstruct.create (2 + Cstruct.length data) in
@@ -180,10 +180,10 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   let server_inc = CstructStream.create ()
   and server_out = CstructStream.create () in
 
-  let last_sent_seq_no = ref (-1)
-  and last_recv_seq_no = ref (-1) in
   (* TODO mutex *)
-  let seq_no = ref 0 in
+  let last_recv_seq_no = ref (-1)
+  and last_sent_seq_no = ref 0
+  and seq_no = ref 0 in
 
   let buf = ref Cstruct.empty in
 
@@ -193,7 +193,6 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
       match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
     in
     let* recv_buf, root = buf_of_domain_name data_subdomain name in
-    let _id, _flags = p.header in
 
     (* Only process CNAME queries *)
     let* _ =
@@ -216,34 +215,31 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     in
 
     let packet = Packet.decode recv_buf in
-    seq_no := max packet.seq_no !seq_no;
 
-    let reply =
+    let* reply =
       (* if this is a data carrying packet, reply with an ack *)
       if Cstruct.length packet.data > 0 then (
         (* if we haven't already recieved this sequence number *)
         (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver *)
-        if !last_recv_seq_no != packet.seq_no then
+        if packet.seq_no != !last_recv_seq_no then
           CstructStream.add server_inc [ packet.data ];
-          last_recv_seq_no := packet.seq_no;
+        last_recv_seq_no := packet.seq_no;
         (* an ack is a packet carrying no data *)
-        Packet.encode packet.seq_no Cstruct.empty)
-      else if !last_recv_seq_no == packet.seq_no then
-        (* if this is a duplicate sequence number, retransmit *)
-        !buf
+        Some (Packet.encode packet.seq_no Cstruct.empty))
       else if
-        (* if there's already a thread waiting on data to reply to this query
-           empty queries the last sequence number the client's seen
-           *)
-        !last_sent_seq_no == packet.seq_no
-      then Cstruct.empty
+        (* If the last packet hasn't been recieved, retransmit.
+           NB if there's no data, the sequence number is confirming the last recieved. *)
+        packet.seq_no == !last_sent_seq_no - 1
+      then (* retransmit *)
+        Some (Packet.encode !seq_no !buf)
+      else if (* If client up to date *)
+              packet.seq_no == !last_sent_seq_no then (
         (* otherwise, send new data *)
 
         (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver,
             by making the server not retransmit when it's required.
             We need a way to muliplex client streams.
             We could do by client socket address, but that would prevent mobility. *)
-      else (
         (* if it's not the same sequence number, cancel it *)
         CstructStream.cancel_waiters server_out;
 
@@ -257,13 +253,22 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
           | Some r -> r
           | None -> 0
         in
+        seq_no := !seq_no + 1;
         (* truncate buffer to the number of bytes read *)
         let readBuf = Cstruct.sub readBuf 0 read in
-        (* save in case we need to retransmis *)
+        (* save in case we need to retransmit *)
         buf := readBuf;
         last_sent_seq_no := !seq_no;
-        Packet.encode !seq_no readBuf)
+        Some (Packet.encode !seq_no readBuf))
+      else (
+        (* if client is somehow more than one packet out of date, or in the future *)
+        Format.fprintf Format.err_formatter
+          "Transport: invalid sequence number, sent %d but client last got %d\n"
+          !last_sent_seq_no packet.seq_no;
+        Format.pp_print_flush Format.err_formatter ();
+        None)
     in
+
     let hostname = domain_name_of_buf root reply in
     let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
     let answer = Domain_name.Map.singleton name rr in
@@ -301,16 +306,13 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
         exit 1
   in
 
-  (* TODO mutexes? *)
   let recv_data_mut = Eio.Mutex.create ()
-  and recv_empty_mut = Eio.Mutex.create () in
-  let last_recv_empty_id = ref 0
-  and last_recv_data_id = ref 0
-  and last_sent_data_id = ref 0 in
-  let recv_data = Eio.Condition.create ()
-  and recv_empty = Eio.Condition.create () in
-  (* TODO mutex *)
-  let seq_no = ref 0 in
+  and recv_data = Eio.Condition.create ()
+  and acked_mut = Eio.Mutex.create ()
+  and acked = Eio.Condition.create ()
+  and last_acked_seq_no = ref (-1)
+  and last_recv_seq_no = ref 0
+  and seq_no = ref (-1) in
 
   let handle_dns _proto _addr buf : unit =
     let ( let* ) o f = match o with None -> () | Some v -> f v in
@@ -323,7 +325,6 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
           Format.pp_print_flush Format.err_formatter ();
           None
     in
-    let id, _flags = packet.header in
     let* answer =
       match packet.data with
       | `Answer (answer, _authority) -> Some answer
@@ -347,20 +348,18 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
     | None -> exit 1
     | Some (recv_buf, _root) ->
         let packet = Packet.decode recv_buf in
-        seq_no := max packet.seq_no !seq_no;
         if Cstruct.length packet.data > 0 then
           Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
-              (* if we haven't already recieved this id *)
-              if !last_recv_data_id != id then
+              (* if we haven't already recieved this sequence number *)
+              if !last_recv_seq_no != packet.seq_no then (
                 CstructStream.add client_inc [ packet.data ];
-              last_recv_data_id := id;
-              Eio.Condition.broadcast recv_data)
-        else
-          Eio.Mutex.use_rw recv_empty_mut ~protect:true (fun () ->
-              (* ignore if this not the ack for the most recent data packet *)
-              if id == !last_sent_data_id then (
-                last_recv_empty_id := id;
-                Eio.Condition.broadcast recv_empty))
+                last_recv_seq_no := packet.seq_no;
+                Eio.Condition.broadcast recv_data));
+        Eio.Mutex.use_rw acked_mut ~protect:true (fun () ->
+            (* ignore if this not the ack for the most recent data packet *)
+            if !seq_no == packet.seq_no then (
+              Eio.Condition.broadcast acked;
+              last_acked_seq_no := packet.seq_no))
   in
   let sock =
     let proto =
@@ -396,39 +395,34 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       let read = CstructStream.take client_out buf in
       (* truncate buffer to the number of bytes read *)
       let buf = Cstruct.sub buf 0 read in
-      let reply_buf = Packet.encode !seq_no buf in
-      seq_no := !seq_no + 1;
-      let hostname = domain_name_of_buf root reply_buf in
-      let id = get_id () in
-      Eio.Mutex.use_rw recv_empty_mut ~protect:true (fun () ->
-          last_sent_data_id := id;
+      Eio.Mutex.use_rw acked_mut ~protect:true (fun () ->
+          (* increment before so it can be used to check recieved packets *)
+          seq_no := !seq_no + 1;
+          let sent_seq_no = !seq_no in
+          let reply_buf = Packet.encode sent_seq_no buf in
+          let hostname = domain_name_of_buf root reply_buf in
           (* retransmit *)
-          while id != !last_recv_empty_id do
-            Client.send_query log id record_type hostname sock addr;
+          while !last_acked_seq_no != sent_seq_no do
+            Client.send_query log (get_id ()) record_type hostname sock addr;
             ignore
             @@ Eio.Time.with_timeout clock 1. (fun () ->
-                   Eio.Condition.await recv_empty recv_empty_mut;
+                   Eio.Condition.await acked acked_mut;
                    Ok ())
           done)
     done
   in
   let send_empty_query_fiber () =
     while true do
-      let id = get_id () in
-
       Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
-          while id != !last_recv_data_id do
+          (* sent a packet with the last recieved sequence number *)
+          let reply_buf = Packet.encode !last_recv_seq_no Cstruct.empty in
+          let hostname = domain_name_of_buf root reply_buf in
 
-            let reply_buf = Packet.encode !seq_no Cstruct.empty in
-            seq_no := !seq_no + 1;
-            let hostname = domain_name_of_buf root reply_buf in
-
-            Client.send_query log id record_type hostname sock addr;
-            ignore
-            @@ Eio.Time.with_timeout clock 1. (fun () ->
-                   Eio.Condition.await recv_data recv_data_mut;
-                   Ok ())
-          done)
+          Client.send_query log (get_id ()) record_type hostname sock addr;
+          ignore
+          @@ Eio.Time.with_timeout clock 1. (fun () ->
+                 Eio.Condition.await recv_data recv_data_mut;
+                 Ok ()))
     done
   in
   Eio.Fiber.fork ~sw (fun () -> Client.listen sock log handle_dns);
