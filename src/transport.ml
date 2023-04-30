@@ -217,6 +217,10 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     let packet = Packet.decode recv_buf in
 
     let* reply =
+      (* allow resetting stream *)
+      (* TODO sessions *)
+      if packet.seq_no == 0 then last_sent_seq_no := 0;
+
       (* if this is a data carrying packet, reply with an ack *)
       if Cstruct.length packet.data > 0 then (
         (* if we haven't already recieved this sequence number *)
