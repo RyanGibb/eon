@@ -49,21 +49,15 @@ let udp_listen log handle_dns sock =
           let answers, queries = handle_dns `Udp addr trimmedBuf in
           (* TODO do we need a mutex over sending? *)
           List.iter
-            (fun (proto, ip, p, b) ->
+            (fun (_proto, ip, p, b) ->
               let addr =
                 `Udp (Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw, p)
               in
-              (match proto with
-              | `Udp -> Eio.traceln "udp"
-              | `Tcp -> Eio.traceln "tcp");
               log Dns_log.Tx addr b;
               Eio.Net.send sock addr b)
             answers;
           List.iter
-            (fun (proto, ip, b) ->
-              (match proto with
-              | `Udp -> Eio.traceln "udp"
-              | `Tcp -> Eio.traceln "tcp");
+            (fun (_proto, ip, b) ->
               let addr =
                 `Udp (Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw, 53)
               in
