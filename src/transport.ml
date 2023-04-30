@@ -329,6 +329,8 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
     let* answer =
       match packet.data with
       | `Answer (answer, _authority) -> Some answer
+      (* ignore server failure (likely due to a timeout) *)
+      | `Rcode_error (Dns.Rcode.ServFail, Dns.Opcode.Query, _) -> None
       | _ ->
           Format.fprintf Format.err_formatter "Transport: no answer section\n";
           Format.pp_print_flush Format.err_formatter ();
