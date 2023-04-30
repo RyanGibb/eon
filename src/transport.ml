@@ -180,9 +180,9 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   let server_inc = CstructStream.create ()
   and server_out = CstructStream.create () in
 
-  let last_recv_data_id = ref 0
-  and last_sent_data_id = ref 0
-  and last_recv_empty_id = ref 0 in
+  let last_recv_data_seq_no = ref (-1)
+  and last_sent_data_seq_no = ref (-1)
+  and last_recv_empty_seq_no = ref 0 in
   (* TODO mutex *)
   let seq_no = ref 0 in
 
@@ -195,7 +195,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
       match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
     in
     let* recv_buf, root = buf_of_domain_name data_subdomain name in
-    let id, _flags = p.header in
+    let _id, _flags = p.header in
 
     (* Only process CNAME queries *)
     let* _ =
@@ -223,19 +223,19 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     let reply =
       (* if this is a data carrying packet, reply with an ack *)
       if Cstruct.length packet.data > 0 then (
-        (* if we haven't already recieved this id *)
+        (* if we haven't already recieved this sequence number *)
         (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver *)
-        if !last_recv_data_id != id then
+        if !last_recv_data_seq_no != packet.seq_no then
           CstructStream.add server_inc [ packet.data ];
-        last_recv_data_id := id;
+        last_recv_data_seq_no := packet.seq_no;
         (* an ack is a packet carrying no data *)
         Cstruct.empty)
-      else if !last_sent_data_id == id then
-        (* if this is a duplicate id, retransmit *)
+      else if !last_sent_data_seq_no == packet.seq_no then
+        (* if this is a duplicate sequence number, retransmit *)
         Cstruct.sub buf 0 !bufLen
       else if
         (* if there's already a thread waiting on data to reply to this query *)
-        !last_recv_empty_id == id
+        !last_recv_empty_seq_no == packet.seq_no
       then Cstruct.empty
         (* otherwise, send new data *)
 
@@ -244,8 +244,8 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
             We need a way to muliplex client streams.
             We could do by client socket address, but that would prevent mobility. *)
       else (
-        last_recv_empty_id := id;
-        (* if it's not the same id, cancel it *)
+        last_recv_empty_seq_no := packet.seq_no;
+        (* if it's not the same sequence number, cancel it *)
         CstructStream.cancel_waiters server_out;
 
         let readBuf =
@@ -259,7 +259,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
           | None -> 0
         in
         bufLen := read;
-        last_sent_data_id := id;
+        last_sent_data_seq_no := packet.seq_no;
         (* truncate buffer to the number of bytes read *)
         Cstruct.sub readBuf 0 read)
     in
