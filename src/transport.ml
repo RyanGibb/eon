@@ -235,7 +235,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     in
 
     let hostname = domain_name_of_message root (Cstruct.to_string reply) in
-    let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (1l, hostname) in
+    let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
     let answer = Domain_name.Map.singleton name rr in
     let authority = Dns.Name_rr_map.empty in
     let data = `Answer (answer, authority) in
