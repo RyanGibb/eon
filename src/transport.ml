@@ -180,14 +180,12 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
   let server_inc = CstructStream.create ()
   and server_out = CstructStream.create () in
 
-  let last_recv_data_seq_no = ref (-1)
-  and last_sent_data_seq_no = ref (-1)
-  and last_recv_empty_seq_no = ref 0 in
+  let last_sent_seq_no = ref (-1)
+  and last_recv_seq_no = ref (-1) in
   (* TODO mutex *)
   let seq_no = ref 0 in
 
-  let buf = Cstruct.create max_encoded_len in
-  let bufLen = ref 0 in
+  let buf = ref Cstruct.empty in
 
   let packet_callback (p : Dns.Packet.t) : Dns.Packet.t option =
     let ( let* ) = Option.bind in
@@ -225,17 +223,19 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
       if Cstruct.length packet.data > 0 then (
         (* if we haven't already recieved this sequence number *)
         (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver *)
-        if !last_recv_data_seq_no != packet.seq_no then
+        if !last_recv_seq_no != packet.seq_no then
           CstructStream.add server_inc [ packet.data ];
-        last_recv_data_seq_no := packet.seq_no;
+          last_recv_seq_no := packet.seq_no;
         (* an ack is a packet carrying no data *)
-        Cstruct.empty)
-      else if !last_sent_data_seq_no == packet.seq_no then
+        Packet.encode packet.seq_no Cstruct.empty)
+      else if !last_recv_seq_no == packet.seq_no then
         (* if this is a duplicate sequence number, retransmit *)
-        Cstruct.sub buf 0 !bufLen
+        !buf
       else if
-        (* if there's already a thread waiting on data to reply to this query *)
-        !last_recv_empty_seq_no == packet.seq_no
+        (* if there's already a thread waiting on data to reply to this query
+           empty queries the last sequence number the client's seen
+           *)
+        !last_sent_seq_no == packet.seq_no
       then Cstruct.empty
         (* otherwise, send new data *)
 
@@ -244,29 +244,27 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
             We need a way to muliplex client streams.
             We could do by client socket address, but that would prevent mobility. *)
       else (
-        last_recv_empty_seq_no := packet.seq_no;
         (* if it's not the same sequence number, cancel it *)
         CstructStream.cancel_waiters server_out;
 
         let readBuf =
-          (* truncate buffer to only read what can fit in a domain name encoding with root *)
           let rootLen = String.length (Domain_name.to_string root) in
-          Cstruct.sub buf 0 (max_encoded_len - rootLen)
+          (* only read what can fit in a domain name encoding with root *)
+          Cstruct.create (max_encoded_len - rootLen)
         in
         let read =
           match CstructStream.take_cancellable server_out readBuf with
           | Some r -> r
           | None -> 0
         in
-        bufLen := read;
-        last_sent_data_seq_no := packet.seq_no;
         (* truncate buffer to the number of bytes read *)
-        Cstruct.sub readBuf 0 read)
+        let readBuf = Cstruct.sub readBuf 0 read in
+        (* save in case we need to retransmis *)
+        buf := readBuf;
+        last_sent_seq_no := !seq_no;
+        Packet.encode !seq_no readBuf)
     in
-
-    let reply_buf = Packet.encode !seq_no reply in
-    seq_no := !seq_no + 1;
-    let hostname = domain_name_of_buf root reply_buf in
+    let hostname = domain_name_of_buf root reply in
     let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
     let answer = Domain_name.Map.singleton name rr in
     let authority = Dns.Name_rr_map.empty in
