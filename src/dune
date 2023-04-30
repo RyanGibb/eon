@@ -6,6 +6,13 @@
  (libraries server server_args dns_log))
 
 (executable
+ (name resolved)
+ (modules resolved)
+ (public_name resolved)
+ (package aeon)
+ (libraries resolver server_args dns_log logs.fmt))
+
+(executable
  (name netcat)
  (modules netcat)
  (public_name netcat)
@@ -36,6 +43,12 @@
  (modules server)
  (public_name aeon.server)
  (libraries dns_log zonefile eio_main dns dns-tsig dns-server fmt))
+
+(library
+ (name resolver)
+ (modules resolver)
+ (public_name aeon.resolver)
+ (libraries dns_log zonefile eio_main dns dns-tsig dns-resolver fmt))
 
 (library
  (name client)
