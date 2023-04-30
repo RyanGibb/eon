@@ -1496,7 +1496,7 @@ module Null = struct
     let max_len = 65535 in
     let len = min max_len (Cstruct.length null) in
     Cstruct.blit null 0 buf off len ;
-    names, off + len + 1
+    names, off + len
 end
 
 (* certificate authority authorization *)

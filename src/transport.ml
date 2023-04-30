@@ -170,10 +170,10 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     let* message, root = message_of_domain_name data_subdomain name in
     let id, _flags = p.header in
 
-    (* Only process CNAME queries *)
+    (* Only process Null queries *)
     let* _ =
       match qtype with
-      | `K (Dns.Rr_map.K Dns.Rr_map.Cname) -> Some ()
+      | `K (Dns.Rr_map.K Dns.Rr_map.Null) -> Some ()
       | `Axfr | `Ixfr ->
           Format.fprintf Format.err_formatter
             "Transport: unsupported operation zonetransfer\n";
@@ -234,8 +234,12 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
         Cstruct.sub readBuf 0 read)
     in
 
-    let hostname = domain_name_of_message root (Cstruct.to_string reply) in
-    let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
+    (* let hostname = domain_name_of_message root (Cstruct.to_string reply) in
+       let rr = Dns.Rr_map.singleton Dns.Rr_map.Null (0l, reply) in *)
+    let rr =
+      Dns.Rr_map.singleton Dns.Rr_map.Null
+        (0l, Dns.Rr_map.Null_set.singleton reply)
+    in
     let answer = Domain_name.Map.singleton name rr in
     let authority = Dns.Name_rr_map.empty in
     let data = `Answer (answer, authority) in
@@ -258,7 +262,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
   and client_out = CstructStream.create () in
 
   (* TODO support different queries, or probing access *)
-  let record_type = Dns.Rr_map.Cname
+  let record_type = Dns.Rr_map.Null
   and addr =
     match
       Eio.Net.getaddrinfo_datagram net ~service:(Int.to_string port) nameserver
@@ -308,10 +312,13 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
           Format.pp_print_flush Format.err_formatter ();
           None
     in
-    let* _ttl, cname = Dns.Rr_map.find record_type map in
-    match message_of_domain_name data_subdomain cname with
-    | None -> exit 1
-    | Some (message, _root) ->
+    let* _ttl, nulls = Dns.Rr_map.find record_type map in
+    match Dns.Rr_map.Null_set.choose_opt nulls with
+    | None ->
+        (* TODO error msg *)
+        exit 1
+    | Some null ->
+        let message = Cstruct.to_string null in
         if String.length message > 0 then
           Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
               (* if we haven't already recieved this id *)
