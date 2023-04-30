@@ -59,7 +59,7 @@ module Packet : sig
   type t = { seq_no : int; data : Cstruct.t }
 
   val decode : Cstruct.t -> t
-  val encode : t -> Cstruct.t
+  val encode : int -> Cstruct.t -> Cstruct.t
 end = struct
   type t = { seq_no : int; data : Cstruct.t }
 
@@ -68,10 +68,10 @@ end = struct
     let data = Cstruct.sub buf 2 (Cstruct.length buf - 2) in
    { seq_no; data }
 
-  let encode t =
-    let buf = Cstruct.create (2 + Cstruct.length t.data) in
-    Cstruct.BE.set_uint16 buf 0 t.seq_no;
-    Cstruct.blit t.data 0 buf 2 (Cstruct.length t.data);
+  let encode seq_no data =
+    let buf = Cstruct.create (2 + Cstruct.length data) in
+    Cstruct.BE.set_uint16 buf 0 seq_no;
+    Cstruct.blit data 0 buf 2 (Cstruct.length data);
     buf
 end
 
@@ -259,7 +259,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
         Cstruct.sub readBuf 0 read)
     in
 
-    let reply_buf = Packet.encode { seq_no=(!seq_no); data=reply } in
+    let reply_buf = Packet.encode !seq_no reply in
     seq_no := !seq_no + 1;
     let hostname = domain_name_of_buf root reply_buf in
     let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
@@ -391,7 +391,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       let read = CstructStream.take client_out buf in
       (* truncate buffer to the number of bytes read *)
       let buf = Cstruct.sub buf 0 read in
-      let reply_buf = Packet.encode { seq_no=(!seq_no); data=buf } in
+      let reply_buf = Packet.encode !seq_no buf in
       seq_no := !seq_no + 1;
       let hostname = domain_name_of_buf root reply_buf in
       let id = get_id () in
@@ -414,7 +414,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
           while id != !last_recv_data_id do
 
-            let reply_buf = Packet.encode { seq_no=(!seq_no); data=Cstruct.empty } in
+            let reply_buf = Packet.encode !seq_no Cstruct.empty in
             seq_no := !seq_no + 1;
             let hostname = domain_name_of_buf root reply_buf in
 
