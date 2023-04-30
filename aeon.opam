@@ -13,6 +13,7 @@ depends: [
   "eio_main"
   "dns"
   "dns-server" {>= "6.2.2"}
+  "dns-resolver"
   "dns-tsig"
   "cmdliner"
   "fmt"
