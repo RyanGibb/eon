@@ -61,7 +61,12 @@ module Packet : sig
   val decode : Cstruct.t -> t
   val encode : int -> Cstruct.t -> Cstruct.t
 end = struct
-  type t = { seq_no : int; data : Cstruct.t }
+  type t = {
+    (* The only purpose of the sequence number at present is to make the encoded domain name unique.
+       This prevents a result caching the result of an empty query. *)
+    seq_no : int;
+    data : Cstruct.t
+  }
 
   let decode buf =
     let seq_no = Cstruct.BE.get_uint16 buf 0 in
