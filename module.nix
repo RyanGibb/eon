@@ -22,12 +22,16 @@ let cfg = config.services.aeon; in
       type = lib.types.int;
       default = 1;
     };
-    netcat = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
+    application = lib.mkOption {
+      type = types.enum [
+        "named"
+        "resolved"
+        "netcatd"
+      ];
+      default = "named";
     };
   };
-  
+
   config = mkIf cfg.enable {
     systemd.services.aeon = {
       description = "aeon";
@@ -36,7 +40,7 @@ let cfg = config.services.aeon; in
 
       serviceConfig = {
         ExecStart =
-          "${pkgs.aeon.out}/bin/${if cfg.netcat then "netcat -s" else "aeon"} " +
+          "${pkgs.aeon.out}/bin/${cfg.application} " +
             "-z ${cfg.zoneFile} " +
             "-l ${builtins.toString cfg.logLevel}";
         Restart = "always";

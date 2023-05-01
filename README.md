@@ -1,17 +1,36 @@
 
-# Algebraic Effects-based OCaml Nameserver
+# Algebraic Effects-based OCaml Naming
 
-Algebraic Effects-based OCaml Nameserver (AEON) is an implementation of an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for OCaml 5](https://github.com/ocaml-multicore/eio).
+Algebraic Effects-based OCaml Naming (AEON) is an implementation of the Domain Name System (DNS) protocol using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for OCaml 5](https://github.com/ocaml-multicore/eio).
+
+The AEON nameserver, `named`, can act as an authoritative nameserver.
+The resolver, `resolved`, can do the same in addition to acting as a recursive resolver.
+
+### Quick start
+
+```
+$ nix shell github:RyanGibb/aeon
+$ sudo named --zonefile <filepath>
+```
+
+Or follow the instructions to manually [build from source](#building).
+
+For help:
+```
+$ named --help
+```
 
 ### Building
 
 [Nix](https://nixos.org) can be used to build the project with:
 
 ```
+$ git clone git@github.com:RyanGibb/aeon.git
+$ cd aeon
 $ nix build .
 ```
 
-The binary can then be found at `result/bin/aeon`.
+The binary can then be found at `result/bin/named`.
 
 Note that this is using [Nix flakes](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-flake.html).
 
@@ -24,19 +43,17 @@ $ dune build
 
 The binary can then be found at `_build/default/src/aeon.exe`.
 
-(TODO: is the above correct?)
-
 ### Running
 
 Once built, to run the project use:
 
 ```
-$ ./aeon --zonefile <domain>
+$ ./named --zonefile <filepath>
 ```
 
 For example:
 ```
-$ ./aeon --zonefile examples/example.com
+$ ./named --zonefile examples/example.com
 ```
 
 The zonefile format is defined in [RFC1035 Section 5.1](https://datatracker.ietf.org/doc/html/rfc1035#section-5.1), but a minimal example is provided in [example.org](./example/example.org).
@@ -49,16 +66,19 @@ $ dig example.org @localhost +short
 203.0.113.0
 ```
 
-Note the command line argument `--log-level` can be used to specify a log verbosity e.g.:
+The command line argument `--log-level` can be used to specify a log verbosity e.g.:
 ```
-$ ./aeon --zonefile examples/example.com --log-level 2
+$ ./named --zonefile examples/example.com --log-level 2
 ```
+
+The same can be done with `resolved`, except it will additionally recursively look up records for domains it is not authoritative over.
+Be careful of [DNS amplification attacks](https://www.cloudflare.com/learning/ddos/dns-amplification-ddos-attack/).
 
 ### Deployment
 
 A [NixOS module](https://nixos.org/manual/nixos/stable/index.html#sec-writing-modules) is provided that describes a systemd service and some configuration options. See [here](https://www.tweag.io/blog/2020-07-31-nixos-flakes/#adding-modules-from-third-party-flakes) for an example of adding a module from another flake to your NixOS configuration.
 
-It's also possible to just run this as a binary.
+It's also possible to simply run this as a binary.
 
 You'll need to configure your zonefile with an [NS](https://www.ietf.org/rfc/rfc1035.html#section-3.3.11) record, and set up a glue record with your registrar to point this domain to the IP that your nameserver is hosted on. See [example.org](./example/example.org) for an example NS record.
 
@@ -84,6 +104,11 @@ $ dig test.example.org @localhost
 ```
 
 The TSIG key name, `client._update.example.org` here, must match the name in the zonefile.
+
+### Transport
+
+The [transport.ml](src/transport.ml) file contains logic to use DNS as a stream[transport](https://en.wikipedia.org/wiki/Transport_layer`) protocol.
+An example application that uses this can be found in [netcat.ml](src/netcat.ml)/[netcatd.ml](src/netcatd.ml).
 
 ### Development
 

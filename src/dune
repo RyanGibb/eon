@@ -1,7 +1,7 @@
 (executable
- (name aeon)
- (modules aeon)
- (public_name aeon)
+ (name named)
+ (modules named)
+ (public_name named)
  (package aeon)
  (libraries server server_args dns_log))
 
