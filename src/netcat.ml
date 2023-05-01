@@ -1,40 +1,14 @@
-let run zonefiles log_level addressStrings domain subdomain port no_tcp no_udp
-    enable_server nameserver =
-  if no_tcp && no_udp then (
-    Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
-    Format.pp_print_flush Format.err_formatter ();
-    exit 1);
-  let tcp = not no_tcp and udp = not no_udp in
+let run log_level domain subdomain port nameserver =
   let log = (Dns_log.get_log log_level) Format.std_formatter in
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  if enable_server then
-    let addresses = Server_args.parse_addresses port addressStrings in
-    let server_state =
-      let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
-      let rng ?_g length =
-        let buf = Cstruct.create length in
-        Eio.Flow.read_exact env#secure_random buf;
-        buf
-      in
-      ref
-      @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
-           ~tsig_sign:Dns_tsig.sign trie
-    in
-    let server =
-      Transport.dns_server ~sw ~net:env#net ~clock:env#clock
-        ~mono_clock:env#mono_clock ~tcp ~udp subdomain server_state log
-        addresses
-    in
-    Eio.Flow.copy server server
-  else
-    let client =
-      Transport.dns_client ~sw ~net:env#net ~clock:env#clock
-        ~random:env#secure_random nameserver subdomain domain port log
-    in
-    Eio.Fiber.both
-      (fun () -> Eio.Flow.copy env#stdin client)
-      (fun () -> Eio.Flow.copy client env#stdout)
+  let client =
+    Transport.dns_client ~sw ~net:env#net ~clock:env#clock
+      ~random:env#secure_random nameserver subdomain domain port log
+  in
+  Eio.Fiber.both
+    (fun () -> Eio.Flow.copy env#stdin client)
+    (fun () -> Eio.Flow.copy client env#stdout)
 
 let () =
   let open Cmdliner in
@@ -57,10 +31,6 @@ let () =
         value & opt string "example.org"
         & info [ "d"; "domain" ] ~docv:"DOMAIN" ~doc)
     in
-    let server =
-      let doc = "Whether to enable server mode" in
-      Arg.(value & flag & info [ "s"; "server" ] ~docv:"SERVER" ~doc)
-    in
     let nameserver =
       let doc =
         "The address of the nameserver to query. The first result returned by \
@@ -74,10 +44,10 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ logging_default 0 $ addresses $ domain
-        $ subdomain $ port $ no_tcp $ no_udp $ server $ nameserver)
+        const run $ logging_default 0 $ domain $ subdomain $ port $ nameserver)
     in
-    let info = Cmd.info "netcat" ~man in
+    let doc = "An authorative nameserver using OCaml 5 Algebraic Effects" in
+    let info = Cmd.info "netcat" ~man ~doc in
     Cmd.v info term
   in
   (* this is not domain safe *)
