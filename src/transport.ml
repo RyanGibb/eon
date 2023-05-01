@@ -87,9 +87,8 @@ module CstructStream : sig
 
   val create : unit -> t
   val add : t -> Cstruct.t list -> unit
-  val cancel_waiters : t -> unit
   val take : t -> Cstruct.t -> int
-  val take_cancellable : t -> Cstruct.t -> int option
+  val try_take : t -> Cstruct.t -> int option
   val to_flow : t -> t -> Eio.Flow.two_way
 end = struct
   type t = {
@@ -97,8 +96,6 @@ end = struct
     items : Cstruct.t list ref;
     mut : Eio.Mutex.t;
     cond : Eio.Condition.t;
-    waiters : int ref;
-    cancel : bool ref;
   }
 
   exception Empty
@@ -108,8 +105,6 @@ end = struct
       items = ref [];
       mut = Eio.Mutex.create ();
       cond = Eio.Condition.create ();
-      waiters = ref 0;
-      cancel = ref false;
     }
 
   let add t bufs =
@@ -117,43 +112,27 @@ end = struct
         t.items := !(t.items) @ bufs;
         Eio.Condition.broadcast t.cond)
 
-  let cancel_waiters t =
-    Eio.Mutex.use_rw t.mut ~protect:true (fun () ->
-        while !(t.waiters) > 0 do
-          t.cancel := true;
-          Eio.Condition.broadcast t.cond;
-          (* yield with unlocked mutex to allow waiters to be cancelled *)
-          Eio.Mutex.unlock t.mut;
-          Eio.Fiber.yield ();
-          Eio.Mutex.lock t.mut
-        done;
-        t.cancel := false)
-
   let take t buf =
     Eio.Mutex.use_rw t.mut ~protect:true (fun () ->
-        t.waiters := !(t.waiters) + 1;
         (* if `Cstruct.lenv !(t.items) == 0` we just send an empty packet *)
         while !(t.items) == [] do
           Eio.Condition.await t.cond t.mut
         done;
-        t.waiters := !(t.waiters) - 1;
         let read, new_items = Cstruct.fillv ~src:!(t.items) ~dst:buf in
         t.items := new_items;
         read)
 
-  let take_cancellable t buf =
-    Eio.Mutex.use_rw t.mut ~protect:true (fun () ->
-        t.waiters := !(t.waiters) + 1;
-        (* if `Cstruct.lenv !(t.items) == 0` we just send an empty packet *)
-        while !(t.items) == [] && not !(t.cancel) do
-          Eio.Condition.await t.cond t.mut
-        done;
-        t.waiters := !(t.waiters) - 1;
-        if !(t.cancel) then None
-        else
-          let read, new_items = Cstruct.fillv ~src:!(t.items) ~dst:buf in
-          t.items := new_items;
-          Some read)
+  let try_take q buf =
+    let read, empty =
+      Eio.Mutex.use_rw ~protect:true q.mut (fun () ->
+          (* if `Cstruct.lenv !(q.items) == 0` we just send an empty packet *)
+          if !(q.items) == [] then (0, true)
+          else
+            let read, new_items = Cstruct.fillv ~src:!(q.items) ~dst:buf in
+            q.items := new_items;
+            (read, false))
+    in
+    if empty then None else Some read
 
   let to_flow inc out =
     object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
@@ -236,34 +215,24 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
         packet.seq_no == !last_sent_seq_no - 1
       then (* retransmit *)
         Some (Packet.encode !seq_no !buf)
-      else if (* If client up to date *)
+      else if (* if client up to date *)
               packet.seq_no == !last_sent_seq_no then (
-        (* otherwise, send new data *)
-
-        (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver,
-            by making the server not retransmit when it's required.
-            We need a way to muliplex client streams.
-            We could do by client socket address, but that would prevent mobility. *)
-        (* if it's not the same sequence number, cancel it *)
-        CstructStream.cancel_waiters server_out;
-
+        (* send new data *)
         let readBuf =
           let rootLen = String.length (Domain_name.to_string root) in
           (* only read what can fit in a domain name encoding with root *)
           Cstruct.create (max_encoded_len - rootLen)
         in
-        let read =
-          match CstructStream.take_cancellable server_out readBuf with
-          | Some r -> r
-          | None -> 0
-        in
-        seq_no := !seq_no + 1;
-        (* truncate buffer to the number of bytes read *)
-        let readBuf = Cstruct.sub readBuf 0 read in
-        (* save in case we need to retransmit *)
-        buf := readBuf;
-        last_sent_seq_no := !seq_no;
-        Some (Packet.encode !seq_no readBuf))
+        match CstructStream.try_take server_out readBuf with
+        | None -> Some (Packet.encode packet.seq_no Cstruct.empty)
+        | Some r ->
+            seq_no := !seq_no + 1;
+            (* truncate buffer to the number of bytes read *)
+            let readBuf = Cstruct.sub readBuf 0 r in
+            (* save in case we need to retransmit *)
+            buf := readBuf;
+            last_sent_seq_no := !seq_no;
+            Some (Packet.encode !seq_no readBuf))
       else (
         (* if client is somehow more than one packet out of date, or in the future *)
         Format.fprintf Format.err_formatter
@@ -363,6 +332,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
             (* ignore if this not the ack for the most recent data packet *)
             if !seq_no == packet.seq_no then (
               Eio.Condition.broadcast acked;
+              Eio.Condition.broadcast recv_data;
               last_acked_seq_no := packet.seq_no))
   in
   let sock =

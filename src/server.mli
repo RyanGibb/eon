@@ -1,5 +1,3 @@
-exception Ignore of unit
-
 val start :
   net:#Eio.Net.t ->
   clock:#Eio.Time.clock ->
