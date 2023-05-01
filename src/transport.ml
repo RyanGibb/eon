@@ -56,14 +56,16 @@ let domain_name_of_buf root cstruct =
   if Cstruct.length cstruct == 0 then root else hostname
 
 module Packet : sig
-  type t = { seq_no : int; data : Cstruct.t }
+  type t = {
+    (* for retransmissions *)
+    seq_no : int;
+    data : Cstruct.t
+  }
 
   val decode : Cstruct.t -> t
   val encode : int -> Cstruct.t -> Cstruct.t
 end = struct
   type t = {
-    (* The only purpose of the sequence number at present is to make the encoded domain name unique.
-       This prevents a result caching the result of an empty query. *)
     seq_no : int;
     data : Cstruct.t;
   }
@@ -77,6 +79,38 @@ end = struct
     let buf = Cstruct.create (2 + Cstruct.length data) in
     Cstruct.BE.set_uint16 buf 0 seq_no;
     Cstruct.blit data 0 buf 2 (Cstruct.length data);
+    buf
+end
+
+module UniquePacket : sig
+  type t = {
+    (* for uniqueness when encoding in query domain names *)
+    id : int;
+    (* for retransmissions *)
+    seq_no : int;
+    data : Cstruct.t
+  }
+
+  val decode : Cstruct.t -> t
+  val encode : int -> int -> Cstruct.t -> Cstruct.t
+end = struct
+  type t = {
+    id : int;
+    seq_no : int;
+    data : Cstruct.t;
+  }
+
+  let decode buf =
+    let id = Cstruct.BE.get_uint16 buf 0 in
+    let seq_no = Cstruct.BE.get_uint16 buf 2 in
+    let data = Cstruct.sub buf 4 (Cstruct.length buf - 4) in
+    { id; seq_no; data }
+
+  let encode id seq_no data =
+    let buf = Cstruct.create (4 + Cstruct.length data) in
+    Cstruct.BE.set_uint16 buf 0 id;
+    Cstruct.BE.set_uint16 buf 2 seq_no;
+    Cstruct.blit data 0 buf 4 (Cstruct.length data);
     buf
 end
 
@@ -193,7 +227,7 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
           None
     in
 
-    let packet = Packet.decode recv_buf in
+    let packet = UniquePacket.decode recv_buf in
 
     let* reply =
       (* allow resetting stream *)
@@ -285,7 +319,8 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
   and acked = Eio.Condition.create ()
   and last_acked_seq_no = ref (-1)
   and last_recv_seq_no = ref 0
-  and seq_no = ref (-1) in
+  and seq_no = ref (-1)
+  and id = ref 0 in
 
   let handle_dns _proto _addr buf : unit =
     let ( let* ) o f = match o with None -> () | Some v -> f v in
@@ -373,7 +408,8 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
           (* increment before so it can be used to check recieved packets *)
           seq_no := !seq_no + 1;
           let sent_seq_no = !seq_no in
-          let reply_buf = Packet.encode sent_seq_no buf in
+          let reply_buf = UniquePacket.encode !id sent_seq_no buf in
+          id := !id + 1;
           let hostname = domain_name_of_buf root reply_buf in
           (* retransmit *)
           while !last_acked_seq_no != sent_seq_no do
@@ -389,7 +425,10 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
     while true do
       Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
           (* sent a packet with the last recieved sequence number *)
-          let reply_buf = Packet.encode !last_recv_seq_no Cstruct.empty in
+          let reply_buf =
+            UniquePacket.encode !id !last_recv_seq_no Cstruct.empty
+          in
+          id := !id + 1;
           let hostname = domain_name_of_buf root reply_buf in
 
           Client.send_query log (get_id ()) record_type hostname sock addr;
