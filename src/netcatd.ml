@@ -23,7 +23,7 @@ let run zonefiles log_level addressStrings subdomain port no_tcp no_udp =
     Transport.dns_server ~sw ~net:env#net ~clock:env#clock
       ~mono_clock:env#mono_clock ~tcp ~udp subdomain server_state log addresses
   in
-  Eio.Flow.copy env#stdin server
+  Eio.Flow.copy server server
 
 let () =
   let open Cmdliner in
