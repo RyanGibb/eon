@@ -56,19 +56,13 @@ let domain_name_of_buf root cstruct =
   if Cstruct.length cstruct == 0 then root else hostname
 
 module Packet : sig
-  type t = {
-    (* for retransmissions *)
-    seq_no : int;
-    data : Cstruct.t
-  }
+  type t = { (* for retransmissions *)
+             seq_no : int; data : Cstruct.t }
 
   val decode : Cstruct.t -> t
   val encode : int -> Cstruct.t -> Cstruct.t
 end = struct
-  type t = {
-    seq_no : int;
-    data : Cstruct.t;
-  }
+  type t = { seq_no : int; data : Cstruct.t }
 
   let decode buf =
     let seq_no = Cstruct.BE.get_uint16 buf 0 in
@@ -88,17 +82,13 @@ module UniquePacket : sig
     id : int;
     (* for retransmissions *)
     seq_no : int;
-    data : Cstruct.t
+    data : Cstruct.t;
   }
 
   val decode : Cstruct.t -> t
   val encode : int -> int -> Cstruct.t -> Cstruct.t
 end = struct
-  type t = {
-    id : int;
-    seq_no : int;
-    data : Cstruct.t;
-  }
+  type t = { id : int; seq_no : int; data : Cstruct.t }
 
   let decode buf =
     let id = Cstruct.BE.get_uint16 buf 0 in
