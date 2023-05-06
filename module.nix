@@ -27,6 +27,7 @@ let cfg = config.services.aeon; in
         "named"
         "resolved"
         "netcatd"
+        "tund"
       ];
       default = "named";
     };
@@ -47,7 +48,10 @@ let cfg = config.services.aeon; in
         RestartSec = "1s";
         User = cfg.user;
         Group = cfg.group;
-        AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+        AmbientCapabilities =
+          [ "CAP_NET_BIND_SERVICE" ] ++
+          # for TUNSETIFF
+          (if cfg.application == "tund" then [ "CAP_NET_ADMIN" ]  else [ ]);
       };
     };
 

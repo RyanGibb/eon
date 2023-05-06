@@ -26,6 +26,20 @@
  (package aeon)
  (libraries transport server_args dns_log))
 
+(executable
+ (name tun)
+ (modules tun)
+ (public_name tun)
+ (package aeon)
+ (libraries transport server_args dns_log tuntap))
+
+(executable
+ (name tund)
+ (modules tund)
+ (public_name tund)
+ (package aeon)
+ (libraries transport server_args dns_log tuntap))
+
 (library
  (name server_args)
  (modules server_args)

@@ -17,6 +17,7 @@ depends: [
   "dns-tsig"
   "cmdliner"
   "fmt"
+  "tuntap"
 ]
 build: [
   ["dune" "subst"] {dev}
