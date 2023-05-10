@@ -323,7 +323,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
           Format.fprintf Format.err_formatter "Transport: error decoding %a\n"
             Dns.Packet.pp_err err;
           Format.pp_print_flush Format.err_formatter ();
-          None
+          exit 1
     in
     let* answer =
       match packet.data with
@@ -333,7 +333,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       | _ ->
           Format.fprintf Format.err_formatter "Transport: no answer section\n";
           Format.pp_print_flush Format.err_formatter ();
-          None
+          exit 1
     in
     let* map =
       match Domain_name.Map.bindings answer with
@@ -341,7 +341,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       | _ ->
           Format.fprintf Format.err_formatter "Transport: no answer\n";
           Format.pp_print_flush Format.err_formatter ();
-          None
+          exit 1
     in
     let* _ttl, cname = Dns.Rr_map.find record_type map in
     match buf_of_domain_name data_subdomain cname with
