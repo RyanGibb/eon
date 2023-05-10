@@ -8,31 +8,12 @@ let run log_level domain subdomain port nameserver netmask tunnel_ip =
   in
   let tun_fd, tun_name = Tuntap.opentun ~devname:"tun-dns" () in
   let tun = Eio_unix.FD.as_socket ~sw ~close_unix:false tun_fd in
-  let process_incoming () =
-    let buf = Cstruct.create 4096 in
-    try
-      while true do
-        let got = Eio.Flow.single_read client buf in
-        Eio.traceln "inc %d" got;
-        tun#write [ Cstruct.sub buf 0 got ]
-      done
-    with End_of_file -> ()
-  in
-  let process_outgoing () =
-    let buf = Cstruct.create 4096 in
-    try
-      while true do
-        let got = Eio.Flow.single_read tun buf in
-        Eio.traceln "out %d" got;
-        client#write [ Cstruct.sub buf 0 got ]
-      done
-    with End_of_file -> ()
-  in
   Tuntap.set_ipv4 tun_name
     ~netmask:(Ipaddr.V4.Prefix.of_string_exn netmask)
     (Ipaddr.V4.of_string_exn tunnel_ip);
-  Tuntap.set_up_and_running tun_name;
-  Eio.Fiber.both (fun () -> process_outgoing ()) (fun () -> process_incoming ())
+  Eio.Fiber.both
+    (fun () -> Eio.Flow.copy client tun)
+    (fun () -> Eio.Flow.copy tun client)
 
 let () =
   let open Cmdliner in
