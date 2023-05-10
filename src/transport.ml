@@ -357,7 +357,6 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
             (* ignore if this not the ack for the most recent data packet *)
             if !seq_no == packet.seq_no then (
               Eio.Condition.broadcast acked;
-              Eio.Condition.broadcast recv_data;
               last_acked_seq_no := packet.seq_no))
   in
   let sock =
