@@ -73,7 +73,7 @@ let () =
     in
     let tunnel_ip =
       Arg.(
-        value & opt string "10.0.0.1"
+        value & opt string "10.0.0.2"
         & info [ "i"; "tunnel_ip" ] ~docv:"TUNNEL_IP")
     in
     let term =
