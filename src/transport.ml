@@ -222,7 +222,9 @@ let dns_server ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain server_state
     let* reply =
       (* allow resetting stream *)
       (* TODO sessions *)
-      if packet.seq_no == 0 then last_sent_seq_no := 0;
+      if packet.seq_no == 0 && !last_recv_seq_no != -1 then (
+        last_sent_seq_no := 0;
+        seq_no := 0);
 
       (* if this is a data carrying packet, reply with an ack *)
       if Cstruct.length packet.data > 0 then (
