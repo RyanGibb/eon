@@ -10,6 +10,10 @@ let cfg = config.services.aeon; in
     zoneFile = mkOption {
       type = types.either types.str types.path;
     };
+    port = lib.mkOption {
+      type = lib.types.int;
+      default = 53;
+    };
     user = lib.mkOption {
       type = lib.types.str;
       default = "aeon";
@@ -43,6 +47,7 @@ let cfg = config.services.aeon; in
         ExecStart =
           "${pkgs.aeon.out}/bin/${cfg.application} " +
             "-z ${cfg.zoneFile} " +
+            "-p ${builtins.toString cfg.port} " +
             "-l ${builtins.toString cfg.logLevel}";
         Restart = "always";
         RestartSec = "1s";
