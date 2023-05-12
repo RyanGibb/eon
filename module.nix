@@ -35,6 +35,10 @@ let cfg = config.services.aeon; in
       ];
       default = "named";
     };
+    openFirewall = lib.mkOption {
+      type = types.bool;
+      default = true;
+    };
   };
 
   config = mkIf cfg.enable {
@@ -70,5 +74,10 @@ let cfg = config.services.aeon; in
     };
 
     users.groups."${cfg.group}" = {};
+
+    networking.firewall = lib.mkIf cfg.openFirewall {
+      allowedTCPPorts = [ cfg.port ];
+      allowedUDPPorts = [ cfg.port ];
+    };
   };
 }
