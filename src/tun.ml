@@ -77,7 +77,7 @@ let () =
         $ netmask $ tunnel_ip)
     in
     let doc = "An authorative nameserver using OCaml 5 Algebraic Effects" in
-    let info = Cmd.info "netcat" ~man ~doc in
+    let info = Cmd.info "tun" ~man ~doc in
     Cmd.v info term
   in
   (* this is not domain safe *)
