@@ -30,8 +30,22 @@ let run zonefiles log_level addressStrings subdomain port no_tcp no_udp netmask
     ~netmask:(Ipaddr.V4.Prefix.of_string_exn netmask)
     (Ipaddr.V4.of_string_exn tunnel_ip);
   Eio.Fiber.both
-    (fun () -> Eio.Flow.copy server tun)
-    (fun () -> Eio.Flow.copy tun server)
+    (fun () ->
+      try Eio.Flow.copy server tun with
+      | Eio.Io (Eio.Exn.X (Eio_unix.Unix_error (EINVAL, "write", _)), _) ->
+          failwith "tund: Error while copying from DNS transport to TUN device"
+      | exn ->
+          Format.fprintf Format.err_formatter
+            "tund error copying from DNS transport to TUN device: %a" Eio.Exn.pp
+            exn;
+          Format.pp_print_flush Format.err_formatter ())
+    (fun () ->
+      try Eio.Flow.copy tun server
+      with exn ->
+        Format.fprintf Format.err_formatter
+          "tund error copying from TUN device to DNS transport: %a" Eio.Exn.pp
+          exn;
+        Format.pp_print_flush Format.err_formatter ())
 
 let () =
   let open Cmdliner in
