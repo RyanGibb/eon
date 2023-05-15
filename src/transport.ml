@@ -132,12 +132,12 @@ end = struct
     }
 
   let add t bufs =
-    Eio.Mutex.use_rw t.mut ~protect:true (fun () ->
+    Eio.Mutex.use_rw t.mut ~protect:false (fun () ->
         t.items := !(t.items) @ bufs;
         Eio.Condition.broadcast t.cond)
 
   let take t buf =
-    Eio.Mutex.use_rw t.mut ~protect:true (fun () ->
+    Eio.Mutex.use_rw t.mut ~protect:false (fun () ->
         (* if `Cstruct.lenv !(t.items) == 0` we just send an empty packet *)
         while !(t.items) == [] do
           Eio.Condition.await t.cond t.mut
@@ -148,7 +148,7 @@ end = struct
 
   let try_take q buf =
     let read, empty =
-      Eio.Mutex.use_rw ~protect:true q.mut (fun () ->
+      Eio.Mutex.use_rw ~protect:false q.mut (fun () ->
           (* if `Cstruct.lenv !(q.items) == 0` we just send an empty packet *)
           if !(q.items) == [] then (0, true)
           else
@@ -349,18 +349,20 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
     | Some (recv_buf, _root) ->
         let packet = Packet.decode recv_buf in
         if Cstruct.length packet.data > 0 then
-          Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
+          Eio.Mutex.use_rw recv_data_mut ~protect:false (fun () ->
               (* if we haven't already recieved this sequence number *)
               if !last_recv_seq_no != packet.seq_no then (
                 CstructStream.add client_inc [ packet.data ];
                 last_recv_seq_no := packet.seq_no;
-                Eio.Condition.broadcast recv_data));
-        Eio.Mutex.use_rw acked_mut ~protect:true (fun () ->
-            (* ignore if this not the ack for the most recent data packet *)
-            if !seq_no == packet.seq_no then (
-              Eio.Condition.broadcast acked;
-              last_acked_seq_no := packet.seq_no))
+                Eio.Condition.broadcast recv_data))
+        else
+          Eio.Mutex.use_rw acked_mut ~protect:false (fun () ->
+              (* ignore if this not the ack for the most recent data packet *)
+              if !seq_no == packet.seq_no then (
+                Eio.Condition.broadcast acked;
+                last_acked_seq_no := packet.seq_no))
   in
+
   let sock =
     let proto =
       match addr with
@@ -395,7 +397,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
       let read = CstructStream.take client_out buf in
       (* truncate buffer to the number of bytes read *)
       let buf = Cstruct.sub buf 0 read in
-      Eio.Mutex.use_rw acked_mut ~protect:true (fun () ->
+      Eio.Mutex.use_rw acked_mut ~protect:false (fun () ->
           (* increment before so it can be used to check recieved packets *)
           seq_no := !seq_no + 1;
           let sent_seq_no = !seq_no in
@@ -414,7 +416,7 @@ let dns_client ~sw ~net ~clock ~random nameserver data_subdomain authority port
   in
   let send_empty_query_fiber () =
     while true do
-      Eio.Mutex.use_rw recv_data_mut ~protect:true (fun () ->
+      Eio.Mutex.use_rw recv_data_mut ~protect:false (fun () ->
           (* sent a packet with the last recieved sequence number *)
           let reply_buf =
             UniquePacket.encode !id !last_recv_seq_no Cstruct.empty
