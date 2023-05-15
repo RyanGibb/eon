@@ -28,8 +28,8 @@ let run zonefiles log_level addressStrings port no_tcp no_udp =
 
 let () =
   (* this is not domain safe *)
-  Logs.set_reporter (Logs_fmt.reporter ());
-  Logs.set_level (Some Logs.Debug);
+  (* Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_level (Some Logs.Debug); *)
   let open Cmdliner in
   let open Server_args in
   let cmd =
