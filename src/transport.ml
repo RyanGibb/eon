@@ -542,7 +542,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
             if packet.frag_no == !recv_next_frag_no then (
               recv_frags := !recv_frags @ [ packet.data ];
               recv_next_frag_no := !recv_next_frag_no + 1;
-              if packet.frag_no != packet.no_frags - 1 then (
+              if packet.frag_no == packet.no_frags - 1 then (
                 server_inc := !server_inc @ [ Cstruct.concat !recv_frags ];
                 Eio.Condition.broadcast recv_cond;
                 recv_packet_id := 0;
@@ -687,7 +687,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
               if packet.frag_no == !next_frag_no then (
                 frags := !frags @ [ packet.data ];
                 next_frag_no := !next_frag_no + 1;
-                if packet.frag_no != packet.no_frags - 1 then (
+                if packet.frag_no == packet.no_frags - 1 then (
                   client_inc := !client_inc @ [ Cstruct.concat !frags ];
                   Eio.Condition.broadcast recv_cond;
                   packet_id := 0;
@@ -747,14 +747,15 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
       id := !id + 1;
       let frag_no = ref 0 in
       let no_frags = (buf_len + (frag_len - 1)) / frag_len in
-      while !frag_no < no_frags - 1 do
+      while !frag_no < no_frags do
         let frag_buf =
           let offset = !frag_no * frag_len in
           Cstruct.sub buf offset (min frag_len (buf_len - offset))
         in
         let packet = FragPacket.encode !id !frag_no no_frags frag_buf in
         let hostname = domain_name_of_buf root packet in
-        Client.send_query log (get_id ()) record_type hostname sock addr
+        Client.send_query log (get_id ()) record_type hostname sock addr;
+        frag_no := !frag_no + 1;
       done
 
     method recv buf =
