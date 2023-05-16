@@ -747,7 +747,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
       id := !id + 1;
       let frag_no = ref 0 in
       let no_frags = (buf_len + (frag_len - 1)) / frag_len in
-      while !frag_no < no_frags do
+      while !frag_no < no_frags - 1 do
         let frag_buf =
           let offset = !frag_no * frag_len in
           Cstruct.sub buf offset (min frag_len (buf_len - offset))
