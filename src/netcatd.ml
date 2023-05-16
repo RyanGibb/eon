@@ -20,7 +20,7 @@ let run zonefiles log_level addressStrings subdomain port no_tcp no_udp =
          ~tsig_sign:Dns_tsig.sign trie
   in
   let server =
-    Transport.dns_server ~sw ~net:env#net ~clock:env#clock
+    Transport.dns_server_stream ~sw ~net:env#net ~clock:env#clock
       ~mono_clock:env#mono_clock ~tcp ~udp subdomain server_state log addresses
   in
   Eio.Flow.copy server server

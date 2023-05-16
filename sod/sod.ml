@@ -3,7 +3,7 @@ let run log_level domain subdomain port nameserver =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let client =
-    Transport.dns_client ~sw ~net:env#net ~clock:env#clock
+    Transport.dns_client_stream ~sw ~net:env#net ~clock:env#clock
       ~random:env#secure_random nameserver subdomain domain port log
   in
 

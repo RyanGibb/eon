@@ -1,5 +1,5 @@
-let run zonefiles log_level addressStrings subdomain port no_tcp no_udp netmask
-    tunnel_ip =
+let run zonefiles log_level addressStrings domain subdomain port no_tcp no_udp
+    netmask tunnel_ip =
   if no_tcp && no_udp then (
     Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
     Format.pp_print_flush Format.err_formatter ();
@@ -21,8 +21,9 @@ let run zonefiles log_level addressStrings subdomain port no_tcp no_udp netmask
          ~tsig_sign:Dns_tsig.sign trie
   in
   let server =
-    Transport.dns_server ~sw ~net:env#net ~clock:env#clock
-      ~mono_clock:env#mono_clock ~tcp ~udp subdomain server_state log addresses
+    Transport.dns_server_datagram ~sw ~net:env#net ~clock:env#clock
+      ~mono_clock:env#mono_clock ~tcp ~udp subdomain domain server_state log
+      addresses
   in
   let tun_fd, tun_name = Tuntap.opentun ~devname:"tun-dnsd" () in
   let tun = Eio_unix.FD.as_socket ~sw ~close_unix:false tun_fd in
@@ -31,26 +32,28 @@ let run zonefiles log_level addressStrings subdomain port no_tcp no_udp netmask
     (Ipaddr.V4.of_string_exn tunnel_ip);
   Eio.Fiber.both
     (fun () ->
-      try Eio.Flow.copy server tun with
-      | Eio.Io (Eio.Exn.X (Eio_unix.Unix_error (EINVAL, "write", _)), _) ->
-          failwith "tund: Error while copying from DNS transport to TUN device"
-      | exn ->
-          Format.fprintf Format.err_formatter
-            "tund error copying from DNS transport to TUN device: %a" Eio.Exn.pp
-            exn;
-          Format.pp_print_flush Format.err_formatter ())
+      let buf = Cstruct.create (Tuntap.get_mtu tun_name) in
+      while true do
+        let got = server#recv buf in
+        tun#write [ Cstruct.sub buf 0 got ]
+      done)
     (fun () ->
-      try Eio.Flow.copy tun server
-      with exn ->
-        Format.fprintf Format.err_formatter
-          "tund error copying from TUN device to DNS transport: %a" Eio.Exn.pp
-          exn;
-        Format.pp_print_flush Format.err_formatter ())
+      let buf = Cstruct.create (Tuntap.get_mtu tun_name) in
+      while true do
+        let got = Eio.Flow.single_read tun buf in
+        server#send (Cstruct.sub buf 0 got)
+      done)
 
 let () =
   let open Cmdliner in
   let open Server_args in
   let cmd =
+    let domain =
+      let doc = "Domain that the NAMESERVER is authorative for." in
+      Arg.(
+        value & opt string "example.org"
+        & info [ "d"; "domain" ] ~docv:"DOMAIN" ~doc)
+    in
     let subdomain =
       let doc =
         "Sudomain to use custom processing on. This will be combined with the \
@@ -74,8 +77,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ logging $ addresses $ subdomain $ port $ no_tcp
-        $ no_udp $ netmask $ tunnel_ip)
+        const run $ zonefiles $ logging $ addresses $ domain $ subdomain $ port
+        $ no_tcp $ no_udp $ netmask $ tunnel_ip)
     in
     let doc = "An authorative nameserver using OCaml 5 Algebraic Effects" in
     let info = Cmd.info "tund" ~man ~doc in

@@ -46,7 +46,7 @@ let run zonefiles log_level addressStrings subdomain port no_tcp no_udp =
       @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
            ~tsig_sign:Dns_tsig.sign trie
     in
-    Transport.dns_server ~sw ~net:env#net ~clock:env#clock
+    Transport.dns_server_stream ~sw ~net:env#net ~clock:env#clock
       ~mono_clock:env#mono_clock ~tcp ~udp subdomain server_state log addresses
   in
   while true do
