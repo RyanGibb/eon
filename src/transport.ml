@@ -531,8 +531,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
     let packet = FragPacket.decode recv_buf in
 
     let reply =
-      (* if this is a data carrying packet, reply with an ack *)
-      if Cstruct.length packet.data > 0 then (
+      if Cstruct.length packet.data > 0 then
         Eio.Mutex.use_rw recv_mut ~protect:false (fun () ->
             (* If we're receiving a new fragment packet *)
             (* NB this may drop an old packet, we don't deal with out of order delivery *)
@@ -549,34 +548,34 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
                 recv_packet_id := 0;
                 recv_next_frag_no := 0;
                 recv_frags := [])));
-        Cstruct.empty)
-      else
-        Eio.Mutex.use_rw send_mut ~protect:false (fun () ->
-            let get_frag () =
-              let frag_buf =
-                let offset = !send_next_frag_no * frag_len in
-                Cstruct.sub !send_packet offset
-                  (min frag_len (Cstruct.length !send_packet - offset))
-              in
-              let p =
-                FragPacket.encode !send_packet_id !send_next_frag_no
-                  !send_no_frags frag_buf
-              in
-              send_next_frag_no := !send_next_frag_no + 1;
-              p
+      Eio.Mutex.use_rw send_mut ~protect:false (fun () ->
+          let get_frag () =
+            let frag_buf =
+              let offset = !send_next_frag_no * frag_len in
+              Cstruct.sub !send_packet offset
+                (min frag_len (Cstruct.length !send_packet - offset))
             in
-            if !send_packet_id == 0 then (
-              match !server_out with
-              | [] -> Cstruct.empty
-              | packet :: new_server_out ->
-                  server_out := new_server_out;
-                  send_packet := packet;
-                  send_packet_id := !send_packet_id + 1;
-                  send_next_frag_no := 0;
-                  send_no_frags :=
-                    (Cstruct.length packet + (frag_len - 1)) / frag_len;
-                  get_frag ())
-            else get_frag ())
+            let p =
+              FragPacket.encode !send_packet_id !send_next_frag_no
+                !send_no_frags frag_buf
+            in
+            if !send_next_frag_no < !send_no_frags - 1 then
+              send_next_frag_no := !send_next_frag_no + 1
+            else send_packet_id := 0;
+            p
+          in
+          if !send_packet_id == 0 then (
+            match !server_out with
+            | [] -> Cstruct.empty
+            | packet :: new_server_out ->
+                server_out := new_server_out;
+                send_packet := packet;
+                send_packet_id := !send_packet_id + 1;
+                send_next_frag_no := 0;
+                send_no_frags :=
+                  (Cstruct.length packet + (frag_len - 1)) / frag_len;
+                get_frag ())
+          else get_frag ())
     in
 
     let hostname = domain_name_of_buf root reply in
