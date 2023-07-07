@@ -1,7 +1,7 @@
 
-# Algebraic Effects-based OCaml Naming
+# An Effects-based OCaml Naming
 
-Algebraic Effects-based OCaml Naming (AEON) is an implementation of the Domain Name System (DNS) protocol using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for OCaml 5](https://github.com/ocaml-multicore/eio).
+This project is An Effects-based OCaml Nameserver (AEON) implementation of an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for OCaml 5](https://github.com/ocaml-multicore/eio).
 
 The AEON nameserver, `named`, can act as an authoritative nameserver.
 The resolver, `resolved`, can do the same in addition to acting as a recursive resolver.
