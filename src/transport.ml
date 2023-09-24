@@ -677,6 +677,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
     match buf_of_domain_name data_subdomain cname with
     | None -> exit 1
     | Some (recv_buf, _root) ->
+      if Cstruct.length recv_buf > 0 then
         let packet = FragPacket.decode recv_buf in
         if Cstruct.length packet.data > 0 then
           Eio.Mutex.use_rw recv_mut ~protect:false (fun () ->
