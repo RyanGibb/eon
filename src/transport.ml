@@ -45,7 +45,7 @@ let domain_name_of_buf root cstruct =
   let data = Base64.encode_exn @@ Cstruct.to_string cstruct in
   let authority = Domain_name.to_string root in
   (* String.length (data_subdomain ^ "." ^ authority) *)
-  assert (String.length data + 1 + String.length authority < max_name_len);
+  assert (String.length data + 1 + String.length authority <= max_name_len);
   let rec labels_of_string string =
     let len = String.length string in
     if len > max_label_len then
