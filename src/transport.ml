@@ -197,7 +197,7 @@ end = struct
     if empty then None else Some read
 
   let to_flow inc out =
-    object (self : < Eio.Flow.source ; Eio.Flow.sink ; .. >)
+    object (self : < Eio.Flow.two_way >)
       method probe : type a. a Eio.Generic.ty -> a option = function _ -> None
 
       method copy src =
@@ -260,7 +260,8 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
     let* reply =
       (* allow resetting stream *)
       (* TODO sessions *)
-      if packet.seq_no == 0 && !last_recv_seq_no != -1 then (
+      (* TODO think about this a bit *)
+      if packet.seq_no == 0 && Cstruct.length packet.data == 0 then (
         last_sent_seq_no := 0;
         seq_no := 0);
 
