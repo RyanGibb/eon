@@ -687,6 +687,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
                 packet_id := packet.packet_id;
                 next_frag_no := 0;
                 frags := []);
+              Eio.traceln "IN_FRAG id %d no %d t %d" packet.packet_id packet.frag_no packet.no_frags;
               if packet.frag_no == !next_frag_no then (
                 frags := !frags @ [ packet.data ];
                 next_frag_no := !next_frag_no + 1;
@@ -757,6 +758,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
         in
         let packet = FragPacket.encode !id !frag_no no_frags frag_buf in
         let hostname = domain_name_of_buf root packet in
+        Eio.traceln "OUT_FRAG id %d no %d t %d" !id !frag_no no_frags;
         Client.send_query log (get_id ()) record_type hostname sock addr;
         frag_no := !frag_no + 1;
       done
