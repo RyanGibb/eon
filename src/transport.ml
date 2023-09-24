@@ -567,7 +567,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
           in
           if !send_packet_id == 0 then (
             match !server_out with
-            | [] -> Cstruct.empty
+            | [] -> FragPacket.encode 0 0 0 Cstruct.empty
             | packet :: new_server_out ->
                 server_out := new_server_out;
                 send_packet := packet;
