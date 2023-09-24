@@ -496,7 +496,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
   and send_no_frags = ref 0
   and send_packet = ref Cstruct.empty in
 
-  let frag_len =
+  let mtu =
     (* String.length (data_subdomain ^ "." ^ authority) *)
     let rootLen = String.length data_subdomain + 1 + String.length authority in
     max_encoded_len - rootLen
@@ -552,9 +552,9 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
       Eio.Mutex.use_rw send_mut ~protect:false (fun () ->
           let get_frag () =
             let frag_buf =
-              let offset = !send_next_frag_no * frag_len in
+              let offset = !send_next_frag_no * mtu in
               Cstruct.sub !send_packet offset
-                (min frag_len (Cstruct.length !send_packet - offset))
+                (min mtu (Cstruct.length !send_packet - offset))
             in
             let p =
               FragPacket.encode !send_packet_id !send_next_frag_no
@@ -574,7 +574,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
                 send_packet_id := !send_packet_id + 1;
                 send_next_frag_no := 0;
                 send_no_frags :=
-                  (Cstruct.length packet + (frag_len - 1)) / frag_len;
+                  (Cstruct.length packet + (mtu - 1)) / mtu;
                 get_frag ())
           else get_frag ())
     in
@@ -738,7 +738,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
   object (_self : < dns_datagram >)
     method send buf =
       let buf_len = Cstruct.length buf in
-      let frag_len =
+      let mtu =
         (* String.length (data_subdomain ^ "." ^ authority) *)
         let rootLen =
           String.length data_subdomain + 1 + String.length authority
@@ -747,11 +747,11 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
       in
       id := !id + 1;
       let frag_no = ref 0 in
-      let no_frags = (buf_len + (frag_len - 1)) / frag_len in
+      let no_frags = (buf_len + (mtu - 1)) / mtu in
       while !frag_no < no_frags do
         let frag_buf =
-          let offset = !frag_no * frag_len in
-          Cstruct.sub buf offset (min frag_len (buf_len - offset))
+          let offset = !frag_no * mtu in
+          Cstruct.sub buf offset (min mtu (buf_len - offset))
         in
         let packet = FragPacket.encode !id !frag_no no_frags frag_buf in
         let hostname = domain_name_of_buf root packet in
