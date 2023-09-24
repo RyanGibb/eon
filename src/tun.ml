@@ -11,17 +11,20 @@ let run log_level domain subdomain port nameserver netmask tunnel_ip =
   Tuntap.set_ipv4 tun_name
     ~netmask:(Ipaddr.V4.Prefix.of_string_exn netmask)
     (Ipaddr.V4.of_string_exn tunnel_ip);
+  let mtu = Tuntap.get_mtu tun_name in
   Eio.Fiber.both
     (fun () ->
-      let buf = Cstruct.create (Tuntap.get_mtu tun_name) in
+      let buf = Cstruct.create mtu in
       while true do
         let got = client#recv buf in
+        Eio.traceln "OUT %d" got;
         tun#write [ Cstruct.sub buf 0 got ]
       done)
     (fun () ->
-      let buf = Cstruct.create (Tuntap.get_mtu tun_name) in
+      let buf = Cstruct.create mtu in
       while true do
         let got = Eio.Flow.single_read tun buf in
+        Eio.traceln "INC %d" got;
         client#send (Cstruct.sub buf 0 got)
       done)
 
