@@ -508,6 +508,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
       match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
     in
     let* recv_buf, root = buf_of_domain_name data_subdomain name in
+    assert (Domain_name.to_string root = authority);
 
     (* Only process CNAME queries *)
     let* _ =
