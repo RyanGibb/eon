@@ -14,30 +14,12 @@ let run log_level addressStrings port no_tcp no_udp domain subdomain nameserver
     Eio.Flow.read_exact env#secure_random buf;
     buf
   in
-  Eio.Fiber.fork ~sw (fun () ->
-      let server_state =
-        Dns_server.Primary.create ~keys:[] ~rng ~tsig_verify:Dns_tsig.verify
-          ~tsig_sign:Dns_tsig.sign Dns_trie.empty
-      in
-      let resolver_state =
-        let now = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
-        ref
-        @@ Dns_resolver.create ~cache_size:29 ~dnssec:false
-             ~ip_protocol:`Ipv4_only now rng server_state
-      in
-      Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock
-        ~mono_clock:env#mono_clock ~tcp ~udp resolver_state log addresses);
-  let client =
-    Transport.dns_client_stream ~sw ~net:env#net ~clock:env#clock
-      ~random:env#secure_random nameserver subdomain domain port log
+  let handle_dns _proto (addr : Eio.Net.Sockaddr.t) buf =
+    Dns_log.log_level_1 Format.std_formatter Dns_log.Rx addr buf;
+    (* TODO transport buf, run resolver, return response *)
+    [ buf ]
   in
-  Eio.Fiber.both
-    (fun () -> Eio.Flow.copy env#stdin client)
-    (fun () -> Eio.Flow.copy client env#stdout)
-
-(* recv query
-   get data
-   run transport layer to tunnel query to server *)
+  Dns_server_eio.with_handler ~net:env#net ~tcp ~udp handle_dns log addresses
 
 let () =
   let open Cmdliner in
