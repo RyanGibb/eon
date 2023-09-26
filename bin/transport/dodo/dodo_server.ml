@@ -1,4 +1,4 @@
-let run zonefiles log_level addressStrings subdomain port no_tcp no_udp =
+let run zonefiles log_level addressStrings domain subdomain port no_tcp no_udp =
   if no_tcp && no_udp then (
     Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
     Format.pp_print_flush Format.err_formatter ();
@@ -19,16 +19,39 @@ let run zonefiles log_level addressStrings subdomain port no_tcp no_udp =
     @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
          ~tsig_sign:Dns_tsig.sign trie
   in
+
   let server =
-    Transport.dns_server_stream ~sw ~net:env#net ~clock:env#clock
-      ~mono_clock:env#mono_clock ~tcp ~udp subdomain server_state log addresses
+    Transport.dns_server_datagram ~sw ~net:env#net ~clock:env#clock
+      ~mono_clock:env#mono_clock ~tcp ~udp subdomain domain server_state log
+      addresses
   in
-  Eio.Flow.copy server server
+
+  let resolver_state =
+    let now = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
+    ref
+    @@ Dns_resolver.create ~cache_size:29 ~dnssec:false ~ip_protocol:`Ipv4_only
+         now rng !server_state
+  in
+  Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock
+    ~mono_clock:env#mono_clock ~tcp ~udp resolver_state log addresses
+
+  let buf = Cstruct.create 4096 in
+  while true do
+    let got = server#recv buf in
+    Dns_log.log_level_1 Format.std_formatter Dns_log.Rx (`Unix "test") (Cstruct.sub buf 0 got);
+    (* todo inject buf into resolver... *)
+  done
 
 let () =
   let open Cmdliner in
   let open Server_args in
   let cmd =
+    let domain =
+      let doc = "Domain that the NAMESERVER is authorative for." in
+      Arg.(
+        value & opt string "example.org"
+        & info [ "d"; "domain" ] ~docv:"DOMAIN" ~doc)
+    in
     let subdomain =
       let doc =
         "Sudomain to use custom processing on. This will be combined with the \
@@ -42,7 +65,7 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ logging $ addresses $ subdomain $ port $ no_tcp
+        const run $ zonefiles $ logging $ addresses $ domain $ subdomain $ port $ no_tcp
         $ no_udp)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in

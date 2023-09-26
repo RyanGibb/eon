@@ -1,4 +1,4 @@
-let run log_level addressStrings port no_tcp no_udp domain subdomain nameserver
+let run log_level addressStrings port port2 no_tcp no_udp domain subdomain nameserver
     =
   if no_tcp && no_udp then (
     Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
@@ -14,8 +14,15 @@ let run log_level addressStrings port no_tcp no_udp domain subdomain nameserver
     Eio.Flow.read_exact env#secure_random buf;
     buf
   in
+
+  let client =
+    Transport.dns_client_datagram ~sw ~net:env#net ~clock:env#clock
+      ~random:env#secure_random nameserver subdomain domain port2 log
+  in
+
   let handle_dns _proto (addr : Eio.Net.Sockaddr.t) buf =
     Dns_log.log_level_1 Format.std_formatter Dns_log.Rx addr buf;
+    client#send buf;
     (* TODO transport buf, run resolver, return response *)
     [ buf ]
   in
@@ -53,9 +60,15 @@ let () =
         value & opt string "127.0.0.1"
         & info [ "n"; "nameserver" ] ~docv:"NAMESERVER" ~doc)
     in
+    let port2 =
+      let doc =
+        "Port to bind on. By default 53 is used. See the BINDING section."
+      in
+      Arg.(value & opt int 53 & info [ ""; "port2" ] ~docv:"PORT" ~doc)
+    in
     let term =
       Term.(
-        const run $ logging_default 0 $ addresses $ port $ no_tcp $ no_udp
+        const run $ logging_default 0 $ addresses $ port $ port2 $ no_tcp $ no_udp
         $ domain $ subdomain $ nameserver)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in

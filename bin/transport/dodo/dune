@@ -3,11 +3,16 @@
  (modules dodo_resolver)
  (public_name dodo-resolver)
  (package aeon)
- (libraries transport dns_resolver_eio server_args dns_log))
+ (libraries transport server_args dns_log))
 
 (executable
  (name dodo_server)
  (modules dodo_server)
  (public_name dodo-server)
  (package aeon)
- (libraries transport server_args dns_log))
+ (libraries transport dns_resolver_eio server_args dns_log))
+
+(env
+ (dev
+  (flags
+   (:standard -w -27 -w -26))))
