@@ -23,13 +23,13 @@ let run zonefiles log_level addressStrings port no_tcp no_udp =
     @@ Dns_resolver.create ~cache_size:29 ~dnssec:false ~ip_protocol:`Ipv4_only
          now rng server_state
   in
-  Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~tcp
-    ~udp resolver_state log addresses
+  Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock
+    ~mono_clock:env#mono_clock ~tcp ~udp resolver_state log addresses
 
 let () =
   (* this is not domain safe *)
   (* Logs.set_reporter (Logs_fmt.reporter ());
-  Logs.set_level (Some Logs.Debug); *)
+     Logs.set_level (Some Logs.Debug); *)
   let open Cmdliner in
   let open Server_args in
   let cmd =

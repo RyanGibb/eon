@@ -1,4 +1,5 @@
-let run log_level addressStrings port no_tcp no_udp domain subdomain nameserver =
+let run log_level addressStrings port no_tcp no_udp domain subdomain nameserver
+    =
   if no_tcp && no_udp then (
     Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
     Format.pp_print_flush Format.err_formatter ();
@@ -15,18 +16,18 @@ let run log_level addressStrings port no_tcp no_udp domain subdomain nameserver 
   in
 
   Eio.Fiber.fork ~sw (fun () ->
-    let server_state =
-      Dns_server.Primary.create ~keys:[] ~rng ~tsig_verify:Dns_tsig.verify
-        ~tsig_sign:Dns_tsig.sign Dns_trie.empty
-    in
-    let resolver_state =
-      let now = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
-      ref
-      @@ Dns_resolver.create ~cache_size:29 ~dnssec:false ~ip_protocol:`Ipv4_only
-          now rng server_state
-    in
-    Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~tcp
-      ~udp resolver_state log addresses);
+      let server_state =
+        Dns_server.Primary.create ~keys:[] ~rng ~tsig_verify:Dns_tsig.verify
+          ~tsig_sign:Dns_tsig.sign Dns_trie.empty
+      in
+      let resolver_state =
+        let now = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
+        ref
+        @@ Dns_resolver.create ~cache_size:29 ~dnssec:false
+             ~ip_protocol:`Ipv4_only now rng server_state
+      in
+      Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock
+        ~mono_clock:env#mono_clock ~tcp ~udp resolver_state log addresses);
   let client =
     Transport.dns_client_stream ~sw ~net:env#net ~clock:env#clock
       ~random:env#secure_random nameserver subdomain domain port log
@@ -35,9 +36,9 @@ let run log_level addressStrings port no_tcp no_udp domain subdomain nameserver 
     (fun () -> Eio.Flow.copy env#stdin client)
     (fun () -> Eio.Flow.copy client env#stdout)
 
-  (* recv query
-     get data
-     run transport layer to tunnel query to server *)
+(* recv query
+   get data
+   run transport layer to tunnel query to server *)
 
 let () =
   let open Cmdliner in
@@ -73,7 +74,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ logging_default 0 $ addresses $ port $ no_tcp $ no_udp $ domain $ subdomain $ nameserver)
+        const run $ logging_default 0 $ addresses $ port $ no_tcp $ no_udp
+        $ domain $ subdomain $ nameserver)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcat" ~man ~doc in

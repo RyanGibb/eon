@@ -34,5 +34,5 @@ let on_addresses ~net ~udp ~tcp udp_listen tcp_listen addrs =
           tcp_listen sockTCP);
       ]
     else []
-  in  
-  Eio.Fiber.all ((List.flatten (List.map on_address addrs)))
+  in
+  Eio.Fiber.all (List.flatten (List.map on_address addrs))

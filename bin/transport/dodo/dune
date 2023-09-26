@@ -11,4 +11,3 @@
  (public_name dodo-server)
  (package aeon)
  (libraries transport server_args dns_log))
- 

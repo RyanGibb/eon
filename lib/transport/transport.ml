@@ -445,7 +445,8 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
           let hostname = domain_name_of_buf root reply_buf in
           (* retransmit *)
           while !last_acked_seq_no != sent_seq_no do
-            Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
+            Dns_client_eio.send_query log (get_id ()) record_type hostname sock
+              addr;
             ignore
             @@ Eio.Time.with_timeout clock 1. (fun () ->
                    Eio.Condition.await acked acked_mut;
@@ -463,7 +464,8 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
           id := !id + 1;
           let hostname = domain_name_of_buf root reply_buf in
 
-          Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
+          Dns_client_eio.send_query log (get_id ()) record_type hostname sock
+            addr;
           ignore
           @@ Eio.Time.with_timeout clock 1. (fun () ->
                  Eio.Condition.await recv_data recv_data_mut;
@@ -574,8 +576,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
                 send_packet := packet;
                 send_packet_id := !send_packet_id + 1;
                 send_next_frag_no := 0;
-                send_no_frags :=
-                  (Cstruct.length packet + (mtu - 1)) / mtu;
+                send_no_frags := (Cstruct.length packet + (mtu - 1)) / mtu;
                 get_frag ())
           else get_frag ())
     in
@@ -677,26 +678,27 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
     match buf_of_domain_name data_subdomain cname with
     | None -> exit 1
     | Some (recv_buf, _root) ->
-      if Cstruct.length recv_buf > 0 then
-        let packet = FragPacket.decode recv_buf in
-        if Cstruct.length packet.data > 0 then
-          Eio.Mutex.use_rw recv_mut ~protect:false (fun () ->
-              (* If we're receiving a new fragment packet *)
-              (* NB this may drop an old packet, we don't deal with out of order delivery *)
-              if packet.packet_id != !packet_id then (
-                packet_id := packet.packet_id;
-                next_frag_no := 0;
-                frags := []);
-              Eio.traceln "IN_FRAG id %d no %d t %d" packet.packet_id packet.frag_no packet.no_frags;
-              if packet.frag_no == !next_frag_no then (
-                frags := !frags @ [ packet.data ];
-                next_frag_no := !next_frag_no + 1;
-                if packet.frag_no == packet.no_frags - 1 then (
-                  client_inc := !client_inc @ [ Cstruct.concat !frags ];
-                  Eio.Condition.broadcast recv_cond;
-                  packet_id := 0;
+        if Cstruct.length recv_buf > 0 then
+          let packet = FragPacket.decode recv_buf in
+          if Cstruct.length packet.data > 0 then
+            Eio.Mutex.use_rw recv_mut ~protect:false (fun () ->
+                (* If we're receiving a new fragment packet *)
+                (* NB this may drop an old packet, we don't deal with out of order delivery *)
+                if packet.packet_id != !packet_id then (
+                  packet_id := packet.packet_id;
                   next_frag_no := 0;
-                  frags := [])))
+                  frags := []);
+                Eio.traceln "IN_FRAG id %d no %d t %d" packet.packet_id
+                  packet.frag_no packet.no_frags;
+                if packet.frag_no == !next_frag_no then (
+                  frags := !frags @ [ packet.data ];
+                  next_frag_no := !next_frag_no + 1;
+                  if packet.frag_no == packet.no_frags - 1 then (
+                    client_inc := !client_inc @ [ Cstruct.concat !frags ];
+                    Eio.Condition.broadcast recv_cond;
+                    packet_id := 0;
+                    next_frag_no := 0;
+                    frags := [])))
   in
   let sock =
     let proto =
@@ -727,12 +729,13 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
           let reply_buf = FragPacket.encode (get_id ()) 0 0 Cstruct.empty in
           let hostname = domain_name_of_buf root reply_buf in
 
-          Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
+          Dns_client_eio.send_query log (get_id ()) record_type hostname sock
+            addr;
           ignore
           @@ Eio.Time.with_timeout clock 2. (fun () ->
                  Eio.Condition.await recv_cond recv_mut;
                  Ok ()));
-          Eio.Fiber.yield ()
+      Eio.Fiber.yield ()
     done
   in
   Eio.Fiber.fork ~sw (fun () -> Dns_client_eio.listen sock log handle_dns);
@@ -761,7 +764,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
         let hostname = domain_name_of_buf root packet in
         Eio.traceln "OUT_FRAG id %d no %d t %d" !id !frag_no no_frags;
         Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
-        frag_no := !frag_no + 1;
+        frag_no := !frag_no + 1
       done
 
     method recv buf =

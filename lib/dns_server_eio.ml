@@ -1,22 +1,24 @@
 type dns_handler =
   Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
 
-let primary_handle_dns ~clock ~mono_clock server_state packet_callback : dns_handler =
-  fun proto (addr : Eio.Net.Sockaddr.t) buf ->
-    (* TODO handle notify, n, and key *)
-    let new_server_state, answers, _notify, _n, _key =
-      let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get
-      and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock
-      and ipaddr, port =
-        match addr with
-        | `Udp (ip, p) | `Tcp (ip, p) -> (Ipaddr.of_octets_exn (ip :> string), p)
-        | `Unix _ -> failwith "Unix sockets not supported"
-      in
-      Dns_server.Primary.handle_buf !server_state now ts proto ipaddr port buf ~packet_callback
+let primary_handle_dns ~clock ~mono_clock server_state packet_callback :
+    dns_handler =
+ fun proto (addr : Eio.Net.Sockaddr.t) buf ->
+  (* TODO handle notify, n, and key *)
+  let new_server_state, answers, _notify, _n, _key =
+    let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get
+    and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock
+    and ipaddr, port =
+      match addr with
+      | `Udp (ip, p) | `Tcp (ip, p) -> (Ipaddr.of_octets_exn (ip :> string), p)
+      | `Unix _ -> failwith "Unix sockets not supported"
     in
-    (* TODO is this thread safe? *)
-    server_state := new_server_state;
-    answers
+    Dns_server.Primary.handle_buf !server_state now ts proto ipaddr port buf
+      ~packet_callback
+  in
+  (* TODO is this thread safe? *)
+  server_state := new_server_state;
+  answers
 
 let udp_listen log handle_dns sock =
   Eio.Switch.run @@ fun sw ->
@@ -86,8 +88,17 @@ let tcp_listen log handle_dns sock =
   done
 
 let with_handler ~net ?(tcp = true) ?(udp = true) handle_dns log addresses =
-  Listen.on_addresses ~net ~udp ~tcp (udp_listen log handle_dns) (tcp_listen log handle_dns) addresses
+  Listen.on_addresses ~net ~udp ~tcp
+    (udp_listen log handle_dns)
+    (tcp_listen log handle_dns)
+    addresses
 
-let primary ~net ~clock ~mono_clock ?(tcp = true) ?(udp = true) ?(packet_callback = fun _q -> None) server_state log addresses =
-  let handle_dns = primary_handle_dns ~clock ~mono_clock server_state packet_callback in
-  Listen.on_addresses ~net ~udp ~tcp (udp_listen log handle_dns) (tcp_listen log handle_dns) addresses
+let primary ~net ~clock ~mono_clock ?(tcp = true) ?(udp = true)
+    ?(packet_callback = fun _q -> None) server_state log addresses =
+  let handle_dns =
+    primary_handle_dns ~clock ~mono_clock server_state packet_callback
+  in
+  Listen.on_addresses ~net ~udp ~tcp
+    (udp_listen log handle_dns)
+    (tcp_listen log handle_dns)
+    addresses

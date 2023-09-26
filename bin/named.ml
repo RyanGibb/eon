@@ -1,4 +1,3 @@
-
 let get_server_state ~fs ~random zonefiles =
   let trie, keys = Zonefile.parse_zonefiles ~fs zonefiles in
   let rng ?_g length =
@@ -19,8 +18,11 @@ let run zonefiles log_level addressStrings port no_tcp no_udp =
   Eio_main.run @@ fun env ->
   let log = (Dns_log.get_log log_level) Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
-  let server_state = get_server_state ~fs:env#fs ~random:env#secure_random zonefiles in
-  Dns_server_eio.primary ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~tcp ~udp server_state log addresses
+  let server_state =
+    get_server_state ~fs:env#fs ~random:env#secure_random zonefiles
+  in
+  Dns_server_eio.primary ~net:env#net ~clock:env#clock
+    ~mono_clock:env#mono_clock ~tcp ~udp server_state log addresses
 
 let () =
   (* this is not domain safe *)
