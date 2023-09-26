@@ -80,7 +80,7 @@ let () =
         const run $ zonefiles $ logging $ addresses $ domain $ subdomain $ port
         $ no_tcp $ no_udp $ netmask $ tunnel_ip)
     in
-    let doc = "An authorative nameserver using OCaml 5 Algebraic Effects" in
+    let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "tund" ~man ~doc in
     Cmd.v info term
   in

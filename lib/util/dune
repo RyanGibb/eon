@@ -1,0 +1,24 @@
+
+(library
+ (name dns_log)
+ (modules dns_log)
+ (public_name aeon.dns-log)
+ (libraries eio_main dns))
+
+(library
+ (name server_args)
+ (modules server_args)
+ (public_name aeon.server-args)
+ (libraries cmdliner ipaddr eio))
+
+(library
+ (name zonefile)
+ (modules zonefile)
+ (public_name aeon.zonefile)
+ (libraries eio_main dns dns-server.zone))
+
+(library
+ (name listen)
+ (modules listen)
+ (public_name aeon.listen)
+ (libraries eio_main dns))

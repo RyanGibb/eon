@@ -321,7 +321,7 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
   in
 
   Eio.Fiber.fork ~sw (fun () ->
-      Server.start ~net ~clock ~mono_clock ~tcp ~udp ~packet_callback
+      Dns_server_eio.primary ~net ~clock ~mono_clock ~tcp ~udp ~packet_callback
         server_state log addresses);
   CstructStream.to_flow server_inc server_out
 
@@ -445,7 +445,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
           let hostname = domain_name_of_buf root reply_buf in
           (* retransmit *)
           while !last_acked_seq_no != sent_seq_no do
-            Client.send_query log (get_id ()) record_type hostname sock addr;
+            Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
             ignore
             @@ Eio.Time.with_timeout clock 1. (fun () ->
                    Eio.Condition.await acked acked_mut;
@@ -463,14 +463,14 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
           id := !id + 1;
           let hostname = domain_name_of_buf root reply_buf in
 
-          Client.send_query log (get_id ()) record_type hostname sock addr;
+          Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
           ignore
           @@ Eio.Time.with_timeout clock 1. (fun () ->
                  Eio.Condition.await recv_data recv_data_mut;
                  Ok ()))
     done
   in
-  Eio.Fiber.fork ~sw (fun () -> Client.listen sock log handle_dns);
+  Eio.Fiber.fork ~sw (fun () -> Dns_client_eio.listen sock log handle_dns);
   Eio.Fiber.fork ~sw (fun () -> send_data_fiber ());
   Eio.Fiber.fork ~sw (fun () -> send_empty_query_fiber ());
   CstructStream.to_flow client_inc client_out
@@ -594,7 +594,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
   in
 
   Eio.Fiber.fork ~sw (fun () ->
-      Server.start ~net ~clock ~mono_clock ~tcp ~udp ~packet_callback
+      Dns_server_eio.primary ~net ~clock ~mono_clock ~tcp ~udp ~packet_callback
         server_state log addresses);
   object (_self : < dns_datagram >)
     method send buf =
@@ -727,14 +727,15 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
           let reply_buf = FragPacket.encode (get_id ()) 0 0 Cstruct.empty in
           let hostname = domain_name_of_buf root reply_buf in
 
-          Client.send_query log (get_id ()) record_type hostname sock addr;
+          Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
           ignore
-          @@ Eio.Time.with_timeout clock 1. (fun () ->
+          @@ Eio.Time.with_timeout clock 2. (fun () ->
                  Eio.Condition.await recv_cond recv_mut;
-                 Ok ()))
+                 Ok ()));
+          Eio.Fiber.yield ()
     done
   in
-  Eio.Fiber.fork ~sw (fun () -> Client.listen sock log handle_dns);
+  Eio.Fiber.fork ~sw (fun () -> Dns_client_eio.listen sock log handle_dns);
   Eio.Fiber.fork ~sw (fun () -> send_empty_query_fiber ());
 
   let id = ref 0 in
@@ -759,7 +760,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
         let packet = FragPacket.encode !id !frag_no no_frags frag_buf in
         let hostname = domain_name_of_buf root packet in
         Eio.traceln "OUT_FRAG id %d no %d t %d" !id !frag_no no_frags;
-        Client.send_query log (get_id ()) record_type hostname sock addr;
+        Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
         frag_no := !frag_no + 1;
       done
 

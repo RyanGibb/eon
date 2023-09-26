@@ -1,0 +1,14 @@
+
+(executable
+ (name netcat)
+ (modules netcat)
+ (public_name netcat)
+ (package aeon)
+ (libraries transport server_args dns_log))
+
+(executable
+ (name netcatd)
+ (modules netcatd)
+ (public_name netcatd)
+ (package aeon)
+ (libraries transport server_args dns_log))

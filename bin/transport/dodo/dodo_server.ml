@@ -45,7 +45,7 @@ let () =
         const run $ zonefiles $ logging $ addresses $ subdomain $ port $ no_tcp
         $ no_udp)
     in
-    let doc = "An authorative nameserver using OCaml 5 Algebraic Effects" in
+    let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcatd" ~man ~doc in
     Cmd.v info term
   in
