@@ -9,13 +9,13 @@ let run zonefiles log_level addressStrings domain subdomain port no_tcp no_udp
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let addresses = Server_args.parse_addresses port addressStrings in
+  let rng ?_g length =
+    let buf = Cstruct.create length in
+    Eio.Flow.read_exact env#secure_random buf;
+    buf
+  in
   let server_state =
     let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
-    let rng ?_g length =
-      let buf = Cstruct.create length in
-      Eio.Flow.read_exact env#secure_random buf;
-      buf
-    in
     ref
     @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
          ~tsig_sign:Dns_tsig.sign trie
