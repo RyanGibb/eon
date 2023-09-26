@@ -14,7 +14,6 @@ let run log_level addressStrings port no_tcp no_udp domain subdomain nameserver
     Eio.Flow.read_exact env#secure_random buf;
     buf
   in
-
   Eio.Fiber.fork ~sw (fun () ->
       let server_state =
         Dns_server.Primary.create ~keys:[] ~rng ~tsig_verify:Dns_tsig.verify
