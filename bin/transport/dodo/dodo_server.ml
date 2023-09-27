@@ -32,15 +32,29 @@ let run zonefiles log_level addressStrings domain subdomain port no_tcp no_udp =
     @@ Dns_resolver.create ~cache_size:29 ~dnssec:false ~ip_protocol:`Ipv4_only
          now rng !server_state
   in
-  Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock
-    ~mono_clock:env#mono_clock ~tcp ~udp resolver_state log addresses
+  Eio.Fiber.fork ~sw (fun () -> Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock
+  ~mono_clock:env#mono_clock ~tcp ~udp resolver_state (Dns_log.log_level_1 Format.std_formatter) [ Eio.Net.Ipaddr.V4.any, 5056 ]);
 
-  let buf = Cstruct.create 4096 in
-  while true do
-    let got = server#recv buf in
-    Dns_log.log_level_1 Format.std_formatter Dns_log.Rx (`Unix "test") (Cstruct.sub buf 0 got);
-    (* todo inject buf into resolver... *)
-  done
+  let clientSock =
+    Eio.Net.datagram_socket ~sw env#net `UdpV4
+  in
+  Eio.Fiber.both
+    (fun () ->
+      let buf = Cstruct.create 4096 in
+      while true do
+        let got = server#recv buf in
+        let trimmedBuf = Cstruct.sub buf 0 got in
+        Dns_log.log_level_1 Format.std_formatter Dns_log.Rx (`Unix "tunneled") trimmedBuf;
+        Eio.Net.send clientSock (`Udp (Eio.Net.Ipaddr.V4.loopback, 5056)) buf;
+      done)
+    (fun () ->
+      let buf = Cstruct.create 4096 in
+      while true do
+        let addr, size = Eio.Net.recv clientSock buf in
+        let trimmedBuf = Cstruct.sub buf 0 size in
+        Dns_log.log_level_1 Format.std_formatter Dns_log.Tx (`Unix "tunneled") trimmedBuf;
+        server#send trimmedBuf
+      done)
 
 let () =
   let open Cmdliner in

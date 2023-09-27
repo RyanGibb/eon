@@ -21,9 +21,13 @@ let run log_level addressStrings port port2 no_tcp no_udp domain subdomain names
   in
 
   let handle_dns _proto (addr : Eio.Net.Sockaddr.t) buf =
-    Dns_log.log_level_1 Format.std_formatter Dns_log.Rx addr buf;
+    Dns_log.log_level_1 Format.std_formatter Dns_log.Tx addr buf;
     client#send buf;
-    (* TODO transport buf, run resolver, return response *)
+    (* todo out of order delivery? *)
+    let buf = Cstruct.create 4096 in
+    let got = client#recv buf in
+    let trimmedBuf = Cstruct.sub buf 0 got in
+    Dns_log.log_level_1 Format.std_formatter Dns_log.Rx (`Unix "test") trimmedBuf;
     [ buf ]
   in
   Dns_server_eio.with_handler ~net:env#net ~tcp ~udp handle_dns log addresses
