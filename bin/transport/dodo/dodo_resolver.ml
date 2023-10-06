@@ -16,6 +16,7 @@ let run log_level addressStrings port port2 no_tcp no_udp domain subdomain names
   in
 
   let client =
+    (* todo use open resolver... *)
     Transport.dns_client_datagram ~sw ~net:env#net ~clock:env#clock
       ~random:env#secure_random nameserver subdomain domain port2 log
   in
@@ -24,6 +25,7 @@ let run log_level addressStrings port port2 no_tcp no_udp domain subdomain names
     Dns_log.log_level_1 Format.std_formatter Dns_log.Tx addr buf;
     client#send buf;
     (* todo out of order delivery? *)
+    (* https://github.com/mirage/ocaml-dns/issues/345 *)
     let buf = Cstruct.create 4096 in
     let got = client#recv buf in
     let trimmedBuf = Cstruct.sub buf 0 got in
