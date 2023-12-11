@@ -82,7 +82,7 @@ It's also possible to simply run this as a binary.
 
 You'll need to configure your zonefile with an [NS](https://www.ietf.org/rfc/rfc1035.html#section-3.3.11) record, and set up a glue record with your registrar to point this domain to the IP that your nameserver is hosted on. See [example.org](./example/example.org) for an example NS record.
 
-### TSIG Authentication
+### Dyanmic Updates
 
 The server uses [TSIG](https://www.rfc-editor.org/rfc/rfc2845) resources records (RRs) to authenticate queries. For example, [DNS UPDATE](https://www.rfc-editor.org/rfc/rfc2136) queries can be authenticated to provide secure dynamic updates.
 
@@ -107,8 +107,8 @@ The TSIG key name, `client._update.example.org` here, must match the name in the
 
 ### Transport
 
-The [transport.ml](src/transport.ml) file contains logic to use DNS as a stream[transport](https://en.wikipedia.org/wiki/Transport_layer`) protocol.
-An example application that uses this can be found in [netcat.ml](src/netcat.ml)/[netcatd.ml](src/netcatd.ml).
+The [transport.ml](src/transport.ml) file contains logic to use DNS as a stream [transport](https://en.wikipedia.org/wiki/Transport_layer) protocol.
+An example application that uses this can be found in [netcat.ml](bin/transport/netcat.ml)/[netcatd.ml](bin/transport/netcatd.ml).
 
 ### Development
 
