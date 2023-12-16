@@ -2,14 +2,14 @@
  (name dodo_resolver)
  (modules dodo_resolver)
  (public_name dodo-resolver)
- (package aeon)
+ (package eon)
  (libraries transport server_args dns_log))
 
 (executable
  (name dodo_server)
  (modules dodo_server)
  (public_name dodo-server)
- (package aeon)
+ (package eon)
  (libraries transport dns_resolver_eio server_args dns_log))
 
 (env

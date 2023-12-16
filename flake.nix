@@ -19,7 +19,7 @@
     # create outputs for each default system
     flake-utils.lib.eachDefaultSystem (system:
       let
-        package = "aeon";
+        package = "eon";
         pkgs = nixpkgs.legacyPackages.${system};
         opam-nix-lib = opam-nix.lib.${system};
         devPackagesQuery = {

@@ -2,12 +2,12 @@
  (name tun)
  (modules tun)
  (public_name tun)
- (package aeon)
+ (package eon)
  (libraries transport server_args dns_log tuntap))
 
 (executable
  (name tund)
  (modules tund)
  (public_name tund)
- (package aeon)
+ (package eon)
  (libraries transport server_args dns_log tuntap))

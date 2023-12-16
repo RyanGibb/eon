@@ -2,12 +2,12 @@
  (name netcat)
  (modules netcat)
  (public_name netcat)
- (package aeon)
+ (package eon)
  (libraries transport server_args dns_log))
 
 (executable
  (name netcatd)
  (modules netcatd)
  (public_name netcatd)
- (package aeon)
+ (package eon)
  (libraries transport server_args dns_log))

@@ -4,9 +4,9 @@ description: ""
 maintainer: ["Ryan Gibb"]
 authors: ["Ryan Gibb"]
 license: "LICENSE"
-homepage: "https://github.com/RyanGibb/aeon"
+homepage: "https://github.com/RyanGibb/eon"
 doc: "https://url/to/documentation"
-bug-reports: "https://github.com/RyanGibb/aeon/issues"
+bug-reports: "https://github.com/RyanGibb/eon/issues"
 depends: [
   "ocaml" {>= "5.0.0"}
   "dune" {>= "3.4"}
@@ -33,7 +33,7 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/RyanGibb/aeon.git"
+dev-repo: "git+https://github.com/RyanGibb/eon.git"
 pin-depends: [
   # for sod: https://github.com/ocaml-multicore/eio/pull/472
   ["eio.dev" "git+https://github.com/ocaml-multicore/eio.git#dd66ff981e15c1a75cea48f736ccdea83497f8ee"]

@@ -2,9 +2,9 @@
 
 with lib;
 
-let cfg = config.services.aeon; in
+let cfg = config.services.eon; in
 {
-  options.services.aeon = {
+  options.services.eon = {
     enable = mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
     # todo multiple zones, primary and secondary servers
     zoneFile = mkOption {
@@ -16,7 +16,7 @@ let cfg = config.services.aeon; in
     };
     user = lib.mkOption {
       type = lib.types.str;
-      default = "aeon";
+      default = "eon";
     };
     group = lib.mkOption {
       type = lib.types.str;
@@ -42,14 +42,14 @@ let cfg = config.services.aeon; in
   };
 
   config = mkIf cfg.enable {
-    systemd.services.aeon = {
-      description = "aeon";
+    systemd.services.eon = {
+      description = "eon";
       after = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
         ExecStart =
-          "${pkgs.aeon.out}/bin/${cfg.application} " +
+          "${pkgs.eon.out}/bin/${cfg.application} " +
             "-z ${cfg.zoneFile} " +
             "-p ${builtins.toString cfg.port} " +
             "-l ${builtins.toString cfg.logLevel}";
@@ -66,7 +66,7 @@ let cfg = config.services.aeon; in
 
     users.users = {
       "${cfg.user}" = {
-        description = "aeon";
+        description = "eon";
         useDefaultShell = true;
         group = cfg.group;
         isSystemUser = true;

@@ -46,7 +46,7 @@ let () =
       Term.(
         const run $ zonefiles $ logging $ addresses $ port $ no_tcp $ no_udp $ resolver)
     in
-    let info = Cmd.info "aeon" ~man in
+    let info = Cmd.info "eon" ~man in
     Cmd.v info term
   in
   exit (Cmd.eval cmd)

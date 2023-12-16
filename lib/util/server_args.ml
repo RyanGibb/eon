@@ -81,7 +81,7 @@ let man =
         "Note that names as might be used by `getaddrinfo`, e.g. 'localhost', \
          are not supported.";
       `S Manpage.s_bugs;
-      `P "Check bug reports at https://github.com/RyanGibb/aeon/issues.";
+      `P "Check bug reports at https://github.com/RyanGibb/eon/issues.";
     ]
   in
   [

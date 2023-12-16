@@ -8,14 +8,14 @@
   eio_main
   eio_linux
   cmdliner
-  aeon.transport
-  aeon.server-args))
+  eon.transport
+  eon.server-args))
 
 (executable
  (name sod)
  (modules sod)
  (public_name sod)
- (libraries pty eio_main eio_linux cmdliner aeon.transport aeon.server-args))
+ (libraries pty eio_main eio_linux cmdliner eon.transport eon.server-args))
 
 (library
  (name pty)

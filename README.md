@@ -1,15 +1,14 @@
 
-# An Effects-based OCaml Naming
+# Effects-based OCaml Naming
 
-This project is An Effects-based OCaml Nameserver (AEON) implementation of an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for OCaml 5](https://github.com/ocaml-multicore/eio).
+Effects-based OCaml Nameserver (EON) is an implementation of an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for OCaml 5](https://github.com/ocaml-multicore/eio).
 
-The AEON nameserver, `named`, can act as an authoritative nameserver.
-The resolver, `resolved`, can do the same in addition to acting as a recursive resolver.
+The nameserver `eon` acts an authoritative nameserver, and can also act as a recursive resolver.
 
 ### Quick start
 
 ```
-$ nix shell github:RyanGibb/aeon
+$ nix shell github:RyanGibb/eon
 $ sudo named --zonefile <filepath>
 ```
 
@@ -25,8 +24,8 @@ $ named --help
 [Nix](https://nixos.org) can be used to build the project with:
 
 ```
-$ git clone git@github.com:RyanGibb/aeon.git
-$ cd aeon
+$ git clone git@github.com:RyanGibb/eon.git
+$ cd eon
 $ nix build .
 ```
 
@@ -41,7 +40,7 @@ $ opam install
 $ dune build
 ```
 
-The binary can then be found at `_build/default/src/aeon.exe`.
+The binary can then be found at `_build/default/src/eon.exe`.
 
 ### Running
 
