@@ -8,7 +8,7 @@
  (name server_args)
  (modules server_args)
  (public_name eon.server-args)
- (libraries cmdliner ipaddr eio))
+ (libraries cmdliner ipaddr eio dns_log))
 
 (library
  (name zonefile)

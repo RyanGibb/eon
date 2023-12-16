@@ -24,15 +24,10 @@ let run_shell ~stdout ~stdin pty =
       ]
   with Sigchld -> ()
 
-let run zonefiles log_level addressStrings subdomain port no_tcp no_udp =
-  if no_tcp && no_udp then (
-    Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
-    Format.pp_print_flush Format.err_formatter ();
-    exit 1);
-  let tcp = not no_tcp and udp = not no_udp in
-  let log = (Dns_log.get_log log_level) Format.std_formatter in
+let run zonefiles log_level addressStrings subdomain port proto =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  let log = log_level Format.std_formatter in
   let server =
     let addresses = Server_args.parse_addresses port addressStrings in
     let server_state =
@@ -47,7 +42,7 @@ let run zonefiles log_level addressStrings subdomain port no_tcp no_udp =
            ~tsig_sign:Dns_tsig.sign trie
     in
     Transport.dns_server_stream ~sw ~net:env#net ~clock:env#clock
-      ~mono_clock:env#mono_clock ~tcp ~udp subdomain server_state log addresses
+      ~mono_clock:env#mono_clock ~proto subdomain server_state log addresses
   in
   while true do
     (* TODO support parallel with transport support) *)
@@ -88,8 +83,7 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ logging $ addresses $ subdomain $ port $ no_tcp
-        $ no_udp)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ subdomain $ port $ proto)
     in
     let info = Cmd.info "sodd" ~man in
     Cmd.v info term

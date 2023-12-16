@@ -9,8 +9,7 @@ val dns_server_stream :
   net:#Eio.Net.t ->
   clock:#Eio.Time.clock ->
   mono_clock:#Eio.Time.Mono.t ->
-  tcp:bool ->
-  udp:bool ->
+  proto:[`Tcp | `Udp ] list ->
   string ->
   Dns_server.Primary.s ref ->
   Dns_log.formattedLog ->
@@ -40,8 +39,7 @@ val dns_server_datagram :
   net:#Eio.Net.t ->
   clock:#Eio.Time.clock ->
   mono_clock:#Eio.Time.Mono.t ->
-  tcp:bool ->
-  udp:bool ->
+  proto:[`Tcp | `Udp ] list ->
   string ->
   string ->
   Dns_server.Primary.s ref ->

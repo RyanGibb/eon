@@ -5,12 +5,15 @@ let zonefiles =
     value & opt_all string []
     & info [ "z"; "zonefile" ] ~docv:"ZONEFILE_PATHS" ~doc:"Zonefile paths.")
 
-let logging_default default =
+let log_level default =
   let doc = "Log level for DNS packets. See the LOGGING section." in
-  Arg.(
-    value & opt int default & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc)
-
-let logging = logging_default 1
+  let log_levels = [
+    ("0", Dns_log.level_0);
+    ("1", Dns_log.level_1);
+    ("2", Dns_log.level_2);
+    ("3", Dns_log.level_3);
+  ] in
+  Arg.(value & opt (enum log_levels) default & info  [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc)
 
 let port =
   let doc =
@@ -42,13 +45,20 @@ let parse_addresses port addressStrings =
           exit 1)
     addressStrings
 
-let no_tcp =
-  let doc = "Whether to disable binding TCP sockets to ADDRESSES." in
-  Arg.(value & flag & info [ "t"; "no-tcp" ] ~docv:"TCP" ~doc)
+let proto =
+  let doc = "The protocols to use when binding to sockets, either `tcp` or `udp`. Defaults to both." in
+  let protos = [
+    ("tcp", [`Tcp]);
+    ("udp", [`Udp]);
+    ("both", [`Tcp; `Udp]);
+  ] in
+  Arg.(value & opt (enum protos) [`Tcp; `Udp] & info [ "proto" ] ~docv:"PROTOCOL" ~doc)
 
-let no_udp =
-  let doc = "Whether to disable binding UDP sockets to ADDRESSES." in
-  Arg.(value & flag & info [ "u"; "no-udp" ] ~docv:"TCP" ~doc)
+let resolver =
+  let doc =
+    "Whether to operate as a recursive resolver."
+  in
+  Arg.(value & flag & info [ "r"; "resolver" ] ~docv:"RESOLVER" ~doc)
 
 let man =
   let help_secs =

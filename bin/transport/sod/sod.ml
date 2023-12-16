@@ -1,7 +1,7 @@
 let run log_level domain subdomain port nameserver =
-  let log = (Dns_log.get_log log_level) Format.std_formatter in
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  let log = log_level Format.std_formatter in
   let client =
     Transport.dns_client_stream ~sw ~net:env#net ~clock:env#clock
       ~random:env#secure_random nameserver subdomain domain port log
@@ -95,7 +95,7 @@ let () =
     in
     let term =
       Term.(
-        const run $ logging_default 0 $ domain $ subdomain $ port $ nameserver)
+        const run $ log_level Dns_log.level_0 $ domain $ subdomain $ port $ nameserver)
     in
     let info = Cmd.info "sod" ~man in
     Cmd.v info term

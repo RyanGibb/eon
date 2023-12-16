@@ -11,8 +11,7 @@ val resolver :
   net:#Eio.Net.t ->
   clock:#Eio.Time.clock ->
   mono_clock:#Eio.Time.Mono.t ->
-  ?tcp:bool ->
-  ?udp:bool ->
+  proto:[`Tcp | `Udp ] list ->
   Dns_resolver.t ref ->
   Dns_log.formattedLog ->
   (Eio.Net.Ipaddr.v4v6 * int) list ->

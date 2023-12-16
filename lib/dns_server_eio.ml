@@ -87,18 +87,18 @@ let tcp_listen log handle_dns sock =
     Eio.Net.accept_fork ~sw sock ~on_error (tcp_handle log handle_dns)
   done
 
-let with_handler ~net ?(tcp = true) ?(udp = true) handle_dns log addresses =
-  Listen.on_addresses ~net ~udp ~tcp
+let with_handler ~net ~proto handle_dns log addresses =
+  Listen.on_addrs ~net ~proto
     (udp_listen log handle_dns)
     (tcp_listen log handle_dns)
     addresses
 
-let primary ~net ~clock ~mono_clock ?(tcp = true) ?(udp = true)
+let primary ~net ~clock ~mono_clock ~proto
     ?(packet_callback = fun _q -> None) server_state log addresses =
   let handle_dns =
     primary_handle_dns ~clock ~mono_clock server_state packet_callback
   in
-  Listen.on_addresses ~net ~udp ~tcp
+  Listen.on_addrs ~net ~proto
     (udp_listen log handle_dns)
     (tcp_listen log handle_dns)
     addresses

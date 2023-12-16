@@ -126,10 +126,10 @@ let tcp_listen log handle_dns sock =
     Eio.Net.accept_fork ~sw sock ~on_error (tcp_handle log handle_dns)
   done
 
-let resolver ~net ~clock ~mono_clock ?(tcp = true) ?(udp = true) resolver_state
+let resolver ~net ~clock ~mono_clock ~proto resolver_state
     log addresses =
   let handle_dns = resolver_handle_dns ~clock ~mono_clock resolver_state in
-  Listen.on_addresses ~net ~udp ~tcp
+  Listen.on_addrs ~net ~proto
     (udp_listen log handle_dns)
     (tcp_listen log handle_dns)
     addresses

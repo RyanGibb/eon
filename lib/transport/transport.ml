@@ -216,7 +216,7 @@ end = struct
     end
 end
 
-let dns_server_stream ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
+let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
     server_state log addresses =
   let server_inc = CstructStream.create ()
   and server_out = CstructStream.create () in
@@ -321,7 +321,7 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
   in
 
   Eio.Fiber.fork ~sw (fun () ->
-      Dns_server_eio.primary ~net ~clock ~mono_clock ~tcp ~udp ~packet_callback
+      Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback
         server_state log addresses);
   CstructStream.to_flow server_inc server_out
 
@@ -478,7 +478,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
   CstructStream.to_flow client_inc client_out
 
 (* TODO refactor and deduplicate these behemoths *)
-let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
+let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
     authority server_state log addresses =
   let server_inc = ref [] and server_out = ref [] in
 
@@ -595,7 +595,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~tcp ~udp data_subdomain
   in
 
   Eio.Fiber.fork ~sw (fun () ->
-      Dns_server_eio.primary ~net ~clock ~mono_clock ~tcp ~udp ~packet_callback
+      Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback
         server_state log addresses);
   object (_self : < dns_datagram >)
     method send buf =

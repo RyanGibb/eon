@@ -2,7 +2,7 @@ type dir = Rx | Tx
 type log = Format.formatter -> dir -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
 type formattedLog = dir -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
 
-let log_level_0 _fmt (_direction : dir) _addr _buf = ()
+let level_0 _fmt (_direction : dir) _addr _buf = ()
 
 let log_helper fmt (direction : dir) addr buf log_packet =
   let log_transmssion (direction : dir) addr =
@@ -26,7 +26,7 @@ let log_helper fmt (direction : dir) addr buf log_packet =
       Format.print_space ();
       Format.print_flush ()
 
-let log_level_1 fmt (direction : dir) addr buf =
+let level_1 fmt (direction : dir) addr buf =
   let log_packet (packet : Dns.Packet.t) =
     let id, _flags = packet.header in
     Format.fprintf fmt "header %04X question %a@ data %a@" id
@@ -34,11 +34,11 @@ let log_level_1 fmt (direction : dir) addr buf =
   in
   log_helper fmt direction addr buf log_packet
 
-let log_level_2 fmt (direction : dir) addr buf =
+let level_2 fmt (direction : dir) addr buf =
   let log_packet = Dns.Packet.pp fmt in
   log_helper fmt direction addr buf log_packet
 
-let log_level_3 fmt (direction : dir) addr buf =
+let level_3 fmt (direction : dir) addr buf =
   let log_transmssion (direction : dir) addr =
     (match direction with
     | Rx -> Format.fprintf fmt "<-"
@@ -52,11 +52,3 @@ let log_level_3 fmt (direction : dir) addr buf =
   Cstruct.hexdump buf;
   Format.print_space ();
   Format.print_flush ()
-
-let get_log log_level =
-  match log_level with
-  | 0 -> log_level_0
-  | 1 -> log_level_1
-  | 2 -> log_level_2
-  | 3 -> log_level_3
-  | _ -> if log_level < 0 then log_level_0 else log_level_2

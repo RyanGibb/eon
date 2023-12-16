@@ -1,13 +1,8 @@
-let run zonefiles log_level addressStrings domain subdomain port no_tcp no_udp
+let run zonefiles log_level addressStrings domain subdomain port proto
     netmask tunnel_ip =
-  if no_tcp && no_udp then (
-    Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
-    Format.pp_print_flush Format.err_formatter ();
-    exit 1);
-  let tcp = not no_tcp and udp = not no_udp in
-  let log = (Dns_log.get_log log_level) Format.std_formatter in
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
   let rng ?_g length =
     let buf = Cstruct.create length in
@@ -22,7 +17,7 @@ let run zonefiles log_level addressStrings domain subdomain port no_tcp no_udp
   in
   let server =
     Transport.dns_server_datagram ~sw ~net:env#net ~clock:env#clock
-      ~mono_clock:env#mono_clock ~tcp ~udp subdomain domain server_state log
+      ~mono_clock:env#mono_clock ~proto subdomain domain server_state log
       addresses
   in
   let tun_fd, tun_name = Tuntap.opentun ~devname:"tun-dnsd" () in
@@ -77,8 +72,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ logging $ addresses $ domain $ subdomain $ port
-        $ no_tcp $ no_udp $ netmask $ tunnel_ip)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ domain $ subdomain $ port
+        $ proto $ netmask $ tunnel_ip)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "tund" ~man ~doc in

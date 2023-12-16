@@ -1,13 +1,8 @@
-let run log_level addressStrings port port2 no_tcp no_udp domain subdomain nameserver
+let run log_level addressStrings port port2 proto domain subdomain nameserver
     =
-  if no_tcp && no_udp then (
-    Format.fprintf Format.err_formatter "Either UDP or TCP should be enabled\n";
-    Format.pp_print_flush Format.err_formatter ();
-    exit 1);
-  let tcp = not no_tcp and udp = not no_udp in
-  let log = (Dns_log.get_log log_level) Format.std_formatter in
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
   let rng ?_g length =
     let buf = Cstruct.create length in
@@ -22,17 +17,17 @@ let run log_level addressStrings port port2 no_tcp no_udp domain subdomain names
   in
 
   let handle_dns _proto (addr : Eio.Net.Sockaddr.t) buf =
-    Dns_log.log_level_1 Format.std_formatter Dns_log.Tx addr buf;
+    Dns_log.level_1 Format.std_formatter Dns_log.Tx addr buf;
     client#send buf;
     (* todo out of order delivery? *)
     (* https://github.com/mirage/ocaml-dns/issues/345 *)
     let buf = Cstruct.create 4096 in
     let got = client#recv buf in
     let trimmedBuf = Cstruct.sub buf 0 got in
-    Dns_log.log_level_1 Format.std_formatter Dns_log.Rx (`Unix "test") trimmedBuf;
+    Dns_log.level_1 Format.std_formatter Dns_log.Rx (`Unix "test") trimmedBuf;
     [ buf ]
   in
-  Dns_server_eio.with_handler ~net:env#net ~tcp ~udp handle_dns log addresses
+  Dns_server_eio.with_handler ~net:env#net ~proto handle_dns log addresses
 
 let () =
   let open Cmdliner in
@@ -74,7 +69,7 @@ let () =
     in
     let term =
       Term.(
-        const run $ logging_default 0 $ addresses $ port $ port2 $ no_tcp $ no_udp
+        const run $ log_level Dns_log.level_0 $ addresses $ port $ port2 $ proto
         $ domain $ subdomain $ nameserver)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
