@@ -1,13 +1,6 @@
 (executable
- (name named)
- (modules named)
- (public_name named)
+ (name aeon)
+ (modules aeon)
+ (public_name aeon)
  (package aeon)
- (libraries dns_server_eio server_args dns_log))
-
-(executable
- (name resolved)
- (modules resolved)
- (public_name resolved)
- (package aeon)
- (libraries dns_resolver_eio server_args dns_log logs.fmt))
+ (libraries dns_server_eio dns_resolver_eio server_args dns_log))
