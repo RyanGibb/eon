@@ -1,22 +1,20 @@
 
-# Effects-based OCaml Naming
+# Effects-based OCaml Nameserver (EON)
 
-Effects-based OCaml Nameserver (EON) is an implementation of an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for OCaml 5](https://github.com/ocaml-multicore/eio).
-
-The nameserver `eon` acts an authoritative nameserver, and can also act as a recursive resolver.
+EON is an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for multicore OCaml](https://github.com/ocaml-multicore/eio).
 
 ### Quick start
 
 ```
 $ nix shell github:RyanGibb/eon
-$ sudo named --zonefile <filepath>
+$ sudo eon --zonefile <filepath>
 ```
 
 Or follow the instructions to manually [build from source](#building).
 
 For help:
 ```
-$ named --help
+$ eon --help
 ```
 
 ### Building
@@ -29,7 +27,7 @@ $ cd eon
 $ nix build .
 ```
 
-The binary can then be found at `result/bin/named`.
+The binary can then be found at `result/bin/eon`.
 
 Note that this is using [Nix flakes](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-flake.html).
 
@@ -47,12 +45,12 @@ The binary can then be found at `_build/default/src/eon.exe`.
 Once built, to run the project use:
 
 ```
-$ ./named --zonefile <filepath>
+$ ./eon --zonefile <filepath>
 ```
 
 For example:
 ```
-$ ./named --zonefile examples/example.com
+$ ./eon --zonefile examples/example.com
 ```
 
 The zonefile format is defined in [RFC1035 Section 5.1](https://datatracker.ietf.org/doc/html/rfc1035#section-5.1), but a minimal example is provided in [example.org](./example/example.org).
@@ -67,10 +65,15 @@ $ dig example.org @localhost +short
 
 The command line argument `--log-level` can be used to specify a log verbosity e.g.:
 ```
-$ ./named --zonefile examples/example.com --log-level 2
+$ ./eon --zonefile examples/example.com --log-level 2
 ```
 
-The same can be done with `resolved`, except it will additionally recursively look up records for domains it is not authoritative over.
+To operate as a recursive resolver:
+```
+$ ./eon --zonefile examples/example.com --resolver
+```
+
+Which will additionally recursively look up records for domains it is not authoritative over.
 Be careful of [DNS amplification attacks](https://www.cloudflare.com/learning/ddos/dns-amplification-ddos-attack/).
 
 ### Deployment
@@ -85,7 +88,7 @@ You'll need to configure your zonefile with an [NS](https://www.ietf.org/rfc/rfc
 
 The server uses [TSIG](https://www.rfc-editor.org/rfc/rfc2845) resources records (RRs) to authenticate queries. For example, [DNS UPDATE](https://www.rfc-editor.org/rfc/rfc2136) queries can be authenticated to provide secure dynamic updates.
 
-We pass [HMAC](https://www.rfc-editor.org/rfc/rfc2104) keys to the server through a zonefile representation that is in a file named `<zonefile>._keys`, e.g. [example.org._keys](./example/example.org._keys). These are secret keys, and should not be published.
+We pass [HMAC](https://www.rfc-editor.org/rfc/rfc2104) keys to the server through a zonefile representation that is in a file eon `<zonefile>._keys`, e.g. [example.org._keys](./example/example.org._keys). These are secret keys, and should not be published.
 
 A DNSKEY RR domain name in this file must be of the format `<name>.<operation>.<domain>`, where `<operation>` can be `_update`, `_transfer`, or `_notify`.
 
