@@ -12,11 +12,11 @@ let run_shell ~stdout ~stdin pty =
       [
         (fun () ->
           Eio.Switch.run @@ fun sw ->
-          let sink = Eio_unix.FD.as_socket ~sw ~close_unix pty.Pty.masterfd in
+          let sink = Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd in
           Eio.Flow.copy stdin sink);
         (fun () ->
           Eio.Switch.run @@ fun sw ->
-          let source = Eio_unix.FD.as_socket ~sw ~close_unix pty.Pty.masterfd in
+          let source = Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd in
           Eio.Flow.copy source stdout);
         (fun () ->
           Eio.Condition.await_no_mutex sigchld;

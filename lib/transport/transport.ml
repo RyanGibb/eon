@@ -1,7 +1,3 @@
-class virtual dns_flow =
-  object
-    inherit Eio.Flow.two_way
-  end
 
 class virtual dns_datagram =
   object
@@ -195,31 +191,39 @@ end = struct
             (read, false))
     in
     if empty then None else Some read
-
-  let to_flow inc out =
-    object (self : < Eio.Flow.two_way >)
-      method probe : type a. a Eio.Generic.ty -> a option = function _ -> None
-
-      method copy src =
-        let buf = Cstruct.create 4096 in
-        try
-          while true do
-            let got = Eio.Flow.single_read src buf in
-            self#write [ Cstruct.sub buf 0 got ]
-          done
-        with End_of_file -> ()
-
-      method write bufs = add out bufs
-      method read_methods = []
-      method read_into buf = take inc buf
-      method shutdown _cmd = ()
-    end
 end
+
+let create_flow ~inc ~out =
+  let module CstructFlow = struct
+    type t = unit
+
+    let copy _t ~src =
+      let buf = Cstruct.create 4096 in
+      try
+        while true do
+          let got = Eio.Flow.single_read src buf in
+          CstructStream.add out [ Cstruct.sub buf 0 got ]
+        done
+      with End_of_file -> ()
+
+      let single_write _t bufs =
+      CstructStream.add out bufs;
+      List.fold_left (fun acc buf -> acc + Cstruct.length buf) 0 bufs
+
+      let read_methods = []
+
+      let single_read _t buf =
+      CstructStream.take inc buf
+
+      let shutdown _t _cmd = ()
+  end in
+  let ops = Eio.Flow.Pi.two_way (module CstructFlow) in
+  Eio.Resource.T ((), ops)
 
 let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
     server_state log addresses =
-  let server_inc = CstructStream.create ()
-  and server_out = CstructStream.create () in
+  let inc = CstructStream.create ()
+  and out = CstructStream.create () in
 
   (* TODO mutex *)
   let last_recv_seq_no = ref (-1)
@@ -270,7 +274,7 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
         (* if we haven't already recieved this sequence number *)
         (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver *)
         if packet.seq_no != !last_recv_seq_no then
-          CstructStream.add server_inc [ packet.data ];
+          CstructStream.add inc [ packet.data ];
         last_recv_seq_no := packet.seq_no;
         (* an ack is a packet carrying no data *)
         Some (Packet.encode packet.seq_no Cstruct.empty))
@@ -288,7 +292,7 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
           (* only read what can fit in a domain name encoding with root *)
           Cstruct.create (max_encoded_len - rootLen)
         in
-        match CstructStream.try_take server_out readBuf with
+        match CstructStream.try_take out readBuf with
         | None -> Some (Packet.encode packet.seq_no Cstruct.empty)
         | Some r ->
             seq_no := !seq_no + 1;
@@ -323,12 +327,12 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
   Eio.Fiber.fork ~sw (fun () ->
       Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback
         server_state log addresses);
-  CstructStream.to_flow server_inc server_out
+  create_flow ~inc ~out
 
 let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
     authority port log =
-  let client_inc = CstructStream.create ()
-  and client_out = CstructStream.create () in
+  let inc = CstructStream.create ()
+  and out = CstructStream.create () in
 
   (* TODO support different queries, or probing access *)
   let record_type = Dns.Rr_map.Cname
@@ -391,7 +395,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
           Eio.Mutex.use_rw recv_data_mut ~protect:false (fun () ->
               (* if we haven't already recieved this sequence number *)
               if !last_recv_seq_no != packet.seq_no then (
-                CstructStream.add client_inc [ packet.data ];
+                CstructStream.add inc [ packet.data ];
                 last_recv_seq_no := packet.seq_no;
                 Eio.Condition.broadcast recv_data))
         else
@@ -410,6 +414,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
             ~v4:(fun _v4 -> `UdpV4)
             ~v6:(fun _v6 -> `UdpV6)
             ipaddr
+      | `Unix _ -> failwith "unix domain sockets unsupported"
     in
     Eio.Net.datagram_socket ~sw net proto
   in
@@ -433,7 +438,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
       Cstruct.create (max_encoded_len - rootLen)
     in
     while true do
-      let read = CstructStream.take client_out buf in
+      let read = CstructStream.take out buf in
       (* truncate buffer to the number of bytes read *)
       let buf = Cstruct.sub buf 0 read in
       Eio.Mutex.use_rw acked_mut ~protect:false (fun () ->
@@ -708,6 +713,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
             ~v4:(fun _v4 -> `UdpV4)
             ~v6:(fun _v6 -> `UdpV6)
             ipaddr
+      | `Unix _ -> failwith "unix domain sockets unsupported"
     in
     Eio.Net.datagram_socket ~sw net proto
   in

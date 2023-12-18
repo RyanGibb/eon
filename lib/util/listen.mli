@@ -1,7 +1,6 @@
 val on_addrs :
-  net:#Eio.Net.t ->
-  proto:[`Tcp | `Udp ] list ->
-  (< Eio.Net.datagram_socket ; Eio.Flow.close > -> unit) ->
-  (Eio.Net.listening_socket -> unit) ->
-  (Eio.Net.Ipaddr.v4v6 * int) list ->
-  unit
+  net:[> 'a Eio.Net.ty ] Eio.Resource.t ->
+  proto:[< `Tcp | `Udp ] list ->
+  ('a Eio.Net.datagram_socket_ty Eio.Resource.t -> unit) ->
+  ('a Eio.Net.listening_socket_ty Eio.Resource.t -> unit) ->
+  (Eio.Net.Ipaddr.v4v6 * int) list -> unit

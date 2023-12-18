@@ -21,7 +21,7 @@ let run zonefiles log_level addressStrings domain subdomain port proto
       addresses
   in
   let tun_fd, tun_name = Tuntap.opentun ~devname:"tun-dnsd" () in
-  let tun = Eio_unix.FD.as_socket ~sw ~close_unix:false tun_fd in
+  let tun = Eio_unix.Net.import_socket_stream ~sw ~close_unix:false tun_fd in
   Tuntap.set_ipv4 tun_name
     ~netmask:(Ipaddr.V4.Prefix.of_string_exn netmask)
     (Ipaddr.V4.of_string_exn tunnel_ip);
@@ -30,7 +30,7 @@ let run zonefiles log_level addressStrings domain subdomain port proto
       let buf = Cstruct.create (Tuntap.get_mtu tun_name) in
       while true do
         let got = server#recv buf in
-        tun#write [ Cstruct.sub buf 0 got ]
+        Eio.Flow.write tun [ Cstruct.sub buf 0 got ]
       done)
     (fun () ->
       let buf = Cstruct.create (Tuntap.get_mtu tun_name) in

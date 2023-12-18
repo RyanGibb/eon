@@ -25,27 +25,17 @@
         devPackagesQuery = {
           ocaml-lsp-server = "*";
           ocamlformat = "*";
-          # 1.9.6 fails to build
-          ocamlfind = "1.9.5";
           utop = "*";
         };
         query = {
           ocaml-base-compiler = "*";
         };
-        resolved-scope =
+        scope =
           # recursive finds vendored dependancies in duniverse
           opam-nix-lib.buildOpamProject' { recursive = true; } ./. (query // devPackagesQuery);
-        materialized-scope =
-          opam-nix-lib.materializedDefsToScope { sourceMap.${package} = ./.; } ./package-defs.json;
-      in rec {
-        packages = rec {
-          resolved = resolved-scope;
-          materialized = materialized-scope;
-          # to generate:
-          #   cat $(nix eval .#package-defs --raw) > package-defs.json
-          package-defs = opam-nix-lib.materializeOpamProject' { } ./. (query // devPackagesQuery);
-        };
-        defaultPackage = packages.materialized.${package};
+      in {
+        packages = scope;
+        defaultPackage = scope.${package};
 
         devShells =
           let
@@ -62,13 +52,11 @@
               # it can be slow to build vendored dependancies in a deriviation before getting an error
               opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery);
           in rec {
-            resolved = mkDevShell resolved-scope;
-            materialized = mkDevShell materialized-scope;
+            build = mkDevShell scope;
             # use for fast development as it doesn't building vendored sources in seperate derivations
             # however might not build the same result as `nix build .`,
             # like `nix develop .#devShells.x86_64-linux.resolved -c dune build` should do
-            dev = mkDevShell dev-scope;
-            default = dev;
+            default = mkDevShell dev-scope;
           };
       }) // {
     nixosModules.default = {
