@@ -12,7 +12,8 @@ let run zonefiles log_level addressStrings port proto resolver =
     Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
         ~tsig_sign:Dns_tsig.sign trie
   in
-  if resolver then
+  match resolver with
+  | true ->
     let resolver_state =
       let now = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
       Dns_resolver.create ~cache_size:29 ~dnssec:false ~ip_protocol:`Ipv4_only
@@ -20,7 +21,7 @@ let run zonefiles log_level addressStrings port proto resolver =
     in
     Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock
       ~mono_clock:env#mono_clock ~proto (ref resolver_state) log addresses
-  else
+  | false ->
     Dns_server_eio.primary ~net:env#net ~clock:env#clock
       ~mono_clock:env#mono_clock ~proto (ref server_state) log addresses
 
