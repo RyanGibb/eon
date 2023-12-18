@@ -139,7 +139,11 @@ end = struct
 end
 
 module CstructStream : sig
-  type t
+  type t = {
+    items : Cstruct.t list ref;
+    mut : Eio.Mutex.t;
+    cond : Eio.Condition.t;
+  }
 
   exception Empty
 
@@ -147,10 +151,10 @@ module CstructStream : sig
   val add : t -> Cstruct.t list -> unit
   val take : t -> Cstruct.t -> int
   val try_take : t -> Cstruct.t -> int option
-  val to_flow : t -> t -> Eio.Flow.two_way
+  val take_one : t -> Cstruct.t -> int
+  val try_take_one : t -> Cstruct.t option
 end = struct
   type t = {
-    (* As `Cstruct.*v` functions take a `Cstruct.t list` *)
     items : Cstruct.t list ref;
     mut : Eio.Mutex.t;
     cond : Eio.Condition.t;
@@ -191,6 +195,30 @@ end = struct
             (read, false))
     in
     if empty then None else Some read
+
+    let take_one t buf =
+    Eio.Mutex.use_rw t.mut ~protect:false (fun () ->
+        let rec f () =
+          match !(t.items) with
+          | [] ->
+              Eio.Condition.await t.cond t.mut;
+              f ()
+          | packet :: new_items ->
+              let packet_len = Cstruct.length packet in
+              (* will raise if buf isn't big enough to hold packet *)
+              Cstruct.blit packet 0 buf 0 packet_len;
+              t.items := new_items;
+              packet_len
+        in
+        f ())
+
+      let try_take_one t =
+        Eio.Mutex.use_rw t.mut ~protect:false (fun () ->
+            match !(t.items) with
+            | [] -> None
+            | packet :: new_items ->
+                t.items := new_items;
+                Some packet)
 end
 
 let create_flow ~inc ~out =
@@ -480,17 +508,13 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
   Eio.Fiber.fork ~sw (fun () -> Dns_client_eio.listen sock log handle_dns);
   Eio.Fiber.fork ~sw (fun () -> send_data_fiber ());
   Eio.Fiber.fork ~sw (fun () -> send_empty_query_fiber ());
-  CstructStream.to_flow client_inc client_out
+  create_flow ~inc ~out
 
 (* TODO refactor and deduplicate these behemoths *)
 let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
     authority server_state log addresses =
-  let server_inc = ref [] and server_out = ref [] in
-
-  let recv_cond = Eio.Condition.create ()
-  and recv_mut = Eio.Mutex.create ()
-  and send_cond = Eio.Condition.create ()
-  and send_mut = Eio.Mutex.create () in
+  let inc = CstructStream.create () in
+  let out = CstructStream.create () in
 
   (* don't handle out of order transmission *)
   (* frag_id = 0 means we're not processing any currently *)
@@ -541,49 +565,48 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
 
     let reply =
       if Cstruct.length packet.data > 0 then
-        Eio.Mutex.use_rw recv_mut ~protect:false (fun () ->
-            (* If we're receiving a new fragment packet *)
-            (* NB this may drop an old packet, we don't deal with out of order delivery *)
-            if packet.packet_id != !recv_packet_id then (
-              recv_packet_id := packet.packet_id;
-              recv_next_frag_no := 0;
-              recv_frags := []);
-            if packet.frag_no == !recv_next_frag_no then (
-              recv_frags := !recv_frags @ [ packet.data ];
-              recv_next_frag_no := !recv_next_frag_no + 1;
-              if packet.frag_no == packet.no_frags - 1 then (
-                server_inc := !server_inc @ [ Cstruct.concat !recv_frags ];
-                Eio.Condition.broadcast recv_cond;
-                recv_packet_id := 0;
-                recv_next_frag_no := 0;
-                recv_frags := [])));
-      Eio.Mutex.use_rw send_mut ~protect:false (fun () ->
-          let get_frag () =
-            let frag_buf =
-              let offset = !send_next_frag_no * mtu in
-              Cstruct.sub !send_packet offset
-                (min mtu (Cstruct.length !send_packet - offset))
-            in
-            let p =
-              FragPacket.encode !send_packet_id !send_next_frag_no
-                !send_no_frags frag_buf
-            in
-            if !send_next_frag_no < !send_no_frags - 1 then
-              send_next_frag_no := !send_next_frag_no + 1
-            else send_packet_id := 0;
-            p
-          in
-          if !send_packet_id == 0 then (
-            match !server_out with
-            | [] -> FragPacket.encode 0 0 0 Cstruct.empty
-            | packet :: new_server_out ->
-                server_out := new_server_out;
-                send_packet := packet;
-                send_packet_id := !send_packet_id + 1;
-                send_next_frag_no := 0;
-                send_no_frags := (Cstruct.length packet + (mtu - 1)) / mtu;
-                get_frag ())
-          else get_frag ())
+        (* If we're receiving a new fragment packet *)
+        (* NB this may drop an old packet, we don't deal with out of order delivery *)
+        if packet.packet_id != !recv_packet_id then (
+          recv_packet_id := packet.packet_id;
+          recv_next_frag_no := 0;
+          recv_frags := []);
+        if packet.frag_no == !recv_next_frag_no then (
+          recv_frags := !recv_frags @ [ packet.data ];
+          recv_next_frag_no := !recv_next_frag_no + 1;
+          if packet.frag_no == packet.no_frags - 1 then (
+            CstructStream.add inc [ Cstruct.concat !recv_frags ];
+            recv_packet_id := 0;
+            recv_next_frag_no := 0;
+            recv_frags := []
+          )
+        );
+      let get_frag () =
+        let frag_buf =
+          let offset = !send_next_frag_no * mtu in
+          Cstruct.sub !send_packet offset
+            (min mtu (Cstruct.length !send_packet - offset))
+        in
+        let p =
+          FragPacket.encode !send_packet_id !send_next_frag_no
+            !send_no_frags frag_buf
+        in
+        if !send_next_frag_no < !send_no_frags - 1 then
+          send_next_frag_no := !send_next_frag_no + 1
+        else send_packet_id := 0;
+        p
+      in
+      if !send_packet_id == 0 then
+        match CstructStream.try_take_one out with
+        | None -> FragPacket.encode 0 0 0 Cstruct.empty
+        | Some packet -> (
+          send_packet := packet;
+          send_packet_id := !send_packet_id + 1;
+          send_next_frag_no := 0;
+          send_no_frags := (Cstruct.length packet + (mtu - 1)) / mtu;
+          get_frag ()
+        )
+      else get_frag ()
     in
 
     let hostname = domain_name_of_buf root reply in
@@ -603,33 +626,13 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
       Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback
         server_state log addresses);
   object (_self : < dns_datagram >)
-    method send buf =
-      Eio.Mutex.use_rw send_mut ~protect:false (fun () ->
-          server_out := !server_out @ [ buf ];
-          Eio.Condition.broadcast send_cond)
-
-    method recv buf =
-      Eio.Mutex.use_rw recv_mut ~protect:false (fun () ->
-          let rec f () =
-            match !server_inc with
-            | [] ->
-                Eio.Condition.await recv_cond recv_mut;
-                f ()
-            | packet :: new_server_inc ->
-                let packet_len = Cstruct.length packet in
-                (* will raise if buf isn't big enough to hold packet *)
-                Cstruct.blit packet 0 buf 0 packet_len;
-                server_inc := new_server_inc;
-                packet_len
-          in
-          f ())
+    method send buf = CstructStream.add out [ buf ]
+    method recv buf = CstructStream.take_one inc buf
   end
 
 let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
     authority port log =
-  let client_inc = ref [] in
-
-  let recv_cond = Eio.Condition.create () and recv_mut = Eio.Mutex.create () in
+  let inc = CstructStream.create () in
 
   (* TODO support different queries, or probing access *)
   let record_type = Dns.Rr_map.Cname
@@ -686,7 +689,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
         if Cstruct.length recv_buf > 0 then
           let packet = FragPacket.decode recv_buf in
           if Cstruct.length packet.data > 0 then
-            Eio.Mutex.use_rw recv_mut ~protect:false (fun () ->
+            Eio.Mutex.use_rw inc.mut ~protect:false (fun () ->
                 (* If we're receiving a new fragment packet *)
                 (* NB this may drop an old packet, we don't deal with out of order delivery *)
                 if packet.packet_id != !packet_id then (
@@ -699,8 +702,8 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
                   frags := !frags @ [ packet.data ];
                   next_frag_no := !next_frag_no + 1;
                   if packet.frag_no == packet.no_frags - 1 then (
-                    client_inc := !client_inc @ [ Cstruct.concat !frags ];
-                    Eio.Condition.broadcast recv_cond;
+                    inc.items := !(inc.items) @ [ Cstruct.concat !frags ];
+                    Eio.Condition.broadcast inc.cond;
                     packet_id := 0;
                     next_frag_no := 0;
                     frags := [])))
@@ -730,7 +733,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
   in
   let send_empty_query_fiber () =
     while true do
-      Eio.Mutex.use_rw recv_mut ~protect:false (fun () ->
+      Eio.Mutex.use_rw inc.mut ~protect:false (fun () ->
           (* sent a packet with a random id and hope that it doesn't collide *)
           let reply_buf = FragPacket.encode (get_id ()) 0 0 Cstruct.empty in
           let hostname = domain_name_of_buf root reply_buf in
@@ -739,7 +742,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
             addr;
           ignore
           @@ Eio.Time.with_timeout clock 2. (fun () ->
-                 Eio.Condition.await recv_cond recv_mut;
+                 Eio.Condition.await inc.cond inc.mut;
                  Ok ()));
       Eio.Fiber.yield ()
     done
@@ -773,19 +776,5 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
         frag_no := !frag_no + 1
       done
 
-    method recv buf =
-      Eio.Mutex.use_rw recv_mut ~protect:false (fun () ->
-          let rec f () =
-            match !client_inc with
-            | [] ->
-                Eio.Condition.await recv_cond recv_mut;
-                f ()
-            | packet :: new_client_inc ->
-                let packet_len = Cstruct.length packet in
-                (* will raise if buf isn't big enough to hold packet *)
-                Cstruct.blit packet 0 buf 0 packet_len;
-                client_inc := new_client_inc;
-                packet_len
-          in
-          f ())
+    method recv buf = CstructStream.take_one inc buf
   end
