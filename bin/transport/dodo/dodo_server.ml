@@ -80,7 +80,4 @@ let () =
     let info = Cmd.info "netcatd" ~man ~doc in
     Cmd.v info term
   in
-  (* this is not domain safe *)
-  (* Logs.set_reporter (Logs_fmt.reporter ());
-     Logs.set_level (Some Logs.Error); *)
   exit (Cmdliner.Cmd.eval cmd)

@@ -26,9 +26,6 @@ let run zonefiles log_level addressStrings port proto resolver =
       ~mono_clock:env#mono_clock ~proto (ref server_state) log addresses
 
 let () =
-  (* this is not domain safe *)
-  (* Logs.set_reporter (Logs_fmt.reporter ());
-     Logs.set_level (Some Logs.Error); *)
   let open Cmdliner in
   let open Server_args in
   let cmd =
