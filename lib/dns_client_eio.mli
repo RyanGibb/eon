@@ -5,9 +5,9 @@ val send_query :
   int ->
   'a Dns.Rr_map.rr ->
   'b Domain_name.t ->
-  #Eio.Net.datagram_socket ->
+  _ Eio.Net.datagram_socket ->
   Eio.Net.Sockaddr.datagram ->
   unit
 
 val listen :
-  #Eio.Net.datagram_socket -> Dns_log.formattedLog -> dns_handler -> unit
+ _ Eio.Net.datagram_socket -> Dns_log.formattedLog -> dns_handler -> unit

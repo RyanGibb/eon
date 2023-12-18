@@ -30,7 +30,7 @@ let udp_listen log handle_dns sock =
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
     (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
-    let addr = match addr with `Udp a -> `Udp a in
+    let addr = match addr with `Udp a -> `Udp a | `Unix _ -> failwith "unix domain sockets unsupported" in
     log Dns_log.Rx addr trimmedBuf;
     (* fork a thread to process packet and reply, so we can continue to listen for packets *)
     Eio.Fiber.fork ~sw (fun () ->
@@ -39,14 +39,11 @@ let udp_listen log handle_dns sock =
         List.iter
           (fun b ->
             log Dns_log.Tx addr b;
-            Eio.Net.send sock addr b)
+            Eio.Net.send sock ~dst:addr [ b ])
           answers)
   done
 
-type connection_handler =
-  Eio.Net.stream_socket -> Eio.Net.Sockaddr.stream -> unit
-
-let tcp_handle log handle_dns : connection_handler =
+let tcp_handle log handle_dns : _ Eio.Net.connection_handler =
  fun sock addr ->
   Eio.Switch.run @@ fun sw ->
   (* Persist connection until EOF, rfc7766 section 6.2.1 *)

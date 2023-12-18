@@ -5,7 +5,7 @@ type dns_handler =
   Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
 
 val with_handler :
-  net:#Eio.Net.t ->
+  net:_ Eio.Net.t ->
   proto:[`Tcp | `Udp ] list ->
   dns_handler ->
   Dns_log.formattedLog ->
@@ -13,9 +13,9 @@ val with_handler :
   unit
 
 val primary :
-  net:#Eio.Net.t ->
-  clock:#Eio.Time.clock ->
-  mono_clock:#Eio.Time.Mono.t ->
+  net:_ Eio.Net.t ->
+  clock:_ Eio.Time.clock ->
+  mono_clock:_ Eio.Time.Mono.t ->
   proto:[`Tcp | `Udp ] list ->
   ?packet_callback:Dns_server.packet_callback ->
   Dns_server.Primary.s ref ->

@@ -8,9 +8,9 @@ type dns_handler =
   * (Dns.proto * Ipaddr.t * Cstruct.t) list
 
 val resolver :
-  net:#Eio.Net.t ->
-  clock:#Eio.Time.clock ->
-  mono_clock:#Eio.Time.Mono.t ->
+  net:_ Eio.Net.t ->
+  clock:_ Eio.Time.clock ->
+  mono_clock:_ Eio.Time.Mono.t ->
   proto:[`Tcp | `Udp ] list ->
   Dns_resolver.t ref ->
   Dns_log.formattedLog ->

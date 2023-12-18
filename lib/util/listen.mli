@@ -1,7 +1,8 @@
+(* TODO types... *)
 val on_addrs :
-  net:#Eio.Net.t ->
-  proto:[`Tcp | `Udp ] list ->
-  (< Eio.Net.datagram_socket ; Eio.Flow.close > -> unit) ->
-  (Eio.Net.listening_socket -> unit) ->
+  net:[> ([> `Generic] as 'a) Eio.Net.ty] Eio.Resource.t ->
+  proto:[< `Tcp | `Udp ] list ->
+  ([ `Close | `Datagram | `Platform of [> `Generic ] as 'a  | `Shutdown | `Socket ] Eio.Resource.t -> unit) ->
+  ([ `Accept | `Close | `Platform of [> `Generic ] as 'a  | `Socket ] Eio.Resource.t -> unit) ->
   (Eio.Net.Ipaddr.v4v6 * int) list ->
   unit

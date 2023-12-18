@@ -1,7 +1,3 @@
-class virtual dns_flow =
-  object
-    inherit Eio.Flow.two_way
-  end
 
 class virtual dns_datagram =
   object
