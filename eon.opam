@@ -3,7 +3,7 @@ synopsis: ""
 description: ""
 maintainer: ["Ryan Gibb"]
 authors: ["Ryan Gibb"]
-license: "LICENSE"
+license: "MIT"
 homepage: "https://github.com/RyanGibb/eon"
 doc: "https://url/to/documentation"
 bug-reports: "https://github.com/RyanGibb/eon/issues"
@@ -18,6 +18,10 @@ depends: [
   "cmdliner"
   "fmt"
   "tuntap"
+  "letsencrypt"
+  "tls-eio"
+  "mirage-crypto-rng-eio"
+  "uri-sexp"
 ]
 build: [
   ["dune" "subst"] {dev}
