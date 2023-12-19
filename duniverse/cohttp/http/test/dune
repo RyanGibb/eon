@@ -1,0 +1,36 @@
+(executable
+ (name test_header)
+ (modules test_header)
+ (forbidden_libraries base)
+ (libraries http alcotest sexplib0))
+
+(rule
+ (alias runtest)
+ (package http)
+ (action
+  (run ./test_header.exe)))
+
+(test
+ (name test_parser)
+ (modules test_parser)
+ (package http)
+ (preprocess
+  (pps
+   base_quickcheck.ppx_quickcheck
+   ppx_assert
+   ppx_sexp_conv
+   ppx_compare
+   ppx_here))
+ (libraries http base_quickcheck alcotest))
+
+(test
+ (name test_request)
+ (modules test_request)
+ (package http)
+ (libraries http alcotest))
+
+(test
+ (name test_response)
+ (modules test_response)
+ (package http)
+ (libraries http alcotest))

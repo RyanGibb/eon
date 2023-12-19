@@ -1,0 +1,14 @@
+(executables
+ (names hello_world receive_post)
+ (libraries
+  mirage-crypto
+  http
+  cohttp-async
+  base
+  async_kernel
+  core_unix.command_unix))
+
+(alias
+ (name runtest)
+ (package cohttp-async)
+ (deps hello_world.exe receive_post.exe))

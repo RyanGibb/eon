@@ -1,0 +1,24 @@
+(rule
+ (with-stdout-to
+  conf.ml
+  (echo "let version = \"%{version:cohttp}\"")))
+
+(library
+ (name cohttp)
+ (public_name cohttp)
+ (synopsis "Co-operative Client/Server HTTP library.")
+ (preprocess
+  (pps ppx_sexp_conv))
+ (libraries
+  base64
+  logs
+  (re_export http)
+  re
+  sexplib0
+  stringext
+  uri
+  uri-sexp))
+
+(ocamllex accept_lexer)
+
+(ocamlyacc accept_parser)
