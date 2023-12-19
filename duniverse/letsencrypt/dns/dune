@@ -1,0 +1,4 @@
+(library
+ (name letsencrypt_dns)
+ (public_name letsencrypt-dns)
+ (libraries letsencrypt logs dns dns-tsig))

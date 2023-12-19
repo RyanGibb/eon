@@ -1,0 +1,4 @@
+(test
+ (name tests)
+ (package letsencrypt)
+ (libraries letsencrypt oUnit mirage-crypto-rng.unix))
