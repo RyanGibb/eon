@@ -40,6 +40,18 @@ build: [
 ]
 dev-repo: "git+https://github.com/RyanGibb/eon.git"
 pin-depends: [
+  ["dns-certify.dev" "vendor/dns"]
+  ["dns-client-lwt.dev" "vendor/dns"]
+  ["dns-client-mirage.dev" "vendor/dns"]
+  ["dns-client.dev" "vendor/dns"]
+  ["dns-cli.dev" "vendor/dns"]
+  ["dns-mirage.dev" "vendor/dns"]
+  ["dns.dev" "vendor/dns"]
+  ["dns-resolver.dev" "vendor/dns"]
+  ["dnssec.dev" "vendor/dns"]
+  ["dns-server.dev" "vendor/dns"]
+  ["dns-stub.dev" "vendor/dns"]
+  ["dns-tsig.dev" "vendor/dns"]
   # Eio port
   ["letsencrypt.dev" "vendor/letsencrypt"]
   ["letsencrypt-app.dev" "vendor/letsencrypt"]
