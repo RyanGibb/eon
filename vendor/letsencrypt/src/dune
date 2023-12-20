@@ -1,0 +1,6 @@
+(rule (with-stdout-to version.ml (echo "let t = \"%{version:letsencrypt}\"")))
+
+(library
+ (name letsencrypt)
+ (public_name letsencrypt)
+ (libraries http cohttp-eio eio eio.unix logs yojson lwt base64 mirage-crypto mirage-crypto-pk mirage-crypto-ec asn1-combinators x509 uri tls-eio))

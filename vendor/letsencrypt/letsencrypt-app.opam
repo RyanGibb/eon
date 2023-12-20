@@ -1,0 +1,33 @@
+opam-version: "2.0"
+synopsis: "ACME implementation in OCaml"
+description: "An ACME client implementation of the ACME protocol (RFC 8555) for OCaml"
+maintainer: "Michele Mu <maker@tumbolandia.net>"
+authors:
+  "Michele Mu <maker@tumbolandia.net>, Hannes Mehnert <hannes@mehnert.org>"
+license: "BSD-2-clause"
+homepage: "https://github.com/mmaker/ocaml-letsencrypt"
+bug-reports: "https://github.com/mmaker/ocaml-letsencrypt/issues"
+doc: "https://mmaker.github.io/ocaml-letsencrypt"
+depends: [
+  "ocaml" {>= "4.08.0"}
+  "dune" {>= "1.2.0"}
+  "letsencrypt" {= version}
+  "letsencrypt-dns" {= version}
+  "cmdliner"
+  "cohttp-lwt-unix" {>= "1.0.0"}
+  "logs"
+  "fmt" {>= "0.8.7"}
+  "lwt" {>= "2.6.0"}
+  "mirage-crypto-rng"
+  "ptime"
+  "bos"
+  "fpath"
+  "randomconv"
+  "cstruct" {>= "6.0.0"}
+]
+build: [
+  ["dune" "subst"] {dev}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+dev-repo: "git+https://github.com/mmaker/ocaml-letsencrypt.git"
