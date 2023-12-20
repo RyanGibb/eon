@@ -3,7 +3,7 @@ synopsis: ""
 description: ""
 maintainer: ["Ryan Gibb"]
 authors: ["Ryan Gibb"]
-license: "LICENSE"
+license: "MIT"
 homepage: "https://github.com/RyanGibb/eon"
 doc: "https://url/to/documentation"
 bug-reports: "https://github.com/RyanGibb/eon/issues"
@@ -17,7 +17,12 @@ depends: [
   "dns-tsig"
   "cmdliner"
   "fmt"
+  # tun
   "tuntap"
+  # acme
+  "letsencrypt" {= "dev"}
+  "cohttp-eio" {= "dev"}
+  "mirage-crypto-rng-eio"
 ]
 build: [
   ["dune" "subst"] {dev}
@@ -34,3 +39,14 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/RyanGibb/eon.git"
+pin-depends: [
+  # Eio port
+  ["letsencrypt.dev" "vendor/letsencrypt"]
+  ["letsencrypt-app.dev" "vendor/letsencrypt"]
+  # unreleased Eio 12.0 port 
+  ["http.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
+  ["cohttp.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
+  ["cohttp-eio.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
+  ["cohttp-lwt.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
+  ["cohttp-lwt-unix.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
+]

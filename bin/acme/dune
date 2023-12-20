@@ -1,0 +1,19 @@
+(executable
+ (name lend)
+ (modules lend)
+ (public_name lend)
+ (package eon)
+ (libraries dns_server_eio server_args dns_log dns letsencrypt-dns mirage-crypto-rng-eio logs.fmt tls_le))
+
+(executable
+ (name lenc)
+ (modules lenc)
+ (public_name lenc)
+ (package eon)
+ (libraries eio_main cmdliner))
+
+(library
+ (name tls_le)
+ (modules tls_le)
+ (public_name eon.tls-le)
+ (libraries eio letsencrypt))
