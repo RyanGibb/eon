@@ -30,34 +30,18 @@
         query = {
           ocaml-base-compiler = "*";
         };
-        scope =
-          # recursive finds vendored dependancies in duniverse
-          opam-nix-lib.buildOpamProject' { recursive = true; } ./. (query // devPackagesQuery);
+        scope = opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery);
       in {
         packages = scope;
         defaultPackage = scope.${package};
 
-        devShells =
-          let
-            mkDevShell = scope:
-              let
-                devPackages = builtins.attrValues
-                  (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope);
-              in pkgs.mkShell {
-                inputsFrom = [ scope.${package} ];
-                buildInputs = devPackages;
-              };
-            dev-scope =
-              # don't pick up duniverse deps
-              # it can be slow to build vendored dependancies in a deriviation before getting an error
-              opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery);
-          in rec {
-            build = mkDevShell scope;
-            # use for fast development as it doesn't building vendored sources in seperate derivations
-            # however might not build the same result as `nix build .`,
-            # like `nix develop .#devShells.x86_64-linux.resolved -c dune build` should do
-            default = mkDevShell dev-scope;
-          };
+        devShells.default = let
+          devPackages = builtins.attrValues
+            (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope);
+        in pkgs.mkShell {
+          inputsFrom = [ scope.${package} ];
+          buildInputs = devPackages;
+        };
       }) // {
     nixosModules.default = {
       imports = [ ./module.nix ];
