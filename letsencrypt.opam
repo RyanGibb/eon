@@ -26,6 +26,8 @@ depends: [
   "ptime"
   "domain-name" {>= "0.2.0"}
   "cstruct" {>= "6.0.0"}
+  "cohttp-eio"
+  "tls-eio"
 ]
 conflicts: [ "result" {< "1.5"} ]
 build: [
