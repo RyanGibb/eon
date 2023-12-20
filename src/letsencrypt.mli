@@ -62,13 +62,13 @@ module Client: sig
         looking up the directory and account of [priv] at [endpoint]. If no
         account is registered yet, a new account is created with contact
         information of [email]. The terms of service are agreed on. *)
-  val initialise : < net : #Eio.Net.t; .. > -> endpoint:Uri.t -> ?email:string ->
+  val initialise : < net : _ Eio.Net.t; .. > -> endpoint:Uri.t -> ?email:string ->
       X509.Private_key.t -> (t, [> `Msg of string ]) result
 
     (** [sign_certificate ~ctx solver t sleep csr] orders a certificate for
         the names in the signing request [csr], and solves the requested
         challenges. *)
-    val sign_certificate : < net : #Eio.Net.t; .. > ->
+    val sign_certificate : < net : _ Eio.Net.t; .. > ->
       solver -> t -> (int -> unit) ->
       X509.Signing_request.t ->
       (X509.Certificate.t list, [> `Msg of string ]) result
