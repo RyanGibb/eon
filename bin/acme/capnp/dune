@@ -1,0 +1,27 @@
+(executable
+ (name lenscap)
+ (modules lenscap)
+ (public_name lenscap)
+ (package eon)
+ (libraries dns_server_eio server_args dns_log dns_acme dns eio_main cert capnp-rpc-lwt capnp-rpc-unix))
+
+(executable
+ (name lenscapc)
+ (modules lenscapc)
+ (public_name lenscapc)
+ (package eon)
+ (libraries cert tls_le eio_main capnp-rpc-lwt capnp-rpc-unix))
+
+(library
+ (name cert)
+ (modules cert cert_api)
+ (package eon)
+ (libraries dns_acme eio_main capnp-rpc-lwt)
+ (flags
+  (:standard -w -53-55)))
+
+(rule
+ (targets cert_api.ml cert_api.mli)
+ (deps cert_api.capnp)
+ (action
+  (run capnp compile -o %{bin:capnpc-ocaml} %{deps})))

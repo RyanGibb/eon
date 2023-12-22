@@ -1,101 +1,47 @@
-let handle_client env prod cert server_state sock =
+module Eiox = struct
+  (* UPSTREAM: need an Eio file exists check without opening *)
+  let file_exists f =
+    Eio.Switch.run @@ fun sw ->
+    try ignore(Eio.Path.open_in ~sw f); true
+    with _ -> false
+end
+
+let generate_cert ~email ~org ~domain cert_root prod server_state env =
+  let read_pem filepath decode_pem = match Eiox.file_exists filepath with
+  | true -> Some (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem |> Tls_le.errcheck)
+  | false -> None
+  in
+  let write_pem filepath pem =
+    Eio.Path.save ~create:(`Or_truncate 0o600) filepath (pem |> Cstruct.to_string)
+  in
+  let ( / ) = Eio.Path.( / ) in
+  let open X509 in
+  Eio.Switch.run @@ fun sw ->
+  let cert_dir = Eio.Path.open_dir ~sw (env#fs / domain / cert_root) in
+  let account_key_file = cert_dir / "account.pem" in
+  let private_key_file = cert_dir / "privkey.pem" in
+  let csr_file = cert_dir / "csr.pem" in
+  let cert_file = cert_dir / "fullcert.pem" in
+  let account_key = read_pem account_key_file Private_key.decode_pem in
+  let private_key = read_pem private_key_file Private_key.decode_pem in
+  try
+    let cert, account_key, private_key, csr = Dns_acme.provision_cert ?account_key ?private_key ~email ~org ~domain prod server_state env in
+    write_pem account_key_file (Private_key.encode_pem account_key);
+    write_pem private_key_file (Private_key.encode_pem private_key);
+    write_pem csr_file (Signing_request.encode_pem csr);
+    write_pem cert_file (Certificate.encode_pem_multiple cert);
+    Eio.Path.native_exn cert_dir
+  with Tls_le.Le_error msg -> "Error: " ^ msg
+
+let read_request sock =
   let buffer = Eio.Buf_read.of_flow ~max_size:4096 sock in
   let email = Eio.Buf_read.line buffer in
   let org = Eio.Buf_read.line buffer in
   let domain = Eio.Buf_read.line buffer in
   Eio.Flow.shutdown sock `Receive;
+  email, org, domain
 
-  let acmeName = ref @@ None in
-  let solver =
-    let add_record name record =
-      let (let*) = Result.bind in
-
-      (* vertify that the name provided in the ACME server challenge begins with `_acme-challenge` *)
-      let verify_name name =
-        let labels = Domain_name.to_array name in
-        match Array.length labels > 0 && labels.(Array.length labels - 1) = "_acme-challenge" with
-        | false -> Error (`Msg "error")
-        | true -> Ok ()
-      in
-      let* _ = verify_name name in
-
-      (* get the nameserver trie *)
-      let trie = Dns_server.Primary.data !server_state in
-
-      (* check if there's any issues adding a record for this name *)
-      let* trie = match Dns_trie.lookup name Dns.Rr_map.Txt trie with
-      (* if there is no record, all is well *)
-      | Error `NotFound _ -> Ok trie
-      (* if there is a record, let's remove it to be prudent *)
-      | Ok (ttl, records) ->
-        let trie = Dns_trie.remove_ty name Dns.Rr_map.Txt trie in
-        Dns.Rr_map.Txt_set.iter (fun record ->
-          Eio.traceln "Remove '%a %ld IN TXT \"%s\"'" Domain_name.pp name ttl record;
-        ) records;
-        Ok trie;
-      (* if there's any other issues, like the server is not authorative for this zone, or the zone has been delegated *)
-      | Error e ->
-        Eio.traceln "Error with ACME CSR name '%a': %a" Domain_name.pp name Dns_trie.pp_e e;
-        let msg = Format.asprintf "%a" Dns_trie.pp_e e in
-        Error (`Msg msg)
-      in
-
-      (* 1 hour is a sensible TTL *)
-      let ttl = 3600l in
-      let rr =
-        ttl, Dns.Rr_map.Txt_set.singleton record
-      in
-      let trie = Dns_trie.insert name Dns.Rr_map.Txt rr trie in
-      (* TODO send out notifications for secondary nameservers *)
-      let new_server_state, _notifications =
-        let now = Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
-        and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
-        Dns_server.Primary.with_data !server_state now ts trie in
-      server_state := new_server_state;
-      acmeName := Some name;
-      Eio.traceln "Create '%a %ld IN TXT \"%s\"'" Domain_name.pp name ttl record;
-      (* we could wait for dns propigation here...
-         but we hope that a new un-cached record is created
-         and if not, the server should retry (RFC 8555 S8.2) *)
-      Ok ()
-    in
-    Letsencrypt_dns.dns_solver add_record
-  in
-
-  let endpoint = if prod then Letsencrypt.letsencrypt_production_url else Letsencrypt.letsencrypt_staging_url in
-  Eio.Switch.run @@ fun sw ->
-  let cert_root = let ( / ) = Eio.Path.( / ) in Eio.Path.open_dir ~sw (env#fs / cert) in
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
-  try
-    ignore @@ Tls_le.tls_config ~cert_root ~org ~email ~domain ~endpoint ~solver env;
-    Eio.Flow.copy_string cert sock;
-    Eio.Flow.shutdown sock `All
-  with Tls_le.Le_error msg -> (
-      Eio.Flow.copy_string ("Error: " ^ msg) sock;
-      Eio.traceln "ACME error: %s" msg;
-      Eio.Flow.shutdown sock `All
-  );
-  (* once cert provisioned, remove the record *)
-  match !acmeName with
-  | None -> ()
-  | Some name ->
-    let trie = Dns_server.Primary.data !server_state in
-    match Dns_trie.lookup name Dns.Rr_map.Txt trie with
-    | Error e -> Eio.traceln "Error removing %a from trie: %a" Domain_name.pp name Dns_trie.pp_e e;
-    | Ok (ttl, records) ->
-      let data = Dns_trie.remove_ty name Dns.Rr_map.Txt trie in
-      (* TODO send out notifications *)
-      let new_server_state, _notifications =
-        let now = Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
-        and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
-        Dns_server.Primary.with_data !server_state now ts data in
-      server_state := new_server_state;
-      Dns.Rr_map.Txt_set.iter (fun record ->
-        Eio.traceln "Remove '%a %ld IN TXT \"%s\"'" Domain_name.pp name ttl record;
-      ) records;
-    ()
-
-let run zonefiles log_level addressStrings port proto prod cert socket_path =
+let run zonefiles log_level addressStrings port proto prod cert_root socket_path =
   Eio_main.run @@ fun env ->
   let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
@@ -118,12 +64,18 @@ let run zonefiles log_level addressStrings port proto prod cert socket_path =
   let socket = Eio.Net.listen ~backlog:128 ~sw env#net (`Unix socket_path) in
   while true do
     let sock, _addr = Eio.Net.accept ~sw socket in
-    Eio.Fiber.fork ~sw (fun () -> handle_client env prod cert server_state sock)
+    Eio.Fiber.fork ~sw (fun () ->
+      let email, org, domain = read_request sock in
+      let msg = generate_cert ~email ~org ~domain cert_root prod server_state env in
+      Eio.traceln "Recieved request: email '%s'; org '%s'; domain '%s'" email org domain;
+      Eio.Flow.copy_string msg sock;
+      Eio.Flow.shutdown sock `All
+    )
   done
 
 let () =
-  Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level (Some Logs.Info);
+  Logs.set_reporter (Logs_fmt.reporter ());
   let open Cmdliner in
   let open Server_args in
   let cmd =
@@ -131,7 +83,7 @@ let () =
       let doc = "Production certification generation" in
       Arg.(value & flag & info [ "prod" ] ~doc)
     in
-    let cert =
+    let cert_dir =
       let doc = "Directory where to store the certificates" in
       Arg.(value & opt string "certs" & info [ "certs-dir" ] ~doc)
     in
@@ -141,7 +93,7 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ cert $ socket_path)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ cert_dir $ socket_path)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "lend" ~doc ~man in
