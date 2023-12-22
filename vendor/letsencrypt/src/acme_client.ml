@@ -175,7 +175,7 @@ let http_post ?(headers=headers) ~body env url =
   in
   let client = Cohttp_eio.Client.make ~https:(Some (https ~authenticator:null)) env#net in
   Eio.Switch.run @@ fun sw ->
-  let resp, body = Cohttp_eio.Client.post ~body ~sw client url in
+  let resp, body = Cohttp_eio.Client.post ~body ~headers ~sw client url in
   let status = Http.Response.status resp in
   let headers = Http.Response.headers resp in
   let body = Eio.Buf_read.(parse_exn take_all) body ~max_size:max_int in
