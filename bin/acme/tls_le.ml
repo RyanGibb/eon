@@ -11,6 +11,11 @@ let gen_private_key () =
   `RSA (Mirage_crypto_pk.Rsa.generate ~bits:4096 ())
 
 let gen_csr ~private_key ~email ~org ~domain =
+  (* looks like we might need to use Subject Alternative Name (SAN), rfc2818
+      e.g. chrome doesn't look at CN anymore
+      https://developer.chrome.com/blog/chrome-58-deprecations/#remove_support_for_commonname_matching_in_certificates 
+      relevant rfc6125/rfc9525
+      also, do we need the org? *)
   let dn = X509.Distinguished_name.[
     Relative_distinguished_name.(singleton (CN domain));
     Relative_distinguished_name.(singleton (Mail email));
