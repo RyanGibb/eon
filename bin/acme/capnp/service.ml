@@ -52,10 +52,8 @@ module Domain = struct
         let response, _results =
           Service.Response.create Results.init_pointer
         in
-        (* TODO process subdomain *)
-        (* TODO log error *)
-        ignore @@ (try (
-          let domain = Domain_name.of_string_exn subdomain in
+        let callback_result = (try (
+          let domain = Domain_name.append_exn domain (Domain_name.of_string_exn subdomain) in
           let cert, _account_key, private_key, _csr = provision_cert ~email ~org ~domain in
           CertManager.register mgr true "" (Some cert) (Some private_key)
         ) with
@@ -64,7 +62,11 @@ module Domain = struct
         | e ->
           let msg = Printexc.to_string e in
           CertManager.register mgr false msg None None
-        );
+        ) in
+        (match callback_result with
+        | Ok () -> ()
+        | Error (`Capnp e) ->
+          Eio.traceln "%a" Capnp_rpc.Error.pp e);
         (* TODO register renewal process *)
         Service.return response
     end
@@ -93,7 +95,11 @@ module Root = struct
         let response, results =
           Service.Response.create Results.init_pointer
         in
-        Results.domain_set results (Some (Domain.local domain provision_cert)));
+        (match Domain_name.of_string domain with
+        | Error (`Msg e) ->
+          Eio.traceln "Root error parsing domain: %s" e
+        | Ok domain ->
+          Results.domain_set results (Some (Domain.local domain provision_cert)));
         Service.return response
     end
 
