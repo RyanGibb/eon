@@ -35,7 +35,7 @@ module CertManager = struct
 end
 
 module Domain = struct
-  let local provision_cert =
+  let local domain provision_cert =
     let module Domain = Api.Service.Domain in
     Domain.local @@ object
       inherit Domain.service
@@ -47,7 +47,8 @@ module Domain = struct
         let subdomain = Params.subdomain_get params; in
         let mgr = Option.get (Params.mgr_get params); in
         release_param_caps ();
-        Eio.traceln "Domain.bind(subdomain=%s)" subdomain;
+        Eio.traceln "Domain.bind(email=%s, org=%s, subdomain=%s) domain=%s"
+          email org subdomain(Domain_name.to_string domain);
         let response, _results =
           Service.Response.create Results.init_pointer
         in
@@ -68,13 +69,12 @@ module Domain = struct
         Service.return response
     end
 
-  let cert t ~email ~org ~domain mgr =
+  let cert t ~email ~org ~subdomain mgr =
     let open Api.Client.Domain.Cert in
     let request, params = Capability.Request.create Params.init_pointer in
     Params.email_set params email;
     Params.org_set params org;
-    (* TODO subomdain *)
-    Params.subdomain_set params (Domain_name.to_string domain);
+    Params.subdomain_set params (Domain_name.to_string subdomain);
     Params.mgr_set params (Some mgr);
     Capability.call_for_unit t method_id request
 end
@@ -93,7 +93,7 @@ module Root = struct
         let response, results =
           Service.Response.create Results.init_pointer
         in
-        Results.domain_set results (Some (Domain.local provision_cert));
+        Results.domain_set results (Some (Domain.local domain provision_cert)));
         Service.return response
     end
 

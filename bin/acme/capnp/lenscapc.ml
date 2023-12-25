@@ -12,7 +12,7 @@ let run_client email org domain cap =
     | Ok (cert, key) ->
       Eio.traceln  "%s\n%s" cert key
   ) in
-  match Service.Domain.cert domain_cap ~email ~org ~domain mgr_cap with
+  match Service.Domain.cert domain_cap ~email ~org ~subdomain:Domain_name.root mgr_cap with
     | Error (`Capnp e) ->
       Format.fprintf Format.err_formatter "%a" Capnp_rpc.Error.pp e
     | Ok () -> Eio.traceln "fin"
