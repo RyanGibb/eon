@@ -12,7 +12,7 @@ val gen_cert :
   ?private_key:X509.Private_key.t ->
   email:string ->
   org:string ->
-  domain:string ->
+  domain:[ `raw ] Domain_name.t ->
   endpoint:Uri.t ->
   solver:Letsencrypt.Client.solver ->
   < clock : (_ Eio.Time.clock); net : (_ Eio.Net.t); .. > ->

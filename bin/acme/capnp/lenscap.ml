@@ -2,8 +2,9 @@ let cap_file = "cert.cap"
 
 let capnp_serve env config provision =
   Eio.Switch.run @@ fun sw ->
+  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let service_id = Capnp_rpc_unix.Vat_config.derived_id config "main" in
-  let restore = Capnp_rpc_net.Restorer.single service_id (Cert.local provision) in
+  let restore = Capnp_rpc_net.Restorer.single service_id (Service.Root.local provision) in
   let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore config in
   match Capnp_rpc_unix.Cap_file.save_service vat service_id cap_file with
   | Error `Msg m -> failwith m
@@ -11,7 +12,7 @@ let capnp_serve env config provision =
     Eio.traceln "Server running. Connect using %S." cap_file;
     Eio.Fiber.await_cancel ()
 
-let run zonefiles log_level addressStrings port proto prod capnp_config =
+let run zonefiles log_level addressStrings port proto prod authorative capnp_config =
   Eio_main.run @@ fun env ->
   let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
@@ -22,6 +23,9 @@ let run zonefiles log_level addressStrings port proto prod capnp_config =
   in
   let server_state =
     let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+    let trie = match authorative with
+    | None -> trie
+    | Some authorative -> Dns_trie.insert Domain_name.root Dns.Rr_map.Soa (Dns.Soa.create authorative) trie in
     ref
     @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
          ~tsig_sign:Dns_tsig.sign trie
@@ -34,6 +38,8 @@ let run zonefiles log_level addressStrings port proto prod capnp_config =
   capnp_serve env capnp_config provision
 
 let () =
+  Logs.set_level (Some Logs.Info);
+  Logs.set_reporter (Logs_fmt.reporter ());
   let open Cmdliner in
   let open Server_args in
   let cmd =
@@ -41,9 +47,15 @@ let () =
       let doc = "Production certification generation" in
       Arg.(value & flag & info [ "prod" ] ~doc)
     in
+    let authorative =
+      let doc =
+        "Domain(s) for which the nameserver is authorative for, if not passed in zonefiles."
+      in
+      Arg.(value & opt (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [ "a"; "authorative" ] ~doc)
+    in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ Capnp_rpc_unix.Vat_config.cmd)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ authorative $ Capnp_rpc_unix.Vat_config.cmd)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "lend" ~doc ~man in

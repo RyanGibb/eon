@@ -3,7 +3,7 @@ let run email org domain socket_path =
   Eio.Switch.run @@ fun sw ->
   let sock = Eio.Net.connect ~sw env#net (`Unix socket_path) in
 
-  let request = String.concat "\n" [email; org; domain] in
+  let request = String.concat "\n" [email; org; Domain_name.to_string domain] in
   Eio.Flow.copy_string request sock;
   Eio.Flow.shutdown sock `Send;
 
@@ -27,7 +27,7 @@ let open Cmdliner in
     in
     let domain =
       let doc = "The domain for which to request the certificate." in
-      Arg.(required & pos 2 (some string) None & info [] ~docv:"DOMAIN" ~doc)
+      Arg.(required & pos 3 (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [] ~docv:"DOMAIN" ~doc)
     in
     let socket_path =
       let doc = "The path to the Unix domain socket." in

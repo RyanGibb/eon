@@ -1,23 +1,33 @@
-let run_client email org domain cert_cap =
-  let account_key = Tls_le.gen_account_key () |> X509.Private_key.encode_pem |> Cstruct.to_string in
-  let private_key = Tls_le.gen_private_key () |> X509.Private_key.encode_pem |> Cstruct.to_string in
-  match Cert.request cert_cap ~account_key ~private_key ~email ~org ~domain with
-  | Error (`Cert msg) ->
-    Format.fprintf Format.std_formatter "%s" msg
-  | Error (`Capnp e) ->
-    Format.fprintf Format.err_formatter "%a" Capnp_rpc.Error.pp e
-  | Ok cert ->
-    Format.fprintf Format.err_formatter  "%s" cert
+let run_client email org domain cap =
+  let domain_cap = Service.Root.bind cap domain in
+  (* callback for provisioned cert *)
+  let mgr_cap = Service.CertManager.local (fun result ->
+    match result with
+    | Error (`Cert msg) ->
+      Eio.traceln "%s" msg;
+      Unix._exit 1
+    | Error (`Capnp e) ->
+      Eio.traceln "%a" Capnp_rpc.Error.pp e;
+      Unix._exit 1
+    | Ok (cert, key) ->
+      Eio.traceln  "%s\n%s" cert key
+  ) in
+  match Service.Domain.cert domain_cap ~email ~org ~domain mgr_cap with
+    | Error (`Capnp e) ->
+      Format.fprintf Format.err_formatter "%a" Capnp_rpc.Error.pp e
+    | Ok () -> Eio.traceln "fin"
 
 let run email org domain connect_addr =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
   let sr = Capnp_rpc_unix.Vat.import_exn client_vat connect_addr in
-  Capnp_rpc_unix.with_cap_exn sr (run_client email org domain)
+  Capnp_rpc_unix.with_cap_exn sr (run_client email org domain) ~progress:`Log
 
 let () =
-let open Cmdliner in
+  Logs.set_level (Some Logs.Info);
+  Logs.set_reporter (Logs_fmt.reporter ());
+  let open Cmdliner in
   let cmd =
     let connect_addr =
       let i = Arg.info [] ~docv:"ADDR" ~doc:"Address of server (capnp://...)" in
@@ -33,7 +43,7 @@ let open Cmdliner in
     in
     let domain =
       let doc = "The domain for which to request the certificate." in
-      Arg.(required & pos 3 (some string) None & info [] ~docv:"DOMAIN" ~doc)
+      Arg.(required & pos 3 (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [] ~docv:"DOMAIN" ~doc)
     in
     let term = Term.(const run $ email $ org $ domain $ connect_addr) in
     let doc = "Let's Encrypt Nameserver Client." in

@@ -17,7 +17,7 @@ let generate_cert ~email ~org ~domain cert_root prod server_state env =
   let ( / ) = Eio.Path.( / ) in
   let open X509 in
   Eio.Switch.run @@ fun sw ->
-  let cert_dir = Eio.Path.open_dir ~sw (env#fs / domain / cert_root) in
+  let cert_dir = Eio.Path.open_dir ~sw (env#fs / (Domain_name.to_string domain) / cert_root) in
   let account_key_file = cert_dir / "account.pem" in
   let private_key_file = cert_dir / "privkey.pem" in
   let csr_file = cert_dir / "csr.pem" in
@@ -66,7 +66,12 @@ let run zonefiles log_level addressStrings port proto prod cert_root socket_path
     let sock, _addr = Eio.Net.accept ~sw socket in
     Eio.Fiber.fork ~sw (fun () ->
       let email, org, domain = read_request sock in
-      let msg = generate_cert ~email ~org ~domain cert_root prod server_state env in
+      let msg =
+        match Domain_name.of_string domain with
+        | Error (`Msg e) -> "Error: " ^ e
+        | Ok domain ->
+          generate_cert ~email ~org ~domain cert_root prod server_state env
+      in
       Eio.traceln "Recieved request: email '%s'; org '%s'; domain '%s'" email org domain;
       Eio.Flow.copy_string msg sock;
       Eio.Flow.shutdown sock `All
@@ -74,8 +79,6 @@ let run zonefiles log_level addressStrings port proto prod cert_root socket_path
   done
 
 let () =
-  Logs.set_level (Some Logs.Info);
-  Logs.set_reporter (Logs_fmt.reporter ());
   let open Cmdliner in
   let open Server_args in
   let cmd =

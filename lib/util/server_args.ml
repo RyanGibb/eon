@@ -29,7 +29,7 @@ let addresses =
   Arg.(
     (* :: is IPv6 local *)
     value & opt_all string [ "::" ]
-    & info [ "a"; "address" ] ~docv:"ADDRESSES" ~doc)
+    & info [ "b"; "bind" ] ~docv:"BIND" ~doc)
 
 let parse_addresses port addressStrings =
   List.map

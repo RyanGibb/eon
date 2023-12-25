@@ -17,7 +17,7 @@ let gen_csr ~private_key ~email ~org ~domain =
       relevant rfc6125/rfc9525
       also, do we need the org? *)
   let dn = X509.Distinguished_name.[
-    Relative_distinguished_name.(singleton (CN domain));
+    Relative_distinguished_name.(singleton (CN (Domain_name.to_string domain)));
     Relative_distinguished_name.(singleton (Mail email));
     Relative_distinguished_name.(singleton (O org));
   ] in

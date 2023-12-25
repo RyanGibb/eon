@@ -1,3 +1,5 @@
+exception Dns_acme_error of string
+
 (* https://caml.inria.fr/pub/ml-archives/caml-list/2003/07/5ff669a9d2be35ec585b536e2e0fc7ca.xml *)
 let protect ~f ~(finally: unit -> unit) =
   let result = ref None in
@@ -12,6 +14,20 @@ let protect ~f ~(finally: unit -> unit) =
         finally (); raise e
 
 let provision_cert ?account_key ?private_key ~email ~org ~domain prod server_state env =
+  (* check if there's any issues with the domain *)
+  (match
+    let trie = Dns_server.Primary.data !server_state in
+    Dns_trie.lookup domain Dns.Rr_map.Txt trie
+  with
+  (* if there is no record, all is well *)
+  | Error `NotFound _ -> ()
+  (* if there is a record, we can ignore it *)
+  | Ok _ -> ()
+  (* if there's any other issues, like the server is not authorative for this zone, or the zone has been delegated *)
+  | Error e ->
+    let msg = Format.asprintf "%a" Dns_trie.pp_e e in
+    raise (Dns_acme_error msg));
+
   let acmeName = ref @@ None in
   let solver =
     let add_record name record =

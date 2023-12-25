@@ -10,7 +10,7 @@
  (modules lenc)
  (public_name lenc)
  (package eon)
- (libraries eio_main cmdliner))
+ (libraries eio_main cmdliner domain-name))
 
 (library
  (name dns_acme)
