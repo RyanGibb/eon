@@ -10,7 +10,7 @@
  (modules lenscapc)
  (public_name lenscapc)
  (package eon)
- (libraries service eio_main capnp-rpc-lwt capnp-rpc-unix logs.fmt))
+ (libraries service eio_main capnp-rpc-lwt capnp-rpc-unix))
 
 (library
  (name service)

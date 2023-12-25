@@ -25,8 +25,6 @@ let run email org domain connect_addr =
   Capnp_rpc_unix.with_cap_exn sr (run_client email org domain) ~progress:`Log
 
 let () =
-  Logs.set_level (Some Logs.Info);
-  Logs.set_reporter (Logs_fmt.reporter ());
   let open Cmdliner in
   let cmd =
     let connect_addr =
