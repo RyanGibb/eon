@@ -13,7 +13,7 @@ let protect ~f ~(finally: unit -> unit) =
     | e ->
         finally (); raise e
 
-let provision_cert ?account_key ?private_key ~email ~org ~domain prod server_state env =
+let provision_cert prod server_state env ?account_key ?private_key ~email ~org domain =
   (* check if there's any issues with the domain *)
   (match
     let trie = Dns_server.Primary.data !server_state in

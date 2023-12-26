@@ -39,6 +39,9 @@ module Domain = struct
     let module Domain = Api.Service.Domain in
     Domain.local @@ object
       inherit Domain.service
+      
+      val account_key_r = ref @@ None
+      val private_key_r = ref @@ None
 
       method cert_impl params release_param_caps =
         let open Domain.Cert in
@@ -54,7 +57,9 @@ module Domain = struct
         in
         let callback_result = (try (
           let domain = Domain_name.append_exn domain (Domain_name.of_string_exn subdomain) in
-          let cert, _account_key, private_key, _csr = provision_cert ~email ~org ~domain in
+          let cert, account_key, private_key, _csr = provision_cert ?account_key:(!account_key_r) ?private_key:(!private_key_r) ~email ~org domain in
+          account_key_r := Some account_key;
+          private_key_r := Some private_key;
           CertManager.register mgr true "" (Some cert) (Some private_key)
         ) with
         | Tls_le.Le_error msg ->
