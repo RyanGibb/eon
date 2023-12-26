@@ -1,6 +1,4 @@
-let cap_file = "cert.cap"
-
-let capnp_serve env config provision =
+let capnp_serve env cap_file config provision =
   Eio.Switch.run @@ fun sw ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let service_id = Capnp_rpc_unix.Vat_config.derived_id config "main" in
@@ -12,7 +10,7 @@ let capnp_serve env config provision =
     Eio.traceln "Server running. Connect using %S." cap_file;
     Eio.Fiber.await_cancel ()
 
-let run zonefiles log_level addressStrings port proto prod authorative capnp_config =
+let run zonefiles log_level addressStrings port proto prod authorative cap_file capnp_config =
   Eio_main.run @@ fun env ->
   let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
@@ -35,7 +33,7 @@ let run zonefiles log_level addressStrings port proto prod authorative capnp_con
     ~mono_clock:env#mono_clock ~proto server_state log addresses);
   
   let provision = Dns_acme.provision_cert prod server_state env in
-  capnp_serve env capnp_config provision
+  capnp_serve env cap_file capnp_config provision
 
 let () =
   Logs.set_level (Some Logs.Info);
@@ -53,9 +51,13 @@ let () =
       in
       Arg.(value & opt (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [ "a"; "authorative" ] ~doc)
     in
+    let cap_file =
+      let doc = "File to store the root capability at." in
+      Arg.(value & opt string "root.cap" & info [ "cap-file" ] ~doc)
+    in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ authorative $ Capnp_rpc_unix.Vat_config.cmd)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ authorative $ cap_file $ Capnp_rpc_unix.Vat_config.cmd)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "lend" ~doc ~man in
