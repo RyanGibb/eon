@@ -1,10 +1,10 @@
 let capnp_serve env cap_file config provision =
   Eio.Switch.run @@ fun sw ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
-  let service_id = Capnp_rpc_unix.Vat_config.derived_id config "main" in
-  let restore = Capnp_rpc_net.Restorer.single service_id (Service.Root.local provision) in
+  let root_id = Capnp_rpc_unix.Vat_config.derived_id config "root" in
+  let restore = Capnp_rpc_net.Restorer.single root_id (Service.Root.local provision) in
   let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore config in
-  match Capnp_rpc_unix.Cap_file.save_service vat service_id cap_file with
+  match Capnp_rpc_unix.Cap_file.save_service vat root_id cap_file with
   | Error `Msg m -> failwith m
   | Ok () ->
     Eio.traceln "Server running. Connect using %S." cap_file;
@@ -32,8 +32,8 @@ let run zonefiles log_level addressStrings port proto prod authorative cap_file 
   Eio.Fiber.fork ~sw (fun () -> Dns_server_eio.primary ~net:env#net ~clock:env#clock
     ~mono_clock:env#mono_clock ~proto server_state log addresses);
   
-  let provision = Dns_acme.provision_cert prod server_state env in
-  capnp_serve env cap_file capnp_config provision
+  let provision_cert = Dns_acme.provision_cert prod server_state env in
+  capnp_serve env cap_file capnp_config provision_cert
 
 let () =
   Logs.set_level (Some Logs.Info);
