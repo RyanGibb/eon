@@ -28,12 +28,12 @@ let cfg = config.services.eon; in
     };
     application = lib.mkOption {
       type = types.enum [
-        "named"
+        "eon"
         "resolved"
         "netcatd"
         "tund"
       ];
-      default = "named";
+      default = "eon";
     };
     openFirewall = lib.mkOption {
       type = types.bool;
