@@ -4,18 +4,18 @@ let run_client email org domain cap =
   let mgr_cap = Service.CertManager.local (fun result ->
     match result with
     | Error (`Cert msg) ->
-      Eio.traceln "%s" msg;
+      Printf.eprintf "%s%!" msg;
       Unix._exit 1
     | Error (`Capnp e) ->
-      Eio.traceln "%a" Capnp_rpc.Error.pp e;
+      Format.printf "%a%!" Capnp_rpc.Error.pp e;
       Unix._exit 1
     | Ok (cert, key) ->
-      Eio.traceln  "%s\n%s" cert key
+      Printf.printf "%s\n%s%!" cert key
   ) in
   match Service.Domain.cert domain_cap ~email ~org ~subdomain:Domain_name.root mgr_cap with
     | Error (`Capnp e) ->
-      Format.fprintf Format.err_formatter "%a" Capnp_rpc.Error.pp e
-    | Ok () -> Eio.traceln "fin"
+      Format.eprintf "%a" Capnp_rpc.Error.pp e
+    | Ok () -> ()
 
 let run email org domain connect_addr =
   Eio_main.run @@ fun env ->
