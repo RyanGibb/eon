@@ -22,7 +22,7 @@ let run email org domain connect_addr =
   Eio.Switch.run @@ fun sw ->
   let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
   let sr = Capnp_rpc_unix.Vat.import_exn client_vat connect_addr in
-  Capnp_rpc_unix.with_cap_exn sr (run_client email org domain) ~progress:`Log
+  Capnp_rpc_unix.with_cap_exn sr (run_client email org domain)
 
 let () =
   let open Cmdliner in
