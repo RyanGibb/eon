@@ -17,7 +17,7 @@ let max_encoded_len =
 
 let buf_of_domain_name sudbomain name =
   let ( let* ) = Option.bind in
-  let* i = Domain_name.find_label name (fun s -> String.equal sudbomain s) in
+  let* i = Domain_name.find_label name (fun s -> String.equal sudbomain (String.lowercase_ascii s)) in
   let data_name =
     Domain_name.drop_label_exn ~rev:true
       ~amount:(Domain_name.count_labels name - i)
@@ -539,7 +539,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
       match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
     in
     let* recv_buf, root = buf_of_domain_name data_subdomain name in
-    assert (Domain_name.to_string root = authority);
+    assert (String.lowercase_ascii (Domain_name.to_string root) = authority);
 
     (* Only process CNAME queries *)
     let* _ =
