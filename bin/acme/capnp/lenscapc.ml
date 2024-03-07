@@ -17,17 +17,19 @@ let run_client email org domain cap =
       Format.eprintf "%a" Capnp_rpc.Error.pp e
     | Ok () -> ()
 
-let run email org domain connect_addr =
+let run email org domain root_cap _domain_cap_file _mgr_cap_file =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
-  let sr = Capnp_rpc_unix.Vat.import_exn client_vat connect_addr in
+  (* if the mgr_cap_file exists, import it *)
+  (* if the domain_cap_file exists, import it *)
+  let sr = Capnp_rpc_unix.Vat.import_exn client_vat root_cap in
   Capnp_rpc_unix.with_cap_exn sr (run_client email org domain)
 
 let () =
   let open Cmdliner in
   let cmd =
-    let connect_addr =
+    let root_cap =
       let i = Arg.info [] ~docv:"ADDR" ~doc:"Address of server (capnp://...)" in
       Arg.(required @@ pos 0 (some Capnp_rpc_unix.sturdy_uri) None i)
     in
@@ -43,7 +45,15 @@ let () =
       let doc = "The domain for which to request the certificate." in
       Arg.(required & pos 3 (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [] ~docv:"DOMAIN" ~doc)
     in
-    let term = Term.(const run $ email $ org $ domain $ connect_addr) in
+    let domain_cap_file =
+      let doc = "File to store the domain capability at." in
+      Arg.(value & opt string "root.cap" & info [ "cap-file" ] ~doc)
+    in
+    let mgr_cap_file =
+      let doc = "File to store the manager capability at." in
+      Arg.(value & opt string "root.cap" & info [ "cap-file" ] ~doc)
+    in
+    let term = Term.(const run $ email $ org $ domain $ root_cap $ domain_cap_file $ mgr_cap_file) in
     let doc = "Let's Encrypt Nameserver Client." in
     let info = Cmd.info "lenc" ~doc in
     Cmd.v info term

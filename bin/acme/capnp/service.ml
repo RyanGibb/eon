@@ -74,6 +74,9 @@ module Domain = struct
           Eio.traceln "%a" Capnp_rpc.Error.pp e);
         (* TODO register renewal process *)
         Service.return response
+
+      (* method update_impl params release_param_caps =
+        ... *)
     end
 
   let cert t ~email ~org ~subdomain mgr =
