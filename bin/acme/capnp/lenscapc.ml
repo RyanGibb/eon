@@ -1,5 +1,5 @@
 let run_client email org domain cap =
-  let domain_cap = Service.Root.bind cap domain in
+  let domain_cap = Service.Apex.create cap domain in
   (* callback for provisioned cert *)
   let mgr_cap = Service.CertManager.local (fun result ->
     match result with

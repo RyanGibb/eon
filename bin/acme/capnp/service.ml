@@ -35,7 +35,7 @@ module CertManager = struct
 end
 
 module Domain = struct
-  let local domain provision_cert =
+  let rec local domain provision_cert =
     let module Domain = Api.Service.Domain in
     Domain.local @@ object
       inherit Domain.service
@@ -74,6 +74,22 @@ module Domain = struct
           Eio.traceln "%a" Capnp_rpc.Error.pp e);
         (* TODO register renewal process *)
         Service.return response
+
+      method delegate_impl params release_param_caps =
+        let open Domain.Delegate in
+        let subdomain = Params.subdomain_get params; in
+        release_param_caps ();
+        Eio.traceln "Service.delegate(subdomain='%s')" subdomain;
+        let response, results =
+          Service.Response.create Results.init_pointer
+        in
+        (match Domain_name.of_string subdomain with
+        | Error (`Msg e) ->
+          Eio.traceln "Domain.delegate error parsing domain: %s" e
+        | Ok subdomain ->
+          let domain = Domain_name.append_exn domain subdomain in
+          Results.domain_set results (Some (local domain provision_cert)));
+        Service.return response
     end
 
   let cert t ~email ~org ~subdomain mgr =
@@ -84,33 +100,39 @@ module Domain = struct
     Params.subdomain_set params (Domain_name.to_string subdomain);
     Params.mgr_set params (Some mgr);
     Capability.call_for_unit t method_id request
+
+  let delegate t domain =
+    let open Api.Client.Domain.Delegate in
+    let request, params = Capability.Request.create Params.init_pointer in
+    Params.subdomain_set params (Domain_name.to_string domain);
+    Capability.call_for_caps t method_id request Results.domain_get_pipelined
 end
 
-module Root = struct
+module Apex = struct
   let local provision_cert =
-    let module Root = Api.Service.Root in
-    Root.local @@ object
-      inherit Root.service
+    let module Apex = Api.Service.Apex in
+    Apex.local @@ object
+      inherit Apex.service
 
-      method bind_impl params release_param_caps =
-        let open Root.Bind in
-        let domain = Params.domain_name_get params; in
+      method create_impl params release_param_caps =
+        let open Apex.Create in
+        let domain = Params.name_get params; in
         release_param_caps ();
-        Eio.traceln "Service.bind(domain='%s')" domain;
+        Eio.traceln "Service.create(domain='%s')" domain;
         let response, results =
           Service.Response.create Results.init_pointer
         in
         (match Domain_name.of_string domain with
         | Error (`Msg e) ->
-          Eio.traceln "Root error parsing domain: %s" e
+          Eio.traceln "Apex error parsing domain: %s" e
         | Ok domain ->
           Results.domain_set results (Some (Domain.local domain provision_cert)));
         Service.return response
     end
 
-  let bind t domain =
-    let open Api.Client.Root.Bind in
+  let create t domain =
+    let open Api.Client.Apex.Create in
     let request, params = Capability.Request.create Params.init_pointer in
-    Params.domain_name_set params (Domain_name.to_string domain);
+    Params.name_set params (Domain_name.to_string domain);
     Capability.call_for_caps t method_id request Results.domain_get_pipelined
 end
