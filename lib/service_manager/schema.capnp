@@ -33,6 +33,45 @@ struct CertReq {
   }
 }
 
+enum Proto {
+  tcp @0;
+  udp @1;
+  http3 @2;
+}
+
+struct Address {
+  union {
+    a @0 :Text;
+    aaaa @1 :Text;
+    bdaddr @2 :Text;
+    wifi @3 :Text;
+    lora @4 :Text;
+    dtmf @5 :Text;
+  }
+}
+
+struct HostInfo {
+  addresses @0 :List(Address);
+  arch @1 :Text;
+  location @2 :Text;
+}
+
+interface HostRegistration {
+  register @0 (info: HostInfo) -> (host :Host);
+}
+
+interface Process {
+    # from https://github.com/patricoferris/hoke/tree/main/src/lib/schema.capnp
+    stdout @0 () -> (data :Text);
+    stderr @1 () -> (data :Text);
+    stdin  @2 (data :Text) -> ();
+}
+
+interface Host {
+  getInfo @0 () -> (info :HostInfo);
+  shell @1 () -> (process: Process);
+}
+
 interface Zone {
   # Capability to initalize a Zone for which the nameserver is authorative
   init @0 (name :Text) -> (domain :Domain);
@@ -50,8 +89,14 @@ interface Domain {
   update @2 (prereqs :List(Prereq), updates :List(Update)) -> ();
   # DNS update
 
-  cert @3 (email: Text, org :Text, subdomain :Text, certCallback :CertCallback) -> ();
-  # Request a certificate for a domain ("") / wildcard domain "*"
+  register @3 (
+      subdomain :Text,
+      port: UInt16,
+      proto :Proto,
+      host: Host,
+      certReq :CertReq
+	) -> ();
+  # Register a service at a subdomain
 }
 
 interface CertCallback {
