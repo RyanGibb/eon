@@ -2,7 +2,7 @@ let capnp_serve env cap_file config provision =
   Eio.Switch.run @@ fun sw ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let root_id = Capnp_rpc_unix.Vat_config.derived_id config "apex" in
-  let restore = Capnp_rpc_net.Restorer.single root_id (Service.Apex.local provision) in
+  let restore = Capnp_rpc_net.Restorer.single root_id (Service.Zone.local provision) in
   let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore config in
   match Capnp_rpc_unix.Cap_file.save_service vat root_id cap_file with
   | Error `Msg m -> failwith m

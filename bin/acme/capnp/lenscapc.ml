@@ -1,7 +1,7 @@
 let run_client email org domain cap =
-  let domain_cap = Service.Apex.create cap domain in
+  let domain_cap = Service.Zone.init cap domain in
   (* callback for provisioned cert *)
-  let mgr_cap = Service.CertManager.local (fun result ->
+  let cert_callback_cap = Service.CertCallback.local (fun result ->
     match result with
     | Error (`Cert msg) ->
       Printf.eprintf "%s%!" msg;
@@ -12,7 +12,7 @@ let run_client email org domain cap =
     | Ok (cert, key) ->
       Printf.printf "%s\n%s%!" cert key
   ) in
-  match Service.Domain.cert domain_cap ~email ~org ~subdomain:Domain_name.root mgr_cap with
+  match Service.Domain.cert domain_cap ~email ~org ~subdomain:Domain_name.root cert_callback_cap with
     | Error (`Capnp e) ->
       Format.eprintf "%a" Capnp_rpc.Error.pp e
     | Ok () -> ()
