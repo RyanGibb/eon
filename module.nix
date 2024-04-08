@@ -7,8 +7,8 @@ let cfg = config.services.eon; in
   options.services.eon = {
     enable = mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
     # todo multiple zones, primary and secondary servers
-    zoneFile = mkOption {
-      type = types.either types.str types.path;
+    zoneFiles = mkOption {
+      type = types.listOf (types.either types.str types.path);
     };
     port = lib.mkOption {
       type = lib.types.int;
@@ -50,7 +50,7 @@ let cfg = config.services.eon; in
       serviceConfig = {
         ExecStart =
           "${pkgs.eon.out}/bin/${cfg.application} " +
-            "-z ${cfg.zoneFile} " +
+            (strings.concatMapStrings (zonefile: "-z ${zonefile} ") cfg.zoneFiles) +
             "-p ${builtins.toString cfg.port} " +
             "-l ${builtins.toString cfg.logLevel}";
         Restart = "always";
