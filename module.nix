@@ -2,14 +2,14 @@
 
 with lib;
 
-let cfg = config.services.eon; in
-{
+let cfg = config.services.eon;
+in {
   options.services.eon = {
-    enable = mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
+    enable =
+      mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
     # todo multiple zones, primary and secondary servers
-    zoneFiles = mkOption {
-      type = types.listOf (types.either types.str types.path);
-    };
+    zoneFiles =
+      mkOption { type = types.listOf (types.either types.str types.path); };
     port = lib.mkOption {
       type = lib.types.int;
       default = 53;
@@ -27,13 +27,7 @@ let cfg = config.services.eon; in
       default = 1;
     };
     application = lib.mkOption {
-      type = types.enum [
-        "eon"
-        "resolved"
-        "netcatd"
-        "tund"
-        "cap"
-      ];
+      type = types.enum [ "eon" "resolved" "netcatd" "tund" "cap" ];
       default = "eon";
     };
     openFirewall = lib.mkOption {
@@ -62,10 +56,10 @@ let cfg = config.services.eon; in
         RestartSec = "1s";
         User = cfg.user;
         Group = cfg.group;
-        AmbientCapabilities =
-          [ "CAP_NET_BIND_SERVICE" ] ++
+        WorkingDirectory = "/var/lib/eon";
+        AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ] ++
           # for TUNSETIFF
-          (if cfg.application == "tund" then [ "CAP_NET_ADMIN" ]  else [ ]);
+          (if cfg.application == "tund" then [ "CAP_NET_ADMIN" ] else [ ]);
       };
     };
 
@@ -78,7 +72,7 @@ let cfg = config.services.eon; in
       };
     };
 
-    users.groups."${cfg.group}" = {};
+    users.groups."${cfg.group}" = { };
 
     networking.firewall = lib.mkIf cfg.openFirewall {
       allowedTCPPorts = [ cfg.port ];
