@@ -72,8 +72,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ log_level Dns_log.level_0 $ domain $ subdomain $ port $ nameserver
-        $ netmask $ tunnel_ip)
+        const run $ log_level Dns_log.level_0 $ domain $ subdomain $ port
+        $ nameserver $ netmask $ tunnel_ip)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "tun" ~man ~doc in

@@ -30,7 +30,11 @@ let udp_listen log handle_dns sock =
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
     (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
-    let addr = match addr with `Udp a -> `Udp a | `Unix _ -> failwith "unix domain sockets unsupported" in
+    let addr =
+      match addr with
+      | `Udp a -> `Udp a
+      | `Unix _ -> failwith "unix domain sockets unsupported"
+    in
     log Dns_log.Rx addr trimmedBuf;
     (* fork a thread to process packet and reply, so we can continue to listen for packets *)
     Eio.Fiber.fork ~sw (fun () ->
@@ -90,8 +94,8 @@ let with_handler ~net ~proto handle_dns log addresses =
     (tcp_listen log handle_dns)
     addresses
 
-let primary ~net ~clock ~mono_clock ~proto
-    ?(packet_callback = fun _q -> None) server_state log addresses =
+let primary ~net ~clock ~mono_clock ~proto ?(packet_callback = fun _q -> None)
+    server_state log addresses =
   let handle_dns =
     primary_handle_dns ~clock ~mono_clock server_state packet_callback
   in

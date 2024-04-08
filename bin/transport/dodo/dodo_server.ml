@@ -27,27 +27,32 @@ let run zonefiles log_level addressStrings domain subdomain port proto =
     @@ Dns_resolver.create ~cache_size:29 ~dnssec:false ~ip_protocol:`Ipv4_only
          now rng !server_state
   in
-  Eio.Fiber.fork ~sw (fun () -> Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock
-  ~mono_clock:env#mono_clock ~proto resolver_state (Dns_log.level_1 Format.std_formatter) [ Eio.Net.Ipaddr.V4.any, 5056 ]);
+  Eio.Fiber.fork ~sw (fun () ->
+      Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock
+        ~mono_clock:env#mono_clock ~proto resolver_state
+        (Dns_log.level_1 Format.std_formatter)
+        [ (Eio.Net.Ipaddr.V4.any, 5056) ]);
 
-  let clientSock =
-    Eio.Net.datagram_socket ~sw env#net `UdpV4
-  in
+  let clientSock = Eio.Net.datagram_socket ~sw env#net `UdpV4 in
   Eio.Fiber.both
     (fun () ->
       let buf = Cstruct.create 4096 in
       while true do
         let got = server#recv buf in
         let trimmedBuf = Cstruct.sub buf 0 got in
-        Dns_log.level_1 Format.std_formatter Dns_log.Rx (`Unix "tunneled") trimmedBuf;
-        Eio.Net.send clientSock ~dst:(`Udp (Eio.Net.Ipaddr.V4.loopback, 5056)) [ buf ];
+        Dns_log.level_1 Format.std_formatter Dns_log.Rx (`Unix "tunneled")
+          trimmedBuf;
+        Eio.Net.send clientSock
+          ~dst:(`Udp (Eio.Net.Ipaddr.V4.loopback, 5056))
+          [ buf ]
       done)
     (fun () ->
       let buf = Cstruct.create 4096 in
       while true do
         let addr, size = Eio.Net.recv clientSock buf in
         let trimmedBuf = Cstruct.sub buf 0 size in
-        Dns_log.level_1 Format.std_formatter Dns_log.Tx (`Unix "tunneled") trimmedBuf;
+        Dns_log.level_1 Format.std_formatter Dns_log.Tx (`Unix "tunneled")
+          trimmedBuf;
         server#send trimmedBuf
       done)
 
@@ -74,7 +79,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ domain $ subdomain $ port $ proto)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ domain
+        $ subdomain $ port $ proto)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcatd" ~man ~doc in

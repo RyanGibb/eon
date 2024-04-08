@@ -1,5 +1,4 @@
-let run log_level addressStrings port port2 proto domain subdomain nameserver
-    =
+let run log_level addressStrings port port2 proto domain subdomain nameserver =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = log_level Format.std_formatter in

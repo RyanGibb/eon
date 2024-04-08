@@ -1,21 +1,23 @@
 let run_client email org domain cap =
   let domain_cap = Cap.Zone.init cap domain in
   (* callback for provisioned cert *)
-  let cert_callback_cap = Cap.Cert_callback.local (fun result ->
-    match result with
-    | Error (`Cert msg) ->
-      Printf.eprintf "%s%!" msg;
-      Unix._exit 1
-    | Error (`Capnp e) ->
-      Format.printf "%a%!" Capnp_rpc.Error.pp e;
-      Unix._exit 1
-    | Ok (cert, key) ->
-      Printf.printf "%s\n%s%!" cert key
-  ) in
-  match Cap.Domain.cert domain_cap ~email ~org ~subdomain:Domain_name.root cert_callback_cap with
-    | Error (`Capnp e) ->
-      Format.eprintf "%a" Capnp_rpc.Error.pp e
-    | Ok () -> ()
+  let cert_callback_cap =
+    Cap.Cert_callback.local (fun result ->
+        match result with
+        | Error (`Cert msg) ->
+            Printf.eprintf "%s%!" msg;
+            Unix._exit 1
+        | Error (`Capnp e) ->
+            Format.printf "%a%!" Capnp_rpc.Error.pp e;
+            Unix._exit 1
+        | Ok (cert, key) -> Printf.printf "%s\n%s%!" cert key)
+  in
+  match
+    Cap.Domain.cert domain_cap ~email ~org ~subdomain:Domain_name.root
+      cert_callback_cap
+  with
+  | Error (`Capnp e) -> Format.eprintf "%a" Capnp_rpc.Error.pp e
+  | Ok () -> ()
 
 let run email org domain connect_addr =
   Eio_main.run @@ fun env ->
@@ -37,11 +39,15 @@ let () =
     in
     let org =
       let doc = "The name of the organization requesting the certificate." in
-      Arg.(required & pos 2 (some string) None & info [] ~docv:"ORGANIZATION" ~doc)
+      Arg.(
+        required & pos 2 (some string) None & info [] ~docv:"ORGANIZATION" ~doc)
     in
     let domain =
       let doc = "The domain for which to request the certificate." in
-      Arg.(required & pos 3 (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [] ~docv:"DOMAIN" ~doc)
+      Arg.(
+        required
+        & pos 3 (some (conv (Domain_name.of_string, Domain_name.pp))) None
+        & info [] ~docv:"DOMAIN" ~doc)
     in
     let term = Term.(const run $ email $ org $ domain $ connect_addr) in
     let doc = "Let's Encrypt Nameserver Client." in

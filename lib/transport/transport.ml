@@ -1,4 +1,3 @@
-
 class virtual dns_datagram =
   object
     method virtual send : Cstruct.t -> unit
@@ -17,7 +16,10 @@ let max_encoded_len =
 
 let buf_of_domain_name sudbomain name =
   let ( let* ) = Option.bind in
-  let* i = Domain_name.find_label name (fun s -> String.equal sudbomain (String.lowercase_ascii s)) in
+  let* i =
+    Domain_name.find_label name (fun s ->
+        String.equal sudbomain (String.lowercase_ascii s))
+  in
   let data_name =
     Domain_name.drop_label_exn ~rev:true
       ~amount:(Domain_name.count_labels name - i)
@@ -196,7 +198,7 @@ end = struct
     in
     if empty then None else Some read
 
-    let take_one t buf =
+  let take_one t buf =
     Eio.Mutex.use_rw t.mut ~protect:false (fun () ->
         let rec f () =
           match !(t.items) with
@@ -212,13 +214,13 @@ end = struct
         in
         f ())
 
-      let try_take_one t =
-        Eio.Mutex.use_rw t.mut ~protect:false (fun () ->
-            match !(t.items) with
-            | [] -> None
-            | packet :: new_items ->
-                t.items := new_items;
-                Some packet)
+  let try_take_one t =
+    Eio.Mutex.use_rw t.mut ~protect:false (fun () ->
+        match !(t.items) with
+        | [] -> None
+        | packet :: new_items ->
+            t.items := new_items;
+            Some packet)
 end
 
 let create_flow ~inc ~out =
@@ -234,24 +236,20 @@ let create_flow ~inc ~out =
         done
       with End_of_file -> ()
 
-      let single_write _t bufs =
+    let single_write _t bufs =
       CstructStream.add out bufs;
       List.fold_left (fun acc buf -> acc + Cstruct.length buf) 0 bufs
 
-      let read_methods = []
-
-      let single_read _t buf =
-      CstructStream.take inc buf
-
-      let shutdown _t _cmd = ()
+    let read_methods = []
+    let single_read _t buf = CstructStream.take inc buf
+    let shutdown _t _cmd = ()
   end in
   let ops = Eio.Flow.Pi.two_way (module CstructFlow) in
   Eio.Resource.T ((), ops)
 
 let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
     server_state log addresses =
-  let inc = CstructStream.create ()
-  and out = CstructStream.create () in
+  let inc = CstructStream.create () and out = CstructStream.create () in
 
   (* TODO mutex *)
   let last_recv_seq_no = ref (-1)
@@ -359,8 +357,7 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
 
 let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
     authority port log =
-  let inc = CstructStream.create ()
-  and out = CstructStream.create () in
+  let inc = CstructStream.create () and out = CstructStream.create () in
 
   (* TODO support different queries, or probing access *)
   let record_type = Dns.Rr_map.Cname
@@ -571,16 +568,14 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
           recv_packet_id := packet.packet_id;
           recv_next_frag_no := 0;
           recv_frags := []);
-        if packet.frag_no == !recv_next_frag_no then (
-          recv_frags := !recv_frags @ [ packet.data ];
-          recv_next_frag_no := !recv_next_frag_no + 1;
-          if packet.frag_no == packet.no_frags - 1 then (
-            CstructStream.add inc [ Cstruct.concat !recv_frags ];
-            recv_packet_id := 0;
-            recv_next_frag_no := 0;
-            recv_frags := []
-          )
-        );
+      if packet.frag_no == !recv_next_frag_no then (
+        recv_frags := !recv_frags @ [ packet.data ];
+        recv_next_frag_no := !recv_next_frag_no + 1;
+        if packet.frag_no == packet.no_frags - 1 then (
+          CstructStream.add inc [ Cstruct.concat !recv_frags ];
+          recv_packet_id := 0;
+          recv_next_frag_no := 0;
+          recv_frags := []));
       let get_frag () =
         let frag_buf =
           let offset = !send_next_frag_no * mtu in
@@ -588,24 +583,23 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
             (min mtu (Cstruct.length !send_packet - offset))
         in
         let p =
-          FragPacket.encode !send_packet_id !send_next_frag_no
-            !send_no_frags frag_buf
+          FragPacket.encode !send_packet_id !send_next_frag_no !send_no_frags
+            frag_buf
         in
         if !send_next_frag_no < !send_no_frags - 1 then
           send_next_frag_no := !send_next_frag_no + 1
         else send_packet_id := 0;
         p
       in
-      if !send_packet_id == 0 then
+      if !send_packet_id == 0 then (
         match CstructStream.try_take_one out with
         | None -> FragPacket.encode 0 0 0 Cstruct.empty
-        | Some packet -> (
-          send_packet := packet;
-          send_packet_id := !send_packet_id + 1;
-          send_next_frag_no := 0;
-          send_no_frags := (Cstruct.length packet + (mtu - 1)) / mtu;
-          get_frag ()
-        )
+        | Some packet ->
+            send_packet := packet;
+            send_packet_id := !send_packet_id + 1;
+            send_next_frag_no := 0;
+            send_no_frags := (Cstruct.length packet + (mtu - 1)) / mtu;
+            get_frag ())
       else get_frag ()
     in
 

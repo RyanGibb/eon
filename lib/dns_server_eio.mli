@@ -6,7 +6,7 @@ type dns_handler =
 
 val with_handler :
   net:_ Eio.Net.t ->
-  proto:[`Tcp | `Udp ] list ->
+  proto:[ `Tcp | `Udp ] list ->
   dns_handler ->
   Dns_log.formattedLog ->
   (Eio.Net.Ipaddr.v4v6 * int) list ->
@@ -16,7 +16,7 @@ val primary :
   net:_ Eio.Net.t ->
   clock:_ Eio.Time.clock ->
   mono_clock:_ Eio.Time.Mono.t ->
-  proto:[`Tcp | `Udp ] list ->
+  proto:[ `Tcp | `Udp ] list ->
   ?packet_callback:Dns_server.packet_callback ->
   Dns_server.Primary.s ref ->
   Dns_log.formattedLog ->

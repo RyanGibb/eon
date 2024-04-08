@@ -10,4 +10,4 @@ val send_query :
   unit
 
 val listen :
- _ Eio.Net.datagram_socket -> Dns_log.formattedLog -> dns_handler -> unit
+  _ Eio.Net.datagram_socket -> Dns_log.formattedLog -> dns_handler -> unit

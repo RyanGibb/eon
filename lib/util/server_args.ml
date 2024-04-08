@@ -7,13 +7,18 @@ let zonefiles =
 
 let log_level default =
   let doc = "Log level for DNS packets. See the LOGGING section." in
-  let log_levels = [
-    ("0", Dns_log.level_0);
-    ("1", Dns_log.level_1);
-    ("2", Dns_log.level_2);
-    ("3", Dns_log.level_3);
-  ] in
-  Arg.(value & opt (enum log_levels) default & info  [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc)
+  let log_levels =
+    [
+      ("0", Dns_log.level_0);
+      ("1", Dns_log.level_1);
+      ("2", Dns_log.level_2);
+      ("3", Dns_log.level_3);
+    ]
+  in
+  Arg.(
+    value
+    & opt (enum log_levels) default
+    & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc)
 
 let port =
   let doc =
@@ -28,8 +33,7 @@ let addresses =
   in
   Arg.(
     (* :: is IPv6 local *)
-    value & opt_all string [ "::" ]
-    & info [ "b"; "bind" ] ~docv:"BIND" ~doc)
+    value & opt_all string [ "::" ] & info [ "b"; "bind" ] ~docv:"BIND" ~doc)
 
 let parse_addresses port addressStrings =
   List.map
@@ -46,18 +50,20 @@ let parse_addresses port addressStrings =
     addressStrings
 
 let proto =
-  let doc = "The protocols to use when binding to sockets, either `tcp` or `udp`. Defaults to both." in
-  let protos = [
-    ("tcp", [`Tcp]);
-    ("udp", [`Udp]);
-    ("both", [`Tcp; `Udp]);
-  ] in
-  Arg.(value & opt (enum protos) [`Tcp; `Udp] & info [ "proto" ] ~docv:"PROTOCOL" ~doc)
+  let doc =
+    "The protocols to use when binding to sockets, either `tcp` or `udp`. \
+     Defaults to both."
+  in
+  let protos =
+    [ ("tcp", [ `Tcp ]); ("udp", [ `Udp ]); ("both", [ `Tcp; `Udp ]) ]
+  in
+  Arg.(
+    value
+    & opt (enum protos) [ `Tcp; `Udp ]
+    & info [ "proto" ] ~docv:"PROTOCOL" ~doc)
 
 let resolver =
-  let doc =
-    "Whether to operate as a recursive resolver."
-  in
+  let doc = "Whether to operate as a recursive resolver." in
   Arg.(value & flag & info [ "r"; "resolver" ] ~docv:"RESOLVER" ~doc)
 
 let man =

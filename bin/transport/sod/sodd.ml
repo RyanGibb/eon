@@ -12,11 +12,15 @@ let run_shell ~stdout ~stdin pty =
       [
         (fun () ->
           Eio.Switch.run @@ fun sw ->
-          let sink = Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd in
+          let sink =
+            Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd
+          in
           Eio.Flow.copy stdin sink);
         (fun () ->
           Eio.Switch.run @@ fun sw ->
-          let source = Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd in
+          let source =
+            Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd
+          in
           Eio.Flow.copy source stdout);
         (fun () ->
           Eio.Condition.await_no_mutex sigchld;
@@ -83,7 +87,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ subdomain $ port $ proto)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses
+        $ subdomain $ port $ proto)
     in
     let info = Cmd.info "sodd" ~man in
     Cmd.v info term

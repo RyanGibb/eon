@@ -3,7 +3,17 @@
  (modules lenscap)
  (public_name lenscap)
  (package eon)
- (libraries dns_server_eio server_args dns_log dns_acme dns eio_main service_manager capnp-rpc-lwt capnp-rpc-unix logs.fmt))
+ (libraries
+  dns_server_eio
+  server_args
+  dns_log
+  dns_acme
+  dns
+  eio_main
+  service_manager
+  capnp-rpc-lwt
+  capnp-rpc-unix
+  logs.fmt))
 
 (executable
  (name lenscapc)

@@ -44,7 +44,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ log_level Dns_log.level_0 $ domain $ subdomain $ port $ nameserver)
+        const run $ log_level Dns_log.level_0 $ domain $ subdomain $ port
+        $ nameserver)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcat" ~man ~doc in

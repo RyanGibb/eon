@@ -95,7 +95,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ log_level Dns_log.level_0 $ domain $ subdomain $ port $ nameserver)
+        const run $ log_level Dns_log.level_0 $ domain $ subdomain $ port
+        $ nameserver)
     in
     let info = Cmd.info "sod" ~man in
     Cmd.v info term

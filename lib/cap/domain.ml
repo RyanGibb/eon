@@ -89,59 +89,105 @@ let rec local env domain server_state provision_cert =
 
          let record_of_capnp record =
            match Rr_map.of_string (Record.type_get record) with
-             | Ok K rr ->
+           | Ok (K rr) -> (
                let value = Record.value_get record in
-               (match rr with
-                 | Cname -> Rr_map.(B (Cname, (Record.ttl_get record, Domain_name.of_string_exn value)))
-                 | A -> Rr_map.(B (A, (Record.ttl_get record, Ipaddr.V4.Set.singleton (Ipaddr.V4.of_string_exn value))));
-                 | Aaaa -> Rr_map.(B (Aaaa, (Record.ttl_get record, Ipaddr.V6.Set.singleton (Ipaddr.V6.of_string_exn value))));
-                 (* TODO more rr types *)
-                 | _ -> raise Exit)
-             (* TODO proper error handling *)
-             | Error _e -> raise Exit
+               match rr with
+               | Cname ->
+                   Rr_map.(
+                     B
+                       ( Cname,
+                         (Record.ttl_get record, Domain_name.of_string_exn value)
+                       ))
+               | A ->
+                   Rr_map.(
+                     B
+                       ( A,
+                         ( Record.ttl_get record,
+                           Ipaddr.V4.Set.singleton
+                             (Ipaddr.V4.of_string_exn value) ) ))
+               | Aaaa ->
+                   Rr_map.(
+                     B
+                       ( Aaaa,
+                         ( Record.ttl_get record,
+                           Ipaddr.V6.Set.singleton
+                             (Ipaddr.V6.of_string_exn value) ) ))
+               (* TODO more rr types *)
+               | _ -> raise Exit)
+           (* TODO proper error handling *)
+           | Error _e -> raise Exit
          in
          let add_to_list name a map =
-           let base = match Domain_name.Map.find name map with None -> [] | Some x -> x in
-           Domain_name.Map.add name (base @ [a]) map
+           let base =
+             match Domain_name.Map.find name map with None -> [] | Some x -> x
+           in
+           Domain_name.Map.add name (base @ [ a ]) map
          in
-         let prereqs = Capnp.Array.fold_right
-              ~f:(fun prereq map ->
-                let open Api.Reader in
-                match Prereq.get prereq with
-                | Prereq.Exists record -> add_to_list (name_of_capnp record) (Dns.Packet.Update.Exists (record_type_of_capnp record)) map
-                | Prereq.ExistsData record -> add_to_list (name_of_capnp record) (Dns.Packet.Update.Exists_data (record_of_capnp record)) map
-                | Prereq.NotExists record -> add_to_list (name_of_capnp record) (Dns.Packet.Update.Not_exists (record_type_of_capnp record)) map
-                | Prereq.NameInUse record -> add_to_list (name_of_capnp record) (Dns.Packet.Update.Name_inuse) map
-                | Prereq.NotNameInUse record -> add_to_list (name_of_capnp record) (Dns.Packet.Update.Not_name_inuse) map
-                (* TODO proper error handling *)
-                | Prereq.Undefined _ -> raise Exit
-              )
-              ~init:Domain_name.Map.empty
-              prereqs in
-         let updates = Capnp.Array.fold_right
-              ~f:(fun update map ->
-                let open Api.Reader in
-                match Update.get update with
-                | Update.Add record -> add_to_list (name_of_capnp record) (Dns.Packet.Update.Add (record_of_capnp record)) map
-                | Update.Remove record -> add_to_list (name_of_capnp record) (Dns.Packet.Update.Remove (record_type_of_capnp record)) map
-                | Update.RemoveAll record -> add_to_list (name_of_capnp record) (Dns.Packet.Update.Remove_all) map
-                | Update.RemoveSingle record -> add_to_list (name_of_capnp record) (Dns.Packet.Update.Remove_single (record_of_capnp record)) map
-                (* TODO proper error handling *)
-                | Update.Undefined _ -> raise Exit
-              )
-              ~init:Domain_name.Map.empty
-              updates in
+         let prereqs =
+           Capnp.Array.fold_right
+             ~f:(fun prereq map ->
+               let open Api.Reader in
+               match Prereq.get prereq with
+               | Prereq.Exists record ->
+                   add_to_list (name_of_capnp record)
+                     (Dns.Packet.Update.Exists (record_type_of_capnp record))
+                     map
+               | Prereq.ExistsData record ->
+                   add_to_list (name_of_capnp record)
+                     (Dns.Packet.Update.Exists_data (record_of_capnp record))
+                     map
+               | Prereq.NotExists record ->
+                   add_to_list (name_of_capnp record)
+                     (Dns.Packet.Update.Not_exists (record_type_of_capnp record))
+                     map
+               | Prereq.NameInUse record ->
+                   add_to_list (name_of_capnp record)
+                     Dns.Packet.Update.Name_inuse map
+               | Prereq.NotNameInUse record ->
+                   add_to_list (name_of_capnp record)
+                     Dns.Packet.Update.Not_name_inuse map
+               (* TODO proper error handling *)
+               | Prereq.Undefined _ -> raise Exit)
+             ~init:Domain_name.Map.empty prereqs
+         in
+         let updates =
+           Capnp.Array.fold_right
+             ~f:(fun update map ->
+               let open Api.Reader in
+               match Update.get update with
+               | Update.Add record ->
+                   add_to_list (name_of_capnp record)
+                     (Dns.Packet.Update.Add (record_of_capnp record))
+                     map
+               | Update.Remove record ->
+                   add_to_list (name_of_capnp record)
+                     (Dns.Packet.Update.Remove (record_type_of_capnp record))
+                     map
+               | Update.RemoveAll record ->
+                   add_to_list (name_of_capnp record)
+                     Dns.Packet.Update.Remove_all map
+               | Update.RemoveSingle record ->
+                   add_to_list (name_of_capnp record)
+                     (Dns.Packet.Update.Remove_single (record_of_capnp record))
+                     map
+               (* TODO proper error handling *)
+               | Update.Undefined _ -> raise Exit)
+             ~init:Domain_name.Map.empty updates
+         in
          (* TODO locking *)
          let trie = Dns_server.Primary.data !server_state in
          (match Dns_server.update_data trie domain (prereqs, updates) with
          | Ok (trie, _) ->
-           let new_server_state, _notifications =
-             let now = Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
-             and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
-             Dns_server.Primary.with_data !server_state now ts trie
-           in
-           server_state := new_server_state
-          (* TODO proper error handling *)
+             let new_server_state, _notifications =
+               let now =
+                 Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
+               and ts =
+                 Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock
+               in
+               Dns_server.Primary.with_data !server_state now ts trie
+             in
+             server_state := new_server_state
+         (* TODO proper error handling *)
          | Error _rcode -> raise Exit);
          let response, _results =
            Service.Response.create Results.init_pointer
@@ -163,4 +209,3 @@ let delegate t domain =
   let request, params = Capability.Request.create Params.init_pointer in
   Params.subdomain_set params (Domain_name.to_string domain);
   Capability.call_for_caps t method_id request Results.domain_get_pipelined
-

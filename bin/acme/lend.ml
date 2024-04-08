@@ -2,22 +2,31 @@ module Eiox = struct
   (* UPSTREAM: need an Eio file exists check without opening *)
   let file_exists f =
     Eio.Switch.run @@ fun sw ->
-    try ignore(Eio.Path.open_in ~sw f); true
+    try
+      ignore (Eio.Path.open_in ~sw f);
+      true
     with _ -> false
 end
 
 let generate_cert ~email ~org ~domain cert_root prod server_state env =
-  let read_pem filepath decode_pem = match Eiox.file_exists filepath with
-  | true -> Some (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem |> Tls_le.errcheck)
-  | false -> None
+  let read_pem filepath decode_pem =
+    match Eiox.file_exists filepath with
+    | true ->
+        Some
+          (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem
+         |> Tls_le.errcheck)
+    | false -> None
   in
   let write_pem filepath pem =
-    Eio.Path.save ~create:(`Or_truncate 0o600) filepath (pem |> Cstruct.to_string)
+    Eio.Path.save ~create:(`Or_truncate 0o600) filepath
+      (pem |> Cstruct.to_string)
   in
   let ( / ) = Eio.Path.( / ) in
   let open X509 in
   Eio.Switch.run @@ fun sw ->
-  let cert_dir = Eio.Path.open_dir ~sw (env#fs / (Domain_name.to_string domain) / cert_root) in
+  let cert_dir =
+    Eio.Path.open_dir ~sw (env#fs / Domain_name.to_string domain / cert_root)
+  in
   let account_key_file = cert_dir / "account.pem" in
   let private_key_file = cert_dir / "privkey.pem" in
   let csr_file = cert_dir / "csr.pem" in
@@ -25,7 +34,10 @@ let generate_cert ~email ~org ~domain cert_root prod server_state env =
   let account_key = read_pem account_key_file Private_key.decode_pem in
   let private_key = read_pem private_key_file Private_key.decode_pem in
   try
-    let cert, account_key, private_key, csr = Dns_acme.provision_cert prod server_state env ?account_key ?private_key ~email ~org domain  in
+    let cert, account_key, private_key, csr =
+      Dns_acme.provision_cert prod server_state env ?account_key ?private_key
+        ~email ~org domain
+    in
     write_pem account_key_file (Private_key.encode_pem account_key);
     write_pem private_key_file (Private_key.encode_pem private_key);
     write_pem csr_file (Signing_request.encode_pem csr);
@@ -39,9 +51,10 @@ let read_request sock =
   let org = Eio.Buf_read.line buffer in
   let domain = Eio.Buf_read.line buffer in
   Eio.Flow.shutdown sock `Receive;
-  email, org, domain
+  (email, org, domain)
 
-let run zonefiles log_level addressStrings port proto prod cert_root socket_path =
+let run zonefiles log_level addressStrings port proto prod cert_root socket_path
+    =
   Eio_main.run @@ fun env ->
   let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
@@ -58,24 +71,25 @@ let run zonefiles log_level addressStrings port proto prod cert_root socket_path
   in
 
   Eio.Switch.run @@ fun sw ->
-  Eio.Fiber.fork ~sw (fun () -> Dns_server_eio.primary ~net:env#net ~clock:env#clock
-    ~mono_clock:env#mono_clock ~proto server_state log addresses);
+  Eio.Fiber.fork ~sw (fun () ->
+      Dns_server_eio.primary ~net:env#net ~clock:env#clock
+        ~mono_clock:env#mono_clock ~proto server_state log addresses);
 
   let socket = Eio.Net.listen ~backlog:128 ~sw env#net (`Unix socket_path) in
   while true do
     let sock, _addr = Eio.Net.accept ~sw socket in
     Eio.Fiber.fork ~sw (fun () ->
-      let email, org, domain = read_request sock in
-      let msg =
-        match Domain_name.of_string domain with
-        | Error (`Msg e) -> "Error: " ^ e
-        | Ok domain ->
-          generate_cert ~email ~org ~domain cert_root prod server_state env
-      in
-      Eio.traceln "Recieved request: email '%s'; org '%s'; domain '%s'" email org domain;
-      Eio.Flow.copy_string msg sock;
-      Eio.Flow.shutdown sock `All
-    )
+        let email, org, domain = read_request sock in
+        let msg =
+          match Domain_name.of_string domain with
+          | Error (`Msg e) -> "Error: " ^ e
+          | Ok domain ->
+              generate_cert ~email ~org ~domain cert_root prod server_state env
+        in
+        Eio.traceln "Recieved request: email '%s'; org '%s'; domain '%s'" email
+          org domain;
+        Eio.Flow.copy_string msg sock;
+        Eio.Flow.shutdown sock `All)
   done
 
 let () =
@@ -92,11 +106,15 @@ let () =
     in
     let socket_path =
       let doc = "The path to the Unix domain socket." in
-      Arg.(value & opt string "/run/lend/cert.socket" & info ["s"; "socket"] ~docv:"SOCKET_PATH" ~doc)
+      Arg.(
+        value
+        & opt string "/run/lend/cert.socket"
+        & info [ "s"; "socket" ] ~docv:"SOCKET_PATH" ~doc)
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ cert_dir $ socket_path)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port
+        $ proto $ prod $ cert_dir $ socket_path)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "lend" ~doc ~man in

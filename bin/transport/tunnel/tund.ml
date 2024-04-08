@@ -1,5 +1,5 @@
-let run zonefiles log_level addressStrings domain subdomain port proto
-    netmask tunnel_ip =
+let run zonefiles log_level addressStrings domain subdomain port proto netmask
+    tunnel_ip =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = log_level Format.std_formatter in
@@ -72,8 +72,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ domain $ subdomain $ port
-        $ proto $ netmask $ tunnel_ip)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ domain
+        $ subdomain $ port $ proto $ netmask $ tunnel_ip)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "tund" ~man ~doc in
