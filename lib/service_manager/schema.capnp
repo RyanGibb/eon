@@ -2,8 +2,9 @@
 
 struct Record {
   name @0 :Text;
-  type @1 :Int32;
-  value @2 :Text;
+  type @1 :Text;
+  ttl @2 :Int32;
+  value @3 :Text;
 }
 
 struct Prereq {
@@ -11,8 +12,8 @@ struct Prereq {
     exists @0 :Record;
     existsData @1 :Record;
     notExists @2 :Record;
-    nameInuse @3 :Record;
-    notnameInuse @4 :Record;
+    nameInUse @3 :Record;
+    notNameInUse @4 :Record;
   }
 }
 
