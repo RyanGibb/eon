@@ -32,6 +32,7 @@ let cfg = config.services.eon; in
         "resolved"
         "netcatd"
         "tund"
+        "cap"
       ];
       default = "eon";
     };
@@ -48,11 +49,15 @@ let cfg = config.services.eon; in
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        ExecStart =
-          "${pkgs.eon.out}/bin/${cfg.application} " +
-            (strings.concatMapStrings (zonefile: "-z ${zonefile} ") cfg.zoneFiles) +
-            "-p ${builtins.toString cfg.port} " +
-            "-l ${builtins.toString cfg.logLevel}";
+        ExecStart = "${pkgs.eon.out}/bin/${cfg.application} "
+          + (strings.concatMapStrings (zonefile: "-z ${zonefile} ")
+            cfg.zoneFiles) + "-p ${builtins.toString cfg.port} "
+          + "-l ${builtins.toString cfg.logLevel} "
+          + (if cfg.application == "cap" then
+            "--capnp-secret-key-file /var/lib/eon/capnp-secret.pem "
+            + "--capnp-listen-address tcp:0.0.0.0:7000 "
+          else
+            "");
         Restart = "always";
         RestartSec = "1s";
         User = cfg.user;
