@@ -75,7 +75,7 @@ let () =
         $ proto $ prod $ authorative $ cap_file $ Capnp_rpc_unix.Vat_config.cmd)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
-    let info = Cmd.info "lend" ~doc ~man in
+    let info = Cmd.info "cap" ~doc ~man in
     Cmd.v info term
   in
   exit (Cmd.eval cmd)

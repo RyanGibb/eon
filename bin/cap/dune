@@ -1,7 +1,7 @@
 (executable
- (name lenscap)
- (modules lenscap)
- (public_name lenscap)
+ (name cap)
+ (modules cap)
+ (public_name cap)
  (package eon)
  (libraries
   dns_server_eio
@@ -10,14 +10,14 @@
   dns_acme
   dns
   eio_main
-  service_manager
+  cap
   capnp-rpc-lwt
   capnp-rpc-unix
   logs.fmt))
 
 (executable
- (name lenscapc)
- (modules lenscapc)
- (public_name lenscapc)
+ (name capc)
+ (modules capc)
+ (public_name capc)
  (package eon)
  (libraries cap eio_main capnp-rpc-lwt capnp-rpc-unix))

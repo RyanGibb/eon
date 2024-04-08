@@ -51,7 +51,7 @@ let () =
     in
     let term = Term.(const run $ email $ org $ domain $ connect_addr) in
     let doc = "Let's Encrypt Nameserver Client." in
-    let info = Cmd.info "lenc" ~doc in
+    let info = Cmd.info "cap" ~doc in
     Cmd.v info term
   in
   exit (Cmd.eval cmd)
