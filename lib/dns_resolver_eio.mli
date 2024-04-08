@@ -3,9 +3,7 @@ type dns_handler =
   Eio.Net.Sockaddr.t ->
   Cstruct.t ->
   (* answers *)
-  (Dns.proto * Ipaddr.t * int * Cstruct.t) list
-  (* queries *)
-  * (Dns.proto * Ipaddr.t * Cstruct.t) list
+  (Dns.proto * Ipaddr.t * int * Cstruct.t) list (* queries *) * (Dns.proto * Ipaddr.t * Cstruct.t) list
 
 val resolver :
   net:_ Eio.Net.t ->

@@ -14,9 +14,7 @@ let local callback =
            | true -> Ok (Params.cert_get params, Params.key_get params)
            | false -> Error (`Cert (Params.error_get params)));
          release_param_caps ();
-         let response, _results =
-           Service.Response.create Results.init_pointer
-         in
+         let response, _results = Service.Response.create Results.init_pointer in
          Service.return response
      end
 
@@ -26,11 +24,6 @@ let register t success error cert key =
   Params.success_set params success;
   Params.error_set params error;
   Params.cert_set params
-    (match cert with
-    | None -> ""
-    | Some v -> v |> X509.Certificate.encode_pem_multiple |> Cstruct.to_string);
-  Params.key_set params
-    (match key with
-    | None -> ""
-    | Some v -> v |> X509.Private_key.encode_pem |> Cstruct.to_string);
+    (match cert with None -> "" | Some v -> v |> X509.Certificate.encode_pem_multiple |> Cstruct.to_string);
+  Params.key_set params (match key with None -> "" | Some v -> v |> X509.Private_key.encode_pem |> Cstruct.to_string);
   Capability.call_for_unit t method_id request

@@ -1,8 +1,7 @@
 (* The plumbing for a process to send and receive DNS packets.
    Takes a `dns_handler` that returns a list of answers *)
 
-type dns_handler =
-  Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
+type dns_handler = Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
 
 val with_handler :
   net:_ Eio.Net.t ->

@@ -15,9 +15,7 @@ let local env server_state provision_cert =
          let response, results = Service.Response.create Results.init_pointer in
          (match Domain_name.of_string domain with
          | Error (`Msg e) -> Eio.traceln "Zone error parsing domain: %s" e
-         | Ok domain ->
-             Results.domain_set results
-               (Some (Domain.local env domain server_state provision_cert)));
+         | Ok domain -> Results.domain_set results (Some (Domain.local env domain server_state provision_cert)));
          Service.return response
      end
 

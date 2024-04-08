@@ -3,9 +3,7 @@ type dns_handler =
   Eio.Net.Sockaddr.t ->
   Cstruct.t ->
   (* answers *)
-  (Dns.proto * Ipaddr.t * int * Cstruct.t) list
-  (* queries *)
-  * (Dns.proto * Ipaddr.t * Cstruct.t) list
+  (Dns.proto * Ipaddr.t * int * Cstruct.t) list (* queries *) * (Dns.proto * Ipaddr.t * Cstruct.t) list
 
 let resolver_handle_dns ~clock ~mono_clock resolver_state : dns_handler =
  fun proto (addr : Eio.Net.Sockaddr.t) buf ->
@@ -19,10 +17,7 @@ let resolver_handle_dns ~clock ~mono_clock resolver_state : dns_handler =
           (* convert IPV6-mapped arrs to IPv4 in order to avoid an unsolicited reply error *)
           (* another option would be to list listen on ipv4 -- but getting a `send_msg` error doing that *)
           match ip with
-          | Ipaddr.V6 i -> (
-              match Ipaddr.v4_of_v6 i with
-              | Some i -> (Ipaddr.V4 i, p)
-              | None -> (ip, p))
+          | Ipaddr.V6 i -> ( match Ipaddr.v4_of_v6 i with Some i -> (Ipaddr.V4 i, p) | None -> (ip, p))
           | _ -> (ip, p))
       | `Unix _ -> failwith "Unix sockets not supported"
     in
@@ -42,11 +37,7 @@ let udp_listen log handle_dns sock =
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
     (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
-    let addr =
-      match addr with
-      | `Udp a -> `Udp a
-      | `Unix _ -> failwith "unix domain sockets unsupported"
-    in
+    let addr = match addr with `Udp a -> `Udp a | `Unix _ -> failwith "unix domain sockets unsupported" in
     log Dns_log.Rx addr trimmedBuf;
     (* fork a thread to process packet and reply, so we can continue to listen for packets *)
     Eio.Fiber.fork ~sw (fun () ->
@@ -62,9 +53,7 @@ let udp_listen log handle_dns sock =
         List.iter
           (fun (_proto, ip, b) ->
             (* TODO handle proto *)
-            let addr =
-              `Udp (Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw, 53)
-            in
+            let addr = `Udp (Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw, 53) in
             log Dns_log.Tx addr b;
             Eio.Net.send sock ~dst:addr [ b ])
           queries)
@@ -93,9 +82,7 @@ let tcp_handle log handle_dns : _ Eio.Net.connection_handler =
             (fun (_proto, ip, p, b) ->
               (* TODO handle proto *)
               (* TODO send to different addrs *)
-              let _addr =
-                `Udp (Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw, p)
-              in
+              let _addr = `Udp (Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw, p) in
               log Dns_log.Tx addr b;
               (* add prefix, described in rfc1035 section 4.2.2 *)
               let prefix = Cstruct.create 2 in
@@ -107,9 +94,7 @@ let tcp_handle log handle_dns : _ Eio.Net.connection_handler =
               (* TODO handle proto *)
               log Dns_log.Tx addr b;
               (* TODO send to different addrs *)
-              let _addr =
-                `Udp (Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw, 53)
-              in
+              let _addr = `Udp (Ipaddr.to_octets ip |> Eio.Net.Ipaddr.of_raw, 53) in
               Eio.Flow.write sock [ prefix; b ])
             queries)
     done
@@ -119,17 +104,12 @@ let tcp_handle log handle_dns : _ Eio.Net.connection_handler =
 let tcp_listen log handle_dns sock =
   while true do
     let on_error err =
-      Format.fprintf Format.err_formatter "Error handling connection: %a\n"
-        Fmt.exn err;
+      Format.fprintf Format.err_formatter "Error handling connection: %a\n" Fmt.exn err;
       Format.pp_print_flush Format.err_formatter ()
     in
-    Eio.Switch.run @@ fun sw ->
-    Eio.Net.accept_fork ~sw sock ~on_error (tcp_handle log handle_dns)
+    Eio.Switch.run @@ fun sw -> Eio.Net.accept_fork ~sw sock ~on_error (tcp_handle log handle_dns)
   done
 
 let resolver ~net ~clock ~mono_clock ~proto resolver_state log addresses =
   let handle_dns = resolver_handle_dns ~clock ~mono_clock resolver_state in
-  Listen.on_addrs ~net ~proto
-    (udp_listen log handle_dns)
-    (tcp_listen log handle_dns)
-    addresses
+  Listen.on_addrs ~net ~proto (udp_listen log handle_dns) (tcp_listen log handle_dns) addresses

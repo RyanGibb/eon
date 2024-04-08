@@ -16,15 +16,8 @@ let max_encoded_len =
 
 let buf_of_domain_name sudbomain name =
   let ( let* ) = Option.bind in
-  let* i =
-    Domain_name.find_label name (fun s ->
-        String.equal sudbomain (String.lowercase_ascii s))
-  in
-  let data_name =
-    Domain_name.drop_label_exn ~rev:true
-      ~amount:(Domain_name.count_labels name - i)
-      name
-  in
+  let* i = Domain_name.find_label name (fun s -> String.equal sudbomain (String.lowercase_ascii s)) in
+  let data_name = Domain_name.drop_label_exn ~rev:true ~amount:(Domain_name.count_labels name - i) name in
   let root = Domain_name.drop_label_exn ~amount:i name in
   let data_array = Domain_name.to_array data_name in
   let data = String.concat "" (Array.to_list data_array) in
@@ -141,11 +134,7 @@ end = struct
 end
 
 module CstructStream : sig
-  type t = {
-    items : Cstruct.t list ref;
-    mut : Eio.Mutex.t;
-    cond : Eio.Condition.t;
-  }
+  type t = { items : Cstruct.t list ref; mut : Eio.Mutex.t; cond : Eio.Condition.t }
 
   exception Empty
 
@@ -156,20 +145,11 @@ module CstructStream : sig
   val take_one : t -> Cstruct.t -> int
   val try_take_one : t -> Cstruct.t option
 end = struct
-  type t = {
-    items : Cstruct.t list ref;
-    mut : Eio.Mutex.t;
-    cond : Eio.Condition.t;
-  }
+  type t = { items : Cstruct.t list ref; mut : Eio.Mutex.t; cond : Eio.Condition.t }
 
   exception Empty
 
-  let create () =
-    {
-      items = ref [];
-      mut = Eio.Mutex.create ();
-      cond = Eio.Condition.create ();
-    }
+  let create () = { items = ref []; mut = Eio.Mutex.create (); cond = Eio.Condition.create () }
 
   let add t bufs =
     Eio.Mutex.use_rw t.mut ~protect:false (fun () ->
@@ -247,22 +227,17 @@ let create_flow ~inc ~out =
   let ops = Eio.Flow.Pi.two_way (module CstructFlow) in
   Eio.Resource.T ((), ops)
 
-let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
-    server_state log addresses =
+let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain server_state log addresses =
   let inc = CstructStream.create () and out = CstructStream.create () in
 
   (* TODO mutex *)
-  let last_recv_seq_no = ref (-1)
-  and last_sent_seq_no = ref 0
-  and seq_no = ref 0 in
+  let last_recv_seq_no = ref (-1) and last_sent_seq_no = ref 0 and seq_no = ref 0 in
 
   let buf = ref Cstruct.empty in
 
   let packet_callback (p : Dns.Packet.t) : Dns.Packet.t option =
     let ( let* ) = Option.bind in
-    let* name, qtype =
-      match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
-    in
+    let* name, qtype = match p.Dns.Packet.data with `Query -> Some p.question | _ -> None in
     let* recv_buf, root = buf_of_domain_name data_subdomain name in
 
     (* Only process CNAME queries *)
@@ -270,8 +245,7 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
       match qtype with
       | `K (Dns.Rr_map.K Dns.Rr_map.Cname) -> Some ()
       | `Axfr | `Ixfr ->
-          Format.fprintf Format.err_formatter
-            "Transport: unsupported operation zonetransfer\n";
+          Format.fprintf Format.err_formatter "Transport: unsupported operation zonetransfer\n";
           Format.pp_print_flush Format.err_formatter ();
           None
       | `Any ->
@@ -279,8 +253,7 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
           Format.pp_print_flush Format.err_formatter ();
           None
       | `K rr ->
-          Format.fprintf Format.err_formatter "Transport: unsupported RR %a\n"
-            Dns.Rr_map.ppk rr;
+          Format.fprintf Format.err_formatter "Transport: unsupported RR %a\n" Dns.Rr_map.ppk rr;
           Format.pp_print_flush Format.err_formatter ();
           None
     in
@@ -299,8 +272,7 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
       if Cstruct.length packet.data > 0 then (
         (* if we haven't already recieved this sequence number *)
         (* TODO a rogue packet from a bad actor could break this stream, or a delayed retransmission from a resolver *)
-        if packet.seq_no != !last_recv_seq_no then
-          CstructStream.add inc [ packet.data ];
+        if packet.seq_no != !last_recv_seq_no then CstructStream.add inc [ packet.data ];
         last_recv_seq_no := packet.seq_no;
         (* an ack is a packet carrying no data *)
         Some (Packet.encode packet.seq_no Cstruct.empty))
@@ -330,8 +302,7 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
             Some (Packet.encode !seq_no readBuf))
       else (
         (* if client is somehow more than one packet out of date, or in the future *)
-        Format.fprintf Format.err_formatter
-          "Transport: invalid sequence number, sent %d but client last got %d\n"
+        Format.fprintf Format.err_formatter "Transport: invalid sequence number, sent %d but client last got %d\n"
           !last_sent_seq_no packet.seq_no;
         Format.pp_print_flush Format.err_formatter ();
         None)
@@ -344,27 +315,21 @@ let dns_server_stream ~sw ~net ~clock ~mono_clock ~proto data_subdomain
     let data = `Answer (answer, authority) in
     let additional = None in
     let flags = Dns.Packet.Flags.singleton `Authoritative in
-    let packet =
-      Dns.Packet.create ?additional (fst p.header, flags) p.question data
-    in
+    let packet = Dns.Packet.create ?additional (fst p.header, flags) p.question data in
     Some packet
   in
 
   Eio.Fiber.fork ~sw (fun () ->
-      Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback
-        server_state log addresses);
+      Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback server_state log addresses);
   create_flow ~inc ~out
 
-let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
-    authority port log =
+let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain authority port log =
   let inc = CstructStream.create () and out = CstructStream.create () in
 
   (* TODO support different queries, or probing access *)
   let record_type = Dns.Rr_map.Cname
   and addr =
-    match
-      Eio.Net.getaddrinfo_datagram net ~service:(Int.to_string port) nameserver
-    with
+    match Eio.Net.getaddrinfo_datagram net ~service:(Int.to_string port) nameserver with
     (* just takes first returned value, which is probably ipv6 *)
     | ipaddr :: _ -> ipaddr
     | [] ->
@@ -388,8 +353,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
       match Dns.Packet.decode buf with
       | Ok packet -> Some packet
       | Error err ->
-          Format.fprintf Format.err_formatter "Transport: error decoding %a\n"
-            Dns.Packet.pp_err err;
+          Format.fprintf Format.err_formatter "Transport: error decoding %a\n" Dns.Packet.pp_err err;
           Format.pp_print_flush Format.err_formatter ();
           exit 1
     in
@@ -434,19 +398,12 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
   let sock =
     let proto =
       match addr with
-      | `Udp (ipaddr, _p) ->
-          Eio.Net.Ipaddr.fold
-            ~v4:(fun _v4 -> `UdpV4)
-            ~v6:(fun _v6 -> `UdpV6)
-            ipaddr
+      | `Udp (ipaddr, _p) -> Eio.Net.Ipaddr.fold ~v4:(fun _v4 -> `UdpV4) ~v6:(fun _v6 -> `UdpV6) ipaddr
       | `Unix _ -> failwith "unix domain sockets unsupported"
     in
     Eio.Net.datagram_socket ~sw net proto
   in
-  let root =
-    Domain_name.of_strings_exn
-      (data_subdomain :: String.split_on_char '.' authority)
-  in
+  let root = Domain_name.of_strings_exn (data_subdomain :: String.split_on_char '.' authority) in
   let get_id () =
     Cstruct.LE.get_uint16
       (let b = Cstruct.create 2 in
@@ -457,9 +414,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
   let send_data_fiber () =
     let buf =
       (* String.length (data_subdomain ^ "." ^ authority) *)
-      let rootLen =
-        String.length data_subdomain + 1 + String.length authority
-      in
+      let rootLen = String.length data_subdomain + 1 + String.length authority in
       Cstruct.create (max_encoded_len - rootLen)
     in
     while true do
@@ -475,8 +430,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
           let hostname = domain_name_of_buf root reply_buf in
           (* retransmit *)
           while !last_acked_seq_no != sent_seq_no do
-            Dns_client_eio.send_query log (get_id ()) record_type hostname sock
-              addr;
+            Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
             ignore
             @@ Eio.Time.with_timeout clock 1. (fun () ->
                    Eio.Condition.await acked acked_mut;
@@ -488,14 +442,11 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
     while true do
       Eio.Mutex.use_rw recv_data_mut ~protect:false (fun () ->
           (* sent a packet with the last recieved sequence number *)
-          let reply_buf =
-            UniquePacket.encode !id !last_recv_seq_no Cstruct.empty
-          in
+          let reply_buf = UniquePacket.encode !id !last_recv_seq_no Cstruct.empty in
           id := !id + 1;
           let hostname = domain_name_of_buf root reply_buf in
 
-          Dns_client_eio.send_query log (get_id ()) record_type hostname sock
-            addr;
+          Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
           ignore
           @@ Eio.Time.with_timeout clock 1. (fun () ->
                  Eio.Condition.await recv_data recv_data_mut;
@@ -508,8 +459,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain
   create_flow ~inc ~out
 
 (* TODO refactor and deduplicate these behemoths *)
-let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
-    authority server_state log addresses =
+let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain authority server_state log addresses =
   let inc = CstructStream.create () in
   let out = CstructStream.create () in
 
@@ -532,9 +482,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
 
   let packet_callback (p : Dns.Packet.t) : Dns.Packet.t option =
     let ( let* ) = Option.bind in
-    let* name, qtype =
-      match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
-    in
+    let* name, qtype = match p.Dns.Packet.data with `Query -> Some p.question | _ -> None in
     let* recv_buf, root = buf_of_domain_name data_subdomain name in
     assert (String.lowercase_ascii (Domain_name.to_string root) = authority);
 
@@ -543,8 +491,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
       match qtype with
       | `K (Dns.Rr_map.K Dns.Rr_map.Cname) -> Some ()
       | `Axfr | `Ixfr ->
-          Format.fprintf Format.err_formatter
-            "Transport: unsupported operation zonetransfer\n";
+          Format.fprintf Format.err_formatter "Transport: unsupported operation zonetransfer\n";
           Format.pp_print_flush Format.err_formatter ();
           None
       | `Any ->
@@ -552,8 +499,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
           Format.pp_print_flush Format.err_formatter ();
           None
       | `K rr ->
-          Format.fprintf Format.err_formatter "Transport: unsupported RR %a\n"
-            Dns.Rr_map.ppk rr;
+          Format.fprintf Format.err_formatter "Transport: unsupported RR %a\n" Dns.Rr_map.ppk rr;
           Format.pp_print_flush Format.err_formatter ();
           None
     in
@@ -579,15 +525,10 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
       let get_frag () =
         let frag_buf =
           let offset = !send_next_frag_no * mtu in
-          Cstruct.sub !send_packet offset
-            (min mtu (Cstruct.length !send_packet - offset))
+          Cstruct.sub !send_packet offset (min mtu (Cstruct.length !send_packet - offset))
         in
-        let p =
-          FragPacket.encode !send_packet_id !send_next_frag_no !send_no_frags
-            frag_buf
-        in
-        if !send_next_frag_no < !send_no_frags - 1 then
-          send_next_frag_no := !send_next_frag_no + 1
+        let p = FragPacket.encode !send_packet_id !send_next_frag_no !send_no_frags frag_buf in
+        if !send_next_frag_no < !send_no_frags - 1 then send_next_frag_no := !send_next_frag_no + 1
         else send_packet_id := 0;
         p
       in
@@ -610,30 +551,24 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain
     let data = `Answer (answer, authority) in
     let additional = None in
     let flags = Dns.Packet.Flags.singleton `Authoritative in
-    let packet =
-      Dns.Packet.create ?additional (fst p.header, flags) p.question data
-    in
+    let packet = Dns.Packet.create ?additional (fst p.header, flags) p.question data in
     Some packet
   in
 
   Eio.Fiber.fork ~sw (fun () ->
-      Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback
-        server_state log addresses);
+      Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback server_state log addresses);
   object (_self : < dns_datagram >)
     method send buf = CstructStream.add out [ buf ]
     method recv buf = CstructStream.take_one inc buf
   end
 
-let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
-    authority port log =
+let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain authority port log =
   let inc = CstructStream.create () in
 
   (* TODO support different queries, or probing access *)
   let record_type = Dns.Rr_map.Cname
   and addr =
-    match
-      Eio.Net.getaddrinfo_datagram net ~service:(Int.to_string port) nameserver
-    with
+    match Eio.Net.getaddrinfo_datagram net ~service:(Int.to_string port) nameserver with
     (* just takes first returned value, which is probably ipv6 *)
     | ipaddr :: _ -> ipaddr
     | [] ->
@@ -653,8 +588,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
       match Dns.Packet.decode buf with
       | Ok packet -> Some packet
       | Error err ->
-          Format.fprintf Format.err_formatter "Transport: error decoding %a\n"
-            Dns.Packet.pp_err err;
+          Format.fprintf Format.err_formatter "Transport: error decoding %a\n" Dns.Packet.pp_err err;
           Format.pp_print_flush Format.err_formatter ();
           exit 1
     in
@@ -690,8 +624,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
                   packet_id := packet.packet_id;
                   next_frag_no := 0;
                   frags := []);
-                Eio.traceln "IN_FRAG id %d no %d t %d" packet.packet_id
-                  packet.frag_no packet.no_frags;
+                Eio.traceln "IN_FRAG id %d no %d t %d" packet.packet_id packet.frag_no packet.no_frags;
                 if packet.frag_no == !next_frag_no then (
                   frags := !frags @ [ packet.data ];
                   next_frag_no := !next_frag_no + 1;
@@ -705,19 +638,12 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
   let sock =
     let proto =
       match addr with
-      | `Udp (ipaddr, _p) ->
-          Eio.Net.Ipaddr.fold
-            ~v4:(fun _v4 -> `UdpV4)
-            ~v6:(fun _v6 -> `UdpV6)
-            ipaddr
+      | `Udp (ipaddr, _p) -> Eio.Net.Ipaddr.fold ~v4:(fun _v4 -> `UdpV4) ~v6:(fun _v6 -> `UdpV6) ipaddr
       | `Unix _ -> failwith "unix domain sockets unsupported"
     in
     Eio.Net.datagram_socket ~sw net proto
   in
-  let root =
-    Domain_name.of_strings_exn
-      (data_subdomain :: String.split_on_char '.' authority)
-  in
+  let root = Domain_name.of_strings_exn (data_subdomain :: String.split_on_char '.' authority) in
   let get_id () =
     Cstruct.LE.get_uint16
       (let b = Cstruct.create 2 in
@@ -732,8 +658,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
           let reply_buf = FragPacket.encode (get_id ()) 0 0 Cstruct.empty in
           let hostname = domain_name_of_buf root reply_buf in
 
-          Dns_client_eio.send_query log (get_id ()) record_type hostname sock
-            addr;
+          Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
           ignore
           @@ Eio.Time.with_timeout clock 2. (fun () ->
                  Eio.Condition.await inc.cond inc.mut;
@@ -750,9 +675,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain
       let buf_len = Cstruct.length buf in
       let mtu =
         (* String.length (data_subdomain ^ "." ^ authority) *)
-        let rootLen =
-          String.length data_subdomain + 1 + String.length authority
-        in
+        let rootLen = String.length data_subdomain + 1 + String.length authority in
         max_encoded_len - rootLen
       in
       id := !id + 1;

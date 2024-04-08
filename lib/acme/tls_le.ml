@@ -16,34 +16,22 @@ let gen_csr ~private_key ~email ~org ~domain =
   let dn =
     X509.Distinguished_name.
       [
-        Relative_distinguished_name.(
-          singleton (CN (Domain_name.to_string domain)));
+        Relative_distinguished_name.(singleton (CN (Domain_name.to_string domain)));
         Relative_distinguished_name.(singleton (Mail email));
         Relative_distinguished_name.(singleton (O org));
       ]
   in
   X509.Signing_request.create dn private_key |> errcheck
 
-let gen_cert ?account_key ?private_key ~email ~org ~domain ~endpoint ~solver env
-    =
-  let account_key =
-    Option.value account_key ~default:(Lazy.force (lazy (gen_account_key ())))
-  in
-  let private_key =
-    Option.value private_key ~default:(Lazy.force (lazy (gen_private_key ())))
-  in
+let gen_cert ?account_key ?private_key ~email ~org ~domain ~endpoint ~solver env =
+  let account_key = Option.value account_key ~default:(Lazy.force (lazy (gen_account_key ()))) in
+  let private_key = Option.value private_key ~default:(Lazy.force (lazy (gen_private_key ()))) in
   let csr = gen_csr ~private_key ~email ~org ~domain in
   let sleep n = Eio.Time.sleep env#clock (float_of_int n) in
-  let le =
-    Letsencrypt.Client.initialise env ~endpoint ~email account_key |> errcheck
-  in
-  let cert =
-    Letsencrypt.Client.sign_certificate env solver le sleep csr |> errcheck
-  in
+  let le = Letsencrypt.Client.initialise env ~endpoint ~email account_key |> errcheck in
+  let cert = Letsencrypt.Client.sign_certificate env solver le sleep csr |> errcheck in
   (cert, account_key, private_key, csr)
 
 let tls_config ?alpn_protocols ~cert ~private_key () =
   let certificates : Tls.Config.own_cert = `Single (cert, private_key) in
-  Tls.Config.(
-    server ?alpn_protocols ~version:(`TLS_1_0, `TLS_1_3) ~certificates
-      ~ciphers:Ciphers.supported ())
+  Tls.Config.(server ?alpn_protocols ~version:(`TLS_1_0, `TLS_1_3) ~certificates ~ciphers:Ciphers.supported ())
