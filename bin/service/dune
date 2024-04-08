@@ -10,4 +10,4 @@
  (modules lenscapc)
  (public_name lenscapc)
  (package eon)
- (libraries service_manager eio_main capnp-rpc-lwt capnp-rpc-unix))
+ (libraries cap eio_main capnp-rpc-lwt capnp-rpc-unix))

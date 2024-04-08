@@ -1,5 +1,5 @@
 (library
- (name service_manager)
+ (name cap)
  (package eon)
  (libraries dns_acme eio_main capnp-rpc-lwt)
  (flags

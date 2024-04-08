@@ -4,7 +4,7 @@ let capnp_serve env cap_file config server_state provision_cert =
   let root_id = Capnp_rpc_unix.Vat_config.derived_id config "apex" in
   let restore =
     Capnp_rpc_net.Restorer.single root_id
-      (Service_manager.Zone.local env server_state provision_cert)
+      (Cap.Zone.local env server_state provision_cert)
   in
   let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore config in
   match Capnp_rpc_unix.Cap_file.save_service vat root_id cap_file with
