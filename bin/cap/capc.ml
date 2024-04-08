@@ -34,13 +34,13 @@ let () =
       let doc = "The email address to use for the ACME account." in
       Arg.(required & pos 1 (some string) None & info [] ~docv:"EMAIL" ~doc)
     in
-    let org =
-      let doc = "The name of the organization requesting the certificate." in
-      Arg.(required & pos 2 (some string) None & info [] ~docv:"ORGANIZATION" ~doc)
-    in
     let domain =
       let doc = "The domain for which to request the certificate." in
-      Arg.(required & pos 3 (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [] ~docv:"DOMAIN" ~doc)
+      Arg.(required & pos 2 (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [] ~docv:"DOMAIN" ~doc)
+    in
+    let org =
+      let doc = "The name of the organization requesting the certificate." in
+      Arg.(value & opt string "" & info [ "org" ] ~docv:"ORGANIZATION" ~doc)
     in
     let term = Term.(const run $ email $ org $ domain $ connect_addr) in
     let doc = "Let's Encrypt Nameserver Client." in
