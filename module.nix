@@ -34,6 +34,14 @@ in {
       type = types.bool;
       default = true;
     };
+    capnpAddress = lib.mkOption {
+      type = types.string;
+      default = "0.0.0.0";
+    };
+    capnpPort = lib.mkOption {
+      type = types.int;
+      default = 7000;
+    };
   };
 
   config = mkIf cfg.enable {
@@ -49,7 +57,9 @@ in {
           + "-l ${builtins.toString cfg.logLevel} "
           + (if cfg.application == "cap" then
             "--capnp-secret-key-file /var/lib/eon/capnp-secret.pem "
-            + "--capnp-listen-address tcp:0.0.0.0:7000 "
+            + "--capnp-listen-address tcp:${cfg.capnpAddress}:${
+              builtins.toString cfg.capnpPort
+            } "
           else
             "");
         Restart = "always";
@@ -75,7 +85,8 @@ in {
     users.groups."${cfg.group}" = { };
 
     networking.firewall = lib.mkIf cfg.openFirewall {
-      allowedTCPPorts = [ cfg.port ];
+      allowedTCPPorts = [ cfg.port ]
+        ++ (if cfg.application == "cap" then [ cfg.capnpPort ] else [ ]);
       allowedUDPPorts = [ cfg.port ];
     };
   };
