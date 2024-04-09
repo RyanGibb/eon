@@ -82,12 +82,12 @@ let () =
   let open Server_args in
   let cmd =
     let prod =
-      let doc = "Production certification generation" in
+      let doc = "Production certification generation." in
       Arg.(value & flag & info [ "prod" ] ~doc)
     in
-    let cert_dir =
-      let doc = "Directory where to store the certificates" in
-      Arg.(value & opt string "certs" & info [ "certs-dir" ] ~doc)
+    let cert_root =
+      let doc = "Directory to store the certificates and keys in at path <cert-root>/<domain>/." in
+      Arg.(value & opt string "certs" & info [ "cert-root" ] ~doc)
     in
     let socket_path =
       let doc = "The path to the Unix domain socket." in
@@ -95,7 +95,7 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ cert_dir $ socket_path)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ cert_root $ socket_path)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "lend" ~doc ~man in

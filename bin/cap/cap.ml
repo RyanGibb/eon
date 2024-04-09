@@ -50,7 +50,7 @@ let () =
       Arg.(value & opt (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [ "a"; "authorative" ] ~doc)
     in
     let cap_file =
-      let doc = "File to store the root capability at." in
+      let doc = "File path to store the root capability at." in
       Arg.(value & opt string "root.cap" & info [ "cap-file" ] ~doc)
     in
     let term =
