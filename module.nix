@@ -59,7 +59,7 @@ in {
             "--capnp-secret-key-file /var/lib/eon/capnp-secret.pem "
             + "--capnp-listen-address tcp:${cfg.capnpAddress}:${
               builtins.toString cfg.capnpPort
-            } "
+            } " + "--state-dir /var/lib/eon"
           else
             "");
         Restart = "always";

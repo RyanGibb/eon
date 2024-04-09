@@ -1,13 +1,63 @@
 open Raw
 open Capnp_rpc_lwt
 
-let rec local env domain server_state provision_cert =
+let read_pem filepath decode_pem =
+  try
+    match Eio.Path.is_file filepath with
+    | true -> Some (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem |> Tls_le.errcheck)
+    | false -> None
+  with exn ->
+    let _fd, path = filepath in
+    Format.fprintf Format.err_formatter "error reading %s %a\n" path Eio.Exn.pp exn;
+    Format.pp_print_flush Format.err_formatter ();
+    None
+
+let write_pem filepath pem =
+  try Eio.Path.save ~create:(`Or_truncate 0o600) filepath (pem |> Cstruct.to_string)
+  with exn ->
+    let _fd, path = filepath in
+    Format.fprintf Format.err_formatter "error saving %s %a\n" path Eio.Exn.pp exn;
+    Format.pp_print_flush Format.err_formatter ();
+    raise (Sys_error "Failed to write to file")
+
+let rec local env domain server_state provision_cert state_dir =
+  let account_dir = Eio.Path.(env#fs / state_dir / "accounts") in
+  let load_account_key email = read_pem Eio.Path.(account_dir / email / "account.pem") X509.Private_key.decode_pem in
+  let save_account_key email key =
+    let ( / ) = Eio.Path.( / ) in
+    let dir = account_dir / email in
+    Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 dir;
+    let filepath = dir / "account.pem" in
+    write_pem filepath (X509.Private_key.encode_pem key)
+  in
+
+  let cert_dir = Eio.Path.(env#fs / state_dir / "certs") in
+  let load_private_key domain =
+    read_pem Eio.Path.(cert_dir / Domain_name.to_string domain / "privkey.pem") X509.Private_key.decode_pem
+  in
+  let save_private_key domain key =
+    let ( / ) = Eio.Path.( / ) in
+    let dir = cert_dir / Domain_name.to_string domain in
+    Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 dir;
+    let filepath = dir / "privkey.pem" in
+    write_pem filepath (X509.Private_key.encode_pem key)
+  in
+
+  let load_cert domain =
+    read_pem Eio.Path.(cert_dir / Domain_name.to_string domain / "fullcert.pem") X509.Certificate.decode_pem_multiple
+  in
+  let save_cert domain key =
+    let ( / ) = Eio.Path.( / ) in
+    let dir = cert_dir / Domain_name.to_string domain in
+    Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 dir;
+    let filepath = dir / "fullcert.pem" in
+    write_pem filepath (X509.Certificate.encode_pem_multiple key)
+  in
+
   let module Domain = Api.Service.Domain in
   Domain.local
   @@ object
        inherit Domain.service
-       val account_key_r = ref @@ None
-       val private_key_r = ref @@ None
 
        method get_name_impl _params release_param_caps =
          let open Domain.GetName in
@@ -29,11 +79,21 @@ let rec local env domain server_state provision_cert =
          let callback_result =
            try
              let domain = Domain_name.append_exn domain (Domain_name.of_string_exn subdomain) in
-             let cert, account_key, private_key, _csr =
-               provision_cert ?account_key:!account_key_r ?private_key:!private_key_r ~email ~org domain
+             let cert, private_key =
+               match (load_cert domain, load_private_key domain) with
+               (* TODO what if this is out of date *)
+               | Some cert, Some private_key -> (cert, private_key)
+               (* if we don't have them cached, provision them *)
+               | _ ->
+                   let cert, account_key, private_key, _csr =
+                     provision_cert ?account_key:(load_account_key email) ?private_key:(load_private_key domain) ~email
+                       ~org domain
+                   in
+                   save_account_key email account_key;
+                   save_private_key domain private_key;
+                   save_cert domain cert;
+                   (cert, private_key)
              in
-             account_key_r := Some account_key;
-             private_key_r := Some private_key;
              Cert_callback.register mgr true "" (Some cert) (Some private_key)
            with
            | Tls_le.Le_error msg -> Cert_callback.register mgr false msg None None
@@ -55,7 +115,7 @@ let rec local env domain server_state provision_cert =
          | Error (`Msg e) -> Eio.traceln "Domain.delegate error parsing domain: %s" e
          | Ok subdomain ->
              let domain = Domain_name.append_exn domain subdomain in
-             Results.domain_set results (Some (local env domain server_state provision_cert)));
+             Results.domain_set results (Some (local env domain server_state provision_cert state_dir)));
          Service.return response
 
        method update_impl params release_param_caps =

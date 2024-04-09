@@ -1,7 +1,7 @@
 open Raw
 open Capnp_rpc_lwt
 
-let local env server_state provision_cert =
+let local env server_state provision_cert state_dir =
   let module Zone = Api.Service.Zone in
   Zone.local
   @@ object
@@ -15,7 +15,8 @@ let local env server_state provision_cert =
          let response, results = Service.Response.create Results.init_pointer in
          (match Domain_name.of_string domain with
          | Error (`Msg e) -> Eio.traceln "Zone error parsing domain: %s" e
-         | Ok domain -> Results.domain_set results (Some (Domain.local env domain server_state provision_cert)));
+         | Ok domain ->
+             Results.domain_set results (Some (Domain.local env domain server_state provision_cert state_dir)));
          Service.return response
      end
 

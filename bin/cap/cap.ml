@@ -1,8 +1,8 @@
-let capnp_serve env cap_file config server_state provision_cert =
+let capnp_serve env cap_file config server_state provision_cert state_dir =
   Eio.Switch.run @@ fun sw ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let root_id = Capnp_rpc_unix.Vat_config.derived_id config "apex" in
-  let restore = Capnp_rpc_net.Restorer.single root_id (Cap.Zone.local env server_state provision_cert) in
+  let restore = Capnp_rpc_net.Restorer.single root_id (Cap.Zone.local env server_state provision_cert state_dir) in
   let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore config in
   match Capnp_rpc_unix.Cap_file.save_service vat root_id cap_file with
   | Error (`Msg m) -> failwith m
@@ -10,7 +10,7 @@ let capnp_serve env cap_file config server_state provision_cert =
       Eio.traceln "Server running. Connect using %S." cap_file;
       Eio.Fiber.await_cancel ()
 
-let run zonefiles log_level addressStrings port proto prod authorative cap_file capnp_config =
+let run zonefiles log_level addressStrings port proto prod authorative cap_file state_dir capnp_config =
   Eio_main.run @@ fun env ->
   let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
@@ -33,7 +33,7 @@ let run zonefiles log_level addressStrings port proto prod authorative cap_file 
       Dns_server_eio.primary ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto server_state log addresses);
 
   let provision_cert = Dns_acme.provision_cert prod server_state env in
-  capnp_serve env cap_file capnp_config server_state provision_cert
+  capnp_serve env cap_file capnp_config server_state provision_cert state_dir
 
 let () =
   Logs.set_level (Some Logs.Info);
@@ -53,10 +53,14 @@ let () =
       let doc = "File path to store the root capability at." in
       Arg.(value & opt string "root.cap" & info [ "cap-file" ] ~doc)
     in
+    let state_dir =
+      let doc = "Directory to state such as account keys, sturdy refs, and certificates." in
+      Arg.(value & opt string "." & info [ "state-dir" ] ~doc)
+    in
     let term =
       Term.(
         const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ authorative $ cap_file
-        $ Capnp_rpc_unix.Vat_config.cmd)
+        $ state_dir $ Capnp_rpc_unix.Vat_config.cmd)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "cap" ~doc ~man in
