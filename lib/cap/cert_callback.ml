@@ -12,7 +12,7 @@ let local callback =
          callback
            (match Params.success_get params with
            | true -> Ok (Params.cert_get params, Params.key_get params)
-           | false -> Error (`Cert (Params.error_get params)));
+           | false -> Error (`Remote (Params.error_get params)));
          release_param_caps ();
          let response, _results = Service.Response.create Results.init_pointer in
          Service.return response

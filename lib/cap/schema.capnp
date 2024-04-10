@@ -1,28 +1,39 @@
 @0xf8f86fb5561e3599;
 
-struct Record {
-  name @0 :Text;
-  type @1 :Text;
-  ttl @2 :Int32;
-  value @3 :Text;
-}
-
 struct Prereq {
+  name @0: Text;
   union {
-    exists @0 :Record;
-    existsData @1 :Record;
-    notExists @2 :Record;
-    nameInUse @3 :Record;
-    notNameInUse @4 :Record;
+    exists :group {
+      type @1 :Text;
+    }
+    existsData :group {
+      type @2 :Text;
+      value @3 :Text;
+    }
+    notExists :group {
+      type @4 :Text;
+    }
+    nameInUse @5 :Void;
+    notNameInUse @6 :Void;
   }
 }
 
 struct Update {
+  name @0: Text;
   union {
-    add @0 :Record;
-    remove @1 :Record;
-    removeAll @2 :Record;
-    removeSingle @3 :Record;
+    add :group {
+      type @1 :Text;
+      value @2 :Text;
+	  ttl @3 :Int32;
+    }
+    remove :group {
+      type @4 :Text;
+    }
+    removeAll @5 :Void;
+    removeSingle :group {
+      type @6 :Text;
+      value @7 :Text;
+    }
   }
 }
 
@@ -48,7 +59,7 @@ interface Domain {
   delegate @1 (subdomain :Text) -> (domain :Domain);
   # Create a capability for a subdomain
 
-  update @2 (prereqs :List(Prereq), updates :List(Update)) -> ();
+  update @2 (prereqs :List(Prereq), updates :List(Update)) -> (success :Bool, error :Text);
   # DNS update
 
   cert @3 (email: Text, org :Text, subdomain :Text, certCallback :CertCallback) -> ();
