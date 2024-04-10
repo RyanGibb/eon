@@ -22,6 +22,7 @@ let provision_cert prod server_state env ?account_key ?private_key ~email ~org d
    with
   (* if there is no record, all is well *)
   | Error (`NotFound _) -> ()
+  | Error (`EmptyNonTerminal _) -> ()
   (* if there is a record, we can ignore it *)
   | Ok _ -> ()
   (* if there's any other issues, like the server is not authorative for this zone, or the zone has been delegated *)
