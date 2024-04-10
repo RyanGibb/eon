@@ -224,23 +224,25 @@ let delegate t domain =
   Params.subdomain_set params (Domain_name.to_string domain);
   Capability.call_for_caps t method_id request Results.domain_get_pipelined
 
-open Dns
+module Update = struct
+  open Dns
+  type prereq =
+    | Exists of Dns.Rr_map.k
+    | Exists_data of Dns.Rr_map.k * string
+    | Not_exists of Dns.Rr_map.k
+    | Name_inuse
+    | Not_name_inuse
 
-type prereq =
-  | Exists of Dns.Rr_map.k
-  | Exists_data of Dns.Rr_map.k * string
-  | Not_exists of Dns.Rr_map.k
-  | Name_inuse
-  | Not_name_inuse
-
-type update =
-  | Remove of Rr_map.k
-  | Remove_all
-  | Remove_single of Dns.Rr_map.k * string
-  | Add of Rr_map.k * string * int32
+  type update =
+    | Remove of Rr_map.k
+    | Remove_all
+    | Remove_single of Dns.Rr_map.k * string
+    | Add of Rr_map.k * string * int32
+end
 
 let update t prereqs updates =
   let open Api.Client.Domain.Update in
+  let open Update in
   let request, params = Capability.Request.create Params.init_pointer in
   ignore
   @@ Params.prereqs_set_list params

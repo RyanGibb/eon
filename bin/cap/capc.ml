@@ -153,7 +153,7 @@ let update_cmd =
     match Dns.Rr_map.of_string typ with Ok t -> t | Error (`Msg e) -> raise (Invalid_argument e)
   in
   let prereq_of_string str =
-    let open Cap.Domain in
+    let open Cap.Domain.Update in
     try
       match String.split_on_char ':' str with
       | [ "exists"; domain; typ ] -> Ok (Domain_name.of_string_exn domain, Exists (type_of_string_exn typ))
@@ -168,7 +168,7 @@ let update_cmd =
     | _ -> Error (`Msg "Error parsing prerequisite")
   in
   let prereq_to_string fmt =
-    let open Cap.Domain in
+    let open Cap.Domain.Update in
     function
     | domain, Exists typ -> Format.fprintf fmt "exists:%s:%a" (Domain_name.to_string domain) Dns.Rr_map.ppk typ
     | domain, Exists_data (typ, value) ->
@@ -188,7 +188,7 @@ let update_cmd =
       & info [ "p"; "prerequisite" ] ~docv:"PREREQUISITE" ~doc)
   in
   let update_of_string str =
-    let open Cap.Domain in
+    let open Cap.Domain.Update in
     try
       match String.split_on_char ':' str with
       | [ "remove"; domain; typ ] -> Ok (Domain_name.of_string_exn domain, Remove (type_of_string_exn typ))
@@ -203,7 +203,7 @@ let update_cmd =
     | Failure _ -> Error (`Msg "TTL must be a valid integer")
   in
   let update_to_string fmt =
-    let open Cap.Domain in
+    let open Cap.Domain.Update in
     function
     | domain, Remove typ -> Format.fprintf fmt "remove:%s:%a" (Domain_name.to_string domain) Dns.Rr_map.ppk typ
     | domain, Remove_all -> Format.fprintf fmt "remove-all:%s" (Domain_name.to_string domain)
