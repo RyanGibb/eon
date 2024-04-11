@@ -57,7 +57,7 @@ let update copts_env prereqs updates =
     | Error (`Remote e) ->
         Format.eprintf "Remote error: %s" e;
         Unix._exit 1
-    | Ok () -> ()
+    | Ok () -> Unix._exit 0
   in
   Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
 
@@ -144,7 +144,7 @@ let update_cmd =
     try
       match String.split_on_char ':' str with
       | [ "exists"; domain; typ ] -> Ok (Domain_name.of_string_exn domain, Exists (type_of_string_exn typ))
-      | [ "exists-data"; domain; typ; value ] ->
+      | [ "exists"; domain; typ; value ] ->
           Ok (Domain_name.of_string_exn domain, Exists_data (type_of_string_exn typ, value))
       | [ "not-exists"; domain; typ ] -> Ok (Domain_name.of_string_exn domain, Not_exists (type_of_string_exn typ))
       | [ "name-inuse"; domain ] -> Ok (Domain_name.of_string_exn domain, Name_inuse)
@@ -159,14 +159,14 @@ let update_cmd =
     function
     | domain, Exists typ -> Format.fprintf fmt "exists:%s:%a" (Domain_name.to_string domain) Dns.Rr_map.ppk typ
     | domain, Exists_data (typ, value) ->
-        Format.fprintf fmt "exists-data:%s:%a:%s" (Domain_name.to_string domain) Dns.Rr_map.ppk typ value
+        Format.fprintf fmt "exists:%s:%a:%s" (Domain_name.to_string domain) Dns.Rr_map.ppk typ value
     | domain, Not_exists typ -> Format.fprintf fmt "not-exists:%s:%a" (Domain_name.to_string domain) Dns.Rr_map.ppk typ
     | domain, Name_inuse -> Format.fprintf fmt "name-inuse:%s" (Domain_name.to_string domain)
     | domain, Not_name_inuse -> Format.fprintf fmt "name-not-inuse:%s" (Domain_name.to_string domain)
   in
   let prereqs =
     let doc =
-      "Specify a prerequisite. Formats include: 'exists:DOMAIN:TYPE', 'exists-data:DOMAIN:TYPE:VALUE', \
+      "Specify a prerequisite. Formats include: 'exists:DOMAIN:TYPE', 'exists:DOMAIN:TYPE:VALUE', \
        'not-exists:DOMAIN:TYPE', 'name-inuse:DOMAIN', 'name-not-inuse:DOMAIN'."
     in
     Arg.(
@@ -179,8 +179,8 @@ let update_cmd =
     try
       match String.split_on_char ':' str with
       | [ "remove"; domain; typ ] -> Ok (Domain_name.of_string_exn domain, Remove (type_of_string_exn typ))
-      | [ "remove-all"; domain ] -> Ok (Domain_name.of_string_exn domain, Remove_all)
-      | [ "remove-single"; domain; typ; value ] ->
+      | [ "remove"; domain ] -> Ok (Domain_name.of_string_exn domain, Remove_all)
+      | [ "remove"; domain; typ; value ] ->
           Ok (Domain_name.of_string_exn domain, Remove_single (type_of_string_exn typ, value))
       | [ "add"; domain; typ; value; ttl_str ] ->
           Ok (Domain_name.of_string_exn domain, Add (type_of_string_exn typ, value, Int32.of_string ttl_str))
@@ -193,15 +193,15 @@ let update_cmd =
     let open Cap.Domain.Update in
     function
     | domain, Remove typ -> Format.fprintf fmt "remove:%s:%a" (Domain_name.to_string domain) Dns.Rr_map.ppk typ
-    | domain, Remove_all -> Format.fprintf fmt "remove-all:%s" (Domain_name.to_string domain)
+    | domain, Remove_all -> Format.fprintf fmt "remove:%s" (Domain_name.to_string domain)
     | domain, Remove_single (typ, value) ->
-        Format.fprintf fmt "remove-single:%s:%a:%s" (Domain_name.to_string domain) Dns.Rr_map.ppk typ value
+        Format.fprintf fmt "remove:%s:%a:%s" (Domain_name.to_string domain) Dns.Rr_map.ppk typ value
     | domain, Add (typ, value, ttl) ->
         Format.fprintf fmt "add:%s:%a:%s:%ld" (Domain_name.to_string domain) Dns.Rr_map.ppk typ value ttl
   in
   let updates =
     let doc =
-      "Specify an update. Formats include remove:DOMAIN:TYPE, remove-all:DOMAIN, remove-single:DOMAIN:TYPE:VALUE, or \
+      "Specify an update. Formats include remove:DOMAIN:TYPE, remove:DOMAIN, remove:DOMAIN:TYPE:VALUE, or \
        add:DOMAIN:TYPE:VALUE:TTL"
     in
     Arg.(
