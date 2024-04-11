@@ -8,7 +8,7 @@ let run zonefiles log_level addressStrings port proto resolver =
     buf
   in
   let server_state =
-    let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+    let trie, keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
     Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
   in
   match resolver with

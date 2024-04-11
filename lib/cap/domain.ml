@@ -65,6 +65,12 @@ let rec local env domain prod server_state state_dir =
           | [] -> raise (Invalid_argument "Must specify at least one domain.")
           | domain :: _ -> domain
         in
+        List.iter
+          (fun subdomain ->
+            if not (Domain_name.is_subdomain ~subdomain ~domain) then
+              raise
+                (Invalid_argument (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp subdomain Domain_name.pp domain)))
+          domains;
         let cert, private_key =
           match (load_cert domain, load_private_key domain) with
           (* TODO what if this is out of date *)
@@ -164,6 +170,9 @@ let rec local env domain prod server_state state_dir =
                 ~f:(fun prereq map ->
                   let open Api.Reader.Prereq in
                   let name = Domain_name.of_string_exn (name_get prereq) in
+                  if not (Domain_name.is_subdomain ~subdomain:name ~domain) then
+                    raise
+                      (Invalid_argument (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp name Domain_name.pp domain));
                   match get prereq with
                   | Exists exists ->
                       add_to_list name (Dns.Packet.Update.Exists (type_of_capnp (Exists.type_get exists))) map
@@ -184,6 +193,9 @@ let rec local env domain prod server_state state_dir =
                 ~f:(fun update map ->
                   let open Api.Reader.Update in
                   let name = Domain_name.of_string_exn (name_get update) in
+                  if not (Domain_name.is_subdomain ~subdomain:name ~domain) then
+                    raise
+                      (Invalid_argument (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp name Domain_name.pp domain));
                   match Update.get update with
                   | Update.Add add ->
                       add_to_list name
@@ -215,6 +227,9 @@ let rec local env domain prod server_state state_dir =
                 server_state := new_server_state
             | Error rcode -> raise (Invalid_argument (Fmt.str "Error updating trie %a" Dns.Rcode.pp rcode))
           with
+         | exception Invalid_argument msg ->
+             Results.success_set results false;
+             Results.error_set results msg
          | exception e ->
              let msg = Printexc.to_string e in
              Results.success_set results false;

@@ -13,7 +13,6 @@ let cert copts_env email domains org cert_root =
     match domains with [] -> raise (Invalid_argument "Must specify at least one domain.") | domain :: _ -> domain
   in
   let run_client cap =
-    let domain_cap = Cap.Zone.init cap domain in
     (* callback for provisioned cert *)
     Capnp_rpc_lwt.Capability.with_ref
       (Cap.Cert_callback.local (fun result ->
@@ -35,13 +34,13 @@ let cert copts_env email domains org cert_root =
                write_pem cert_file cert;
                Printf.printf "Updated cert for %s\n%!" (Domain_name.to_string domain)))
     @@ fun callback ->
-    match Cap.Domain.cert domain_cap ~email ~org domains callback with
+    match Cap.Domain.cert cap ~email ~org domains callback with
     | Error (`Capnp e) -> Format.eprintf "%a" Capnp_rpc.Error.pp e
     | Ok () -> ()
   in
   Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
 
-let update copts_env domain prereqs updates =
+let update copts_env prereqs updates =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let copts = copts_env env in
@@ -51,8 +50,7 @@ let update copts_env domain prereqs updates =
     Capnp_rpc_unix.Vat.import_exn client_vat cap_uri
   in
   let run_client cap =
-    let domain_cap = Cap.Zone.init cap domain in
-    match Cap.Domain.update domain_cap prereqs updates with
+    match Cap.Domain.update cap prereqs updates with
     | Error (`Capnp e) ->
         Format.eprintf "Capnp error: %a" Capnp_rpc.Error.pp e;
         Unix._exit 1
@@ -93,35 +91,26 @@ let help_secs =
     `P "Check bug reports at https://github.com/RyanGibb/eon.";
   ]
 
-let copts cap_uri cap_uri_file env =
-  let cap_uri =
-    match cap_uri with Some c -> c | None -> Uri.of_string (Eio.Path.load Eio.Path.(Eio.Stdenv.fs env / cap_uri_file))
-  in
+let copts cap_uri_file env =
+  let cap_uri = Uri.of_string (Eio.Path.load Eio.Path.(Eio.Stdenv.fs env / cap_uri_file)) in
   { cap_uri }
 
 let copts_t =
   let _docs = Manpage.s_common_options in
-  let cap_uri =
-    let doc =
-      "Capability URI of the format capnp://sha-256:<hash>@address:port/<service-ID>. Takes priority over cap-file."
-    in
-    let i = Arg.info [ "cap" ] ~docv:"CAP" ~doc in
-    Arg.(value @@ opt (some Capnp_rpc_unix.sturdy_uri) None i)
-  in
   let cap_uri_file =
     let doc =
-      "File path containing the capability URI of the format capnp://sha-256:<hash>@address:port/<service-ID>."
+      "File path containing the domain capability URI of the format capnp://sha-256:<hash>@address:port/<service-ID>."
     in
-    Arg.(value & opt string "root.cap" & info [ "cap-file" ] ~docv:"CAP_FILE" ~doc)
+    Arg.(required & pos 0 (some string) None & info [] ~docv:"CAP_FILE" ~doc)
   in
-  Term.(const copts $ cap_uri $ cap_uri_file)
+  Term.(const copts $ cap_uri_file)
 
 let sdocs = Manpage.s_common_options
 
 let cert_cmd =
   let email =
     let doc = "The email address to use for the ACME account." in
-    Arg.(required & pos 0 (some string) None & info [] ~docv:"EMAIL" ~doc)
+    Arg.(required & pos 1 (some string) None & info [] ~docv:"EMAIL" ~doc)
   in
   let domains =
     let doc = "Domains to provision certificates for." in
@@ -147,10 +136,6 @@ let cert_cmd =
   Cmd.v info Term.(const cert $ copts_t $ email $ domains $ org $ cert_root)
 
 let update_cmd =
-  let domain =
-    let doc = "The domain name to query." in
-    Arg.(required & pos 0 (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [] ~docv:"DOMAIN" ~doc)
-  in
   let type_of_string_exn typ =
     match Dns.Rr_map.of_string typ with Ok t -> t | Error (`Msg e) -> raise (Invalid_argument e)
   in
@@ -229,7 +214,7 @@ let update_cmd =
     [ `S Manpage.s_description; `P "Update DNS records with an interface based on RFC 2136."; `Blocks help_secs ]
   in
   let info = Cmd.info "update" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const update $ copts_t $ domain $ prereqs $ updates)
+  Cmd.v info Term.(const update $ copts_t $ prereqs $ updates)
 
 let help_cmd =
   let topic =

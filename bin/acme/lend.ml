@@ -54,7 +54,7 @@ let run zonefiles log_level addressStrings port proto prod cert_root socket_path
     buf
   in
   let server_state =
-    let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+    let trie, keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
     let trie =
       match authorative with
       | None -> trie

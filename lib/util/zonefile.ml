@@ -42,21 +42,30 @@ let parse_keys keyfile filename prev_keys =
       prev_keys
 
 let parse_zonefiles ~fs zonefiles =
-  let trie, keys =
+  let trie, keys, authorative =
     List.fold_left
-      (fun (prev_trie, prev_keys) zonefile ->
+      (fun (prev_trie, prev_keys, prev_authorative) zonefile ->
         match (Eio.Path.load @@ Eio.Path.(fs / zonefile)) |> Dns_zone.parse with
         | Error (`Msg msg) ->
             Format.fprintf Format.err_formatter "ignoring zonefile %s: %s\n" zonefile msg;
             Format.pp_print_flush Format.err_formatter ();
-            (prev_trie, prev_keys)
+            (prev_trie, prev_keys, prev_authorative)
         | Ok rrs ->
             let keys =
               let filename = zonefile ^ "._keys" in
               parse_keys Eio.Path.(fs / filename) filename prev_keys
             in
             let trie = Dns_trie.insert_map rrs prev_trie in
-            (trie, keys))
-      (Dns_trie.empty, Domain_name.Map.empty) zonefiles
+            let authorative =
+              Domain_name.Map.fold
+                (fun domain rrmap authorative ->
+                  Dns.Rr_map.fold
+                    (fun b authorative -> match b with B (Soa, _soa) -> domain :: authorative | _ -> authorative)
+                    rrmap authorative)
+                rrs []
+            in
+            (trie, keys, authorative))
+      (Dns_trie.empty, Domain_name.Map.empty, [])
+      zonefiles
   in
-  (trie, Domain_name.Map.bindings keys)
+  (trie, Domain_name.Map.bindings keys, authorative)

@@ -31,7 +31,7 @@ let run zonefiles log_level addressStrings subdomain port proto =
   let server =
     let addresses = Server_args.parse_addresses port addressStrings in
     let server_state =
-      let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+      let trie, keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
       let rng ?_g length =
         let buf = Cstruct.create length in
         Eio.Flow.read_exact env#secure_random buf;
