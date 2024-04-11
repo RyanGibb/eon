@@ -54,6 +54,38 @@ let rec local env domain server_state provision_cert state_dir =
     write_pem filepath (X509.Certificate.encode_pem_multiple key)
   in
 
+  let cert callback ~email ~org ~subdomain =
+    let callback_result =
+      try
+        let domain = Domain_name.append_exn domain (Domain_name.of_string_exn subdomain) in
+        let cert, private_key =
+          match (load_cert domain, load_private_key domain) with
+          (* TODO what if this is out of date *)
+          | Some cert, Some private_key -> (cert, private_key)
+          (* if we don't have them cached, provision them *)
+          | _ ->
+              let cert, account_key, private_key, _csr =
+                provision_cert ?account_key:(load_account_key email) ?private_key:(load_private_key domain) ~email ~org
+                  domain
+              in
+              save_account_key email account_key;
+              save_private_key domain private_key;
+              save_cert domain cert;
+              (cert, private_key)
+        in
+        Cert_callback.register callback true "" (Some cert) (Some private_key)
+      with
+      | Tls_le.Le_error msg -> Cert_callback.register callback false msg None None
+      | e ->
+          let msg = Printexc.to_string e in
+          Cert_callback.register callback false msg None None
+    in
+    (match callback_result with
+    | Ok () -> ()
+    | Error (`Capnp e) -> Eio.traceln "Error calling callback %a" Capnp_rpc.Error.pp e);
+    Service.Response.create_empty ()
+  in
+
   let module Domain = Api.Service.Domain in
   Domain.local
   @@ object
@@ -71,39 +103,13 @@ let rec local env domain server_state provision_cert state_dir =
          let email = Params.email_get params in
          let org = Params.org_get params in
          let subdomain = Params.subdomain_get params in
-         let mgr = Option.get (Params.cert_callback_get params) in
+         let callback = Params.cert_callback_get params in
          release_param_caps ();
          Eio.traceln "Domain.bind(email=%s, org=%s, subdomain=%s) domain=%s" email org subdomain
            (Domain_name.to_string domain);
-         let response, _results = Service.Response.create Results.init_pointer in
-         let callback_result =
-           try
-             let domain = Domain_name.append_exn domain (Domain_name.of_string_exn subdomain) in
-             let cert, private_key =
-               match (load_cert domain, load_private_key domain) with
-               (* TODO what if this is out of date *)
-               | Some cert, Some private_key -> (cert, private_key)
-               (* if we don't have them cached, provision them *)
-               | _ ->
-                   let cert, account_key, private_key, _csr =
-                     provision_cert ?account_key:(load_account_key email) ?private_key:(load_private_key domain) ~email
-                       ~org domain
-                   in
-                   save_account_key email account_key;
-                   save_private_key domain private_key;
-                   save_cert domain cert;
-                   (cert, private_key)
-             in
-             Cert_callback.register mgr true "" (Some cert) (Some private_key)
-           with
-           | Tls_le.Le_error msg -> Cert_callback.register mgr false msg None None
-           | e ->
-               let msg = Printexc.to_string e in
-               Cert_callback.register mgr false msg None None
-         in
-         (match callback_result with Ok () -> () | Error (`Capnp e) -> Eio.traceln "%a" Capnp_rpc.Error.pp e);
-         (* TODO register renewal process *)
-         Service.return response
+         match callback with
+         | None -> Service.fail "No callback parameter!"
+         | Some callback -> Service.return @@ Capability.with_ref callback (cert ~email ~org ~subdomain)
 
        method delegate_impl params release_param_caps =
          let open Domain.Delegate in

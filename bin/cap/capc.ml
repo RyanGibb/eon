@@ -12,27 +12,27 @@ let cert copts_env email domain org cert_root =
   let run_client cap =
     let domain_cap = Cap.Zone.init cap domain in
     (* callback for provisioned cert *)
-    let cert_callback_cap =
-      Cap.Cert_callback.local (fun result ->
-          match result with
-          | Error (`Capnp e) ->
-              Format.eprintf "Capnp error: %a%!" Capnp_rpc.Error.pp e;
-              Unix._exit 1
-          | Error (`Remote msg) ->
-              Printf.eprintf "Remote error: %s%!" msg;
-              Unix._exit 1
-          | Ok (cert, key) ->
-              let write_pem filepath pem = Eio.Path.save ~create:(`Or_truncate 0o600) filepath pem in
-              let ( / ) = Eio.Path.( / ) in
-              let cert_dir = env#fs / cert_root / Domain_name.to_string domain in
-              Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 cert_dir;
-              let private_key_file = cert_dir / "privkey.pem" in
-              let cert_file = cert_dir / "fullcert.pem" in
-              write_pem private_key_file key;
-              write_pem cert_file cert;
-              Printf.printf "Updated cert for %s\n%!" (Domain_name.to_string domain))
-    in
-    match Cap.Domain.cert domain_cap ~email ~org ~subdomain:Domain_name.root cert_callback_cap with
+    Capnp_rpc_lwt.Capability.with_ref
+      (Cap.Cert_callback.local (fun result ->
+           match result with
+           | Error (`Capnp e) ->
+               Format.eprintf "Capnp error: %a%!" Capnp_rpc.Error.pp e;
+               Unix._exit 1
+           | Error (`Remote msg) ->
+               Printf.eprintf "Remote error: %s%!" msg;
+               Unix._exit 1
+           | Ok (cert, key) ->
+               let write_pem filepath pem = Eio.Path.save ~create:(`Or_truncate 0o600) filepath pem in
+               let ( / ) = Eio.Path.( / ) in
+               let cert_dir = env#fs / cert_root / Domain_name.to_string domain in
+               Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 cert_dir;
+               let private_key_file = cert_dir / "privkey.pem" in
+               let cert_file = cert_dir / "fullcert.pem" in
+               write_pem private_key_file key;
+               write_pem cert_file cert;
+               Printf.printf "Updated cert for %s\n%!" (Domain_name.to_string domain)))
+    @@ fun callback ->
+    match Cap.Domain.cert domain_cap ~email ~org ~subdomain:Domain_name.root callback with
     | Error (`Capnp e) -> Format.eprintf "%a" Capnp_rpc.Error.pp e
     | Ok () -> ()
   in
