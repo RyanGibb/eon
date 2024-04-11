@@ -1,8 +1,8 @@
-let capnp_serve env cap_file config server_state provision_cert state_dir =
+let capnp_serve env cap_file config prod server_state state_dir =
   Eio.Switch.run @@ fun sw ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let root_id = Capnp_rpc_unix.Vat_config.derived_id config "apex" in
-  let restore = Capnp_rpc_net.Restorer.single root_id (Cap.Zone.local env server_state provision_cert state_dir) in
+  let restore = Capnp_rpc_net.Restorer.single root_id (Cap.Zone.local env prod server_state state_dir) in
   let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore config in
   match Capnp_rpc_unix.Cap_file.save_service vat root_id cap_file with
   | Error (`Msg m) -> failwith m
@@ -31,9 +31,7 @@ let run zonefiles log_level addressStrings port proto prod authorative cap_file 
   Eio.Switch.run @@ fun sw ->
   Eio.Fiber.fork ~sw (fun () ->
       Dns_server_eio.primary ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto server_state log addresses);
-
-  let provision_cert = Dns_acme.provision_cert prod server_state env in
-  capnp_serve env cap_file capnp_config server_state provision_cert state_dir
+  capnp_serve env cap_file capnp_config prod server_state state_dir
 
 let () =
   Logs.set_level (Some Logs.Info);

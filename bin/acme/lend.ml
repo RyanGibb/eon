@@ -27,7 +27,7 @@ let generate_cert ~email ~domain ~org cert_root prod server_state env =
   let private_key = read_pem private_key_file Private_key.decode_pem in
   try
     let cert, account_key, private_key, csr =
-      Dns_acme.provision_cert prod server_state env ?account_key ?private_key ~email domain ~org
+      Dns_acme.provision_cert prod server_state env ?account_key ?private_key ~email [ domain ] ~org
     in
     write_pem account_key_file (Private_key.encode_pem account_key);
     write_pem private_key_file (Private_key.encode_pem private_key);
