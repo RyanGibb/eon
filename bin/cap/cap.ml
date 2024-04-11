@@ -1,19 +1,19 @@
-let capnp_serve env authorative config server_state provision_cert state_dir =
+let capnp_serve env authorative vat_config server_state provision_cert state_dir =
   Eio.Switch.run @@ fun sw ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let cap_dir = Eio.Path.(env#fs / state_dir / "caps") in
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 cap_dir;
 
   let services =
-    let make_sturdy = Capnp_rpc_unix.Vat_config.sturdy_uri config in
+    let make_sturdy = Capnp_rpc_unix.Vat_config.sturdy_uri vat_config in
     Capnp_rpc_net.Restorer.Table.create make_sturdy
   in
   let restore = Capnp_rpc_net.Restorer.of_table services in
-  let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore config in
+  let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore vat_config in
 
-  let zone_cap = Cap.Zone.local env server_state provision_cert state_dir in
+  let zone_cap = Cap.Zone.local vat_config services env server_state provision_cert state_dir in
   let _zone =
-    let id = Capnp_rpc_unix.Vat_config.derived_id config "zone" in
+    let id = Capnp_rpc_unix.Vat_config.derived_id vat_config "zone" in
     Capnp_rpc_net.Restorer.Table.add services id zone_cap;
     let _, file = Eio.Path.(cap_dir / "zone.cap") in
     (match Capnp_rpc_unix.Cap_file.save_service vat id file with Error (`Msg m) -> failwith m | Ok () -> ());
@@ -23,7 +23,7 @@ let capnp_serve env authorative config server_state provision_cert state_dir =
   List.iter
     (fun domain ->
       let name = Domain_name.to_string domain in
-      let id = Capnp_rpc_unix.Vat_config.derived_id config name in
+      let id = Capnp_rpc_unix.Vat_config.derived_id vat_config name in
       let cap = Cap.Zone.init zone_cap domain in
       Capnp_rpc_net.Restorer.Table.add services id cap;
       let _, file = Eio.Path.(cap_dir / (name ^ ".cap")) in
@@ -32,7 +32,7 @@ let capnp_serve env authorative config server_state provision_cert state_dir =
     authorative;
   Eio.Fiber.await_cancel ()
 
-let run zonefiles log_level addressStrings port proto prod authorative state_dir capnp_config =
+let run zonefiles log_level addressStrings port proto prod authorative state_dir vat_config =
   Eio_main.run @@ fun env ->
   let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
@@ -55,7 +55,7 @@ let run zonefiles log_level addressStrings port proto prod authorative state_dir
   Eio.Switch.run @@ fun sw ->
   Eio.Fiber.fork ~sw (fun () ->
       Dns_server_eio.primary ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto server_state log addresses);
-  capnp_serve env authorative capnp_config prod server_state state_dir
+  capnp_serve env authorative vat_config prod server_state state_dir
 
 let () =
   Logs.set_level (Some Logs.Info);

@@ -40,6 +40,24 @@ let cert copts_env email domains org cert_root =
   in
   Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
 
+let delegate copts_env subdomain cap_root =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let copts = copts_env env in
+  let cap_uri = copts.cap_uri in
+  let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
+  let sturdy_ref = Capnp_rpc_unix.Vat.import_exn client_vat cap_uri in
+  let run_client cap =
+    let delegated_cap = Cap.Domain.delegate cap subdomain in
+    let delegated_cap_uri = Capnp_rpc_lwt.Persistence.save_exn delegated_cap in
+    let file = Eio.Path.(env#fs / cap_root / (Domain_name.to_string subdomain ^ ".cap")) in
+    Eio.Path.save ~create:(`Or_truncate 0o600) file (Uri.to_string delegated_cap_uri);
+    let _, filepath = file in
+    Printf.printf "Wrote capability to %s\n%!" filepath;
+    Unix._exit 0
+  in
+  Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
+
 let update copts_env prereqs updates =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -134,6 +152,23 @@ let cert_cmd =
   in
   let info = Cmd.info "cert" ~doc ~sdocs ~man in
   Cmd.v info Term.(const cert $ copts_t $ email $ domains $ org $ cert_root)
+
+let delegate_cmd =
+  let subdomain =
+    let doc = "Subdomain to delegate a capability for." in
+    Arg.(
+      required
+      & pos 1 (some (conv (Domain_name.of_string, Domain_name.pp))) None
+      & info [ ] ~docv:"DOMAIN" ~doc)
+  in
+  let cap_root =
+    let doc = "Directory to store the capability in." in
+    Arg.(value & opt string "" & info [ "cap-dir" ] ~doc)
+  in
+  let doc = "Delegate a subdomain." in
+  let man = [ `S Manpage.s_description; `P "Delegate a subdomain."; `Blocks help_secs ] in
+  let info = Cmd.info "delegate" ~doc ~sdocs ~man in
+  Cmd.v info Term.(const delegate $ copts_t $ subdomain $ cap_root)
 
 let update_cmd =
   let type_of_string_exn typ =
@@ -231,6 +266,6 @@ let main_cmd =
   let man = help_secs in
   let info = Cmd.info "capc" ~version:"%%VERSION%%" ~doc ~sdocs ~man in
   let default = Term.(ret (const (fun _ -> `Help (`Pager, None)) $ copts_t)) in
-  Cmd.group info ~default [ cert_cmd; update_cmd; help_cmd ]
+  Cmd.group info ~default [ cert_cmd; delegate_cmd; update_cmd; help_cmd ]
 
 let () = exit (Cmd.eval main_cmd)

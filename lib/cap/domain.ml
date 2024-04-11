@@ -20,7 +20,7 @@ let write_pem filepath pem =
     Format.pp_print_flush Format.err_formatter ();
     raise (Sys_error "Failed to write to file")
 
-let rec local env domain prod server_state state_dir =
+let rec local vat_config services env domain prod server_state state_dir =
   let provision_cert = Dns_acme.provision_cert prod server_state env in
 
   let account_dir = Eio.Path.(env#fs / state_dir / "accounts") in
@@ -100,7 +100,8 @@ let rec local env domain prod server_state state_dir =
   in
 
   let module Domain = Api.Service.Domain in
-  Domain.local
+  let sr = let id = Capnp_rpc_unix.Vat_config.derived_id vat_config (Domain_name.to_string domain) in Capnp_rpc_net.Restorer.Table.sturdy_ref services id in
+  Persistence.with_sturdy_ref sr Domain.local
   @@ object
        inherit Domain.service
 
@@ -134,7 +135,7 @@ let rec local env domain prod server_state state_dir =
          | Error (`Msg e) -> Eio.traceln "Domain.delegate error parsing domain: %s" e
          | Ok subdomain ->
              let domain = Domain_name.append_exn domain subdomain in
-             Results.domain_set results (Some (local env domain prod server_state state_dir)));
+             Results.domain_set results (Some (local vat_config services env domain prod server_state state_dir)));
          Service.return response
 
        method update_impl params release_param_caps =
@@ -247,10 +248,10 @@ let cert t ~email ~org domains cert_callback =
   Params.cert_callback_set params (Some cert_callback);
   Capability.call_for_unit t method_id request
 
-let delegate t domain =
+let delegate t subdomain =
   let open Api.Client.Domain.Delegate in
   let request, params = Capability.Request.create Params.init_pointer in
-  Params.subdomain_set params (Domain_name.to_string domain);
+  Params.subdomain_set params (Domain_name.to_string subdomain);
   Capability.call_for_caps t method_id request Results.domain_get_pipelined
 
 module Update = struct
