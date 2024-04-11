@@ -38,6 +38,7 @@ let run zonefiles log_level addressStrings port proto prod authorative cap_file 
 let () =
   Logs.set_level (Some Logs.Info);
   Logs.set_reporter (Logs_fmt.reporter ());
+  (* Logs.Src.set_level Capnp_rpc.Debug.src (Some Logs.Debug); *)
   let open Cmdliner in
   let open Server_args in
   let cmd =
