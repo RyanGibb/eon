@@ -62,7 +62,7 @@ interface Domain {
   update @2 (prereqs :List(Prereq), updates :List(Update)) -> (success :Bool, error :Text);
   # DNS update
 
-  cert @3 (email: Text, org :Text, subdomain :Text, certCallback :CertCallback) -> ();
+  cert @3 (email: Text, subdomain :Text, org :Text, extradomains :List(Text), certCallback :CertCallback) -> ();
   # Request a certificate for a domain ("") / wildcard domain "*"
 }
 

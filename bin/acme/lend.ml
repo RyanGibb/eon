@@ -8,7 +8,7 @@ module Eiox = struct
     with _ -> false
 end
 
-let generate_cert ~email ~org ~domain cert_root prod server_state env =
+let generate_cert ~email ~domain ~org cert_root prod server_state env =
   let read_pem filepath decode_pem =
     match Eiox.file_exists filepath with
     | true -> Some (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem |> Tls_le.errcheck)
@@ -27,7 +27,7 @@ let generate_cert ~email ~org ~domain cert_root prod server_state env =
   let private_key = read_pem private_key_file Private_key.decode_pem in
   try
     let cert, account_key, private_key, csr =
-      Dns_acme.provision_cert prod server_state env ?account_key ?private_key ~email ~org domain
+      Dns_acme.provision_cert prod server_state env ?account_key ?private_key ~email domain ~org
     in
     write_pem account_key_file (Private_key.encode_pem account_key);
     write_pem private_key_file (Private_key.encode_pem private_key);
@@ -42,7 +42,7 @@ let read_request sock =
   let org = Eio.Buf_read.line buffer in
   let domain = Eio.Buf_read.line buffer in
   Eio.Flow.shutdown sock `Receive;
-  (email, org, domain)
+  (email, (match org with "" -> None | o -> Some o), domain)
 
 let run zonefiles log_level addressStrings port proto prod cert_root socket_path authorative =
   Eio_main.run @@ fun env ->
@@ -75,9 +75,11 @@ let run zonefiles log_level addressStrings port proto prod cert_root socket_path
         let msg =
           match Domain_name.of_string domain with
           | Error (`Msg e) -> "Error: " ^ e
-          | Ok domain -> generate_cert ~email ~org ~domain cert_root prod server_state env
+          | Ok domain -> generate_cert ~email ~domain ~org cert_root prod server_state env
         in
-        Eio.traceln "Recieved request: email '%s'; org '%s'; domain '%s'" email org domain;
+        Eio.traceln "Recieved request: email '%s'; '%s'domain '%s'" email
+          (match org with None -> "" | Some o -> Fmt.str "; org '%s' " o)
+          domain;
         Eio.Flow.copy_string msg sock;
         Eio.Flow.shutdown sock `All)
   done

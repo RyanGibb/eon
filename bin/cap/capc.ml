@@ -1,6 +1,6 @@
 type copts = { cap_uri : Uri.t }
 
-let cert copts_env email domain org cert_root =
+let cert copts_env email domain org extra_domains cert_root =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let copts = copts_env env in
@@ -32,7 +32,7 @@ let cert copts_env email domain org cert_root =
               write_pem cert_file cert;
               Printf.printf "Updated cert for %s\n%!" (Domain_name.to_string domain))
     in
-    match Cap.Domain.cert domain_cap ~email ~org ~subdomain:Domain_name.root cert_callback_cap with
+    match Cap.Domain.cert domain_cap ~email ~org ~extra_domains ~subdomain:Domain_name.root cert_callback_cap with
     | Error (`Capnp e) -> Format.eprintf "%a" Capnp_rpc.Error.pp e
     | Ok () -> ()
   in
@@ -126,7 +126,11 @@ let cert_cmd =
   in
   let org =
     let doc = "The name of the organization requesting the certificate." in
-    Arg.(value & opt string "" & info [ "org" ] ~docv:"ORGANIZATION" ~doc)
+    Arg.(value & opt (some string) None & info [ "org" ] ~docv:"ORGANIZATION" ~doc)
+  in
+  let extra_domains =
+    let doc = "Extra domains to be added as Subject Alternative Names." in
+    Arg.(value & opt_all (conv (Domain_name.of_string, Domain_name.pp)) [] & info [ "d"; "domain" ] ~docv:"EXTRA_DOMAINS" ~doc)
   in
   let cert_root =
     let doc = "Directory to store the certificates and keys in at path <cert-root>/<domain>/." in
@@ -141,7 +145,7 @@ let cert_cmd =
     ]
   in
   let info = Cmd.info "cert" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const cert $ copts_t $ email $ domain $ org $ cert_root)
+  Cmd.v info Term.(const cert $ copts_t $ email $ domain $ org $ extra_domains $ cert_root)
 
 let update_cmd =
   let domain =

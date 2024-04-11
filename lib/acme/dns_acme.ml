@@ -14,7 +14,7 @@ let protect ~f ~(finally : unit -> unit) =
       finally ();
       raise e
 
-let provision_cert prod server_state env ?account_key ?private_key ~email ~org domain =
+let provision_cert prod server_state env ?account_key ?private_key ~email ?(org = None) ?(extra_domains = []) domain =
   (* check if there's any issues with the domain *)
   (match
      let trie = Dns_server.Primary.data !server_state in
@@ -97,7 +97,7 @@ let provision_cert prod server_state env ?account_key ?private_key ~email ~org d
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   protect
     ~f:(fun () ->
-      try Tls_le.gen_cert ?account_key ?private_key ~email ~org ~domain ~endpoint ~solver env
+      try Tls_le.gen_cert ?account_key ?private_key ~email domain ~org ~extra_domains ~endpoint ~solver env
       with Tls_le.Le_error msg ->
         Eio.traceln "ACME error: %s" msg;
         raise (Tls_le.Le_error msg))

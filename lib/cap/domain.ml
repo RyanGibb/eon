@@ -69,16 +69,19 @@ let rec local env domain server_state provision_cert state_dir =
        method cert_impl params release_param_caps =
          let open Domain.Cert in
          let email = Params.email_get params in
-         let org = Params.org_get params in
          let subdomain = Params.subdomain_get params in
+         let org = match Params.org_get params with "" -> None | o -> Some o in
+         let extra_domains = Params.extradomains_get_list params in
          let mgr = Option.get (Params.cert_callback_get params) in
          release_param_caps ();
-         Eio.traceln "Domain.bind(email=%s, org=%s, subdomain=%s) domain=%s" email org subdomain
-           (Domain_name.to_string domain);
+         Eio.traceln "Domain.bind(email=%s%s, subdomain=%s) domain=%s" email
+           (match org with None -> "" | Some o -> Fmt.str ", org=%s" o)
+           subdomain (Domain_name.to_string domain);
          let response, _results = Service.Response.create Results.init_pointer in
          let callback_result =
            try
              let domain = Domain_name.append_exn domain (Domain_name.of_string_exn subdomain) in
+             let extra_domains = List.map Domain_name.of_string_exn extra_domains in
              let cert, private_key =
                match (load_cert domain, load_private_key domain) with
                (* TODO what if this is out of date *)
@@ -86,8 +89,9 @@ let rec local env domain server_state provision_cert state_dir =
                (* if we don't have them cached, provision them *)
                | _ ->
                    let cert, account_key, private_key, _csr =
-                     provision_cert ?account_key:(load_account_key email) ?private_key:(load_private_key domain) ~email
-                       ~org domain
+                     provision_cert ?account_key:(load_account_key email) ?private_key:(load_private_key domain)
+                       ~email (* I don't know why but this makes the type checker happy *)
+                       ?org:(Some org) ?extra_domains:(Some extra_domains) domain
                    in
                    save_account_key email account_key;
                    save_private_key domain private_key;
@@ -210,12 +214,13 @@ let rec local env domain server_state provision_cert state_dir =
          Service.return response
      end
 
-let cert t ~email ~org ~subdomain cert_callback =
+let cert t ~email ~subdomain ~org ~extra_domains cert_callback =
   let open Api.Client.Domain.Cert in
   let request, params = Capability.Request.create Params.init_pointer in
   Params.email_set params email;
-  Params.org_set params org;
   Params.subdomain_set params (Domain_name.to_string subdomain);
+  Params.org_set params (match org with None -> "" | Some o -> o);
+  ignore @@ Params.extradomains_set_list params (List.map Domain_name.to_string extra_domains);
   Params.cert_callback_set params (Some cert_callback);
   Capability.call_for_unit t method_id request
 
