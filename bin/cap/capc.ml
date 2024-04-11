@@ -23,7 +23,6 @@ let cert copts_env email domain org cert_root =
               Unix._exit 1
           | Ok (cert, key) ->
               let write_pem filepath pem = Eio.Path.save ~create:(`Or_truncate 0o600) filepath pem in
-              Eio.Switch.run @@ fun sw ->
               let ( / ) = Eio.Path.( / ) in
               let cert_dir = env#fs / cert_root / Domain_name.to_string domain in
               Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 cert_dir;
@@ -61,7 +60,7 @@ let update copts_env domain prereqs updates =
   in
   Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
 
-let help copts man_format cmds topic =
+let help _copts man_format cmds topic =
   match topic with
   | None -> `Help (`Pager, None) (* help about the program. *)
   | Some topic -> (
@@ -73,7 +72,7 @@ let help copts man_format cmds topic =
           List.iter print_endline topics;
           `Ok ()
       | `Ok t when List.mem t cmds -> `Help (man_format, Some t)
-      | `Ok t ->
+      | `Ok _t ->
           let page = ((topic, 7, "", "", ""), [ `S topic; `P "Say something" ]) in
           `Ok (Cmdliner.Manpage.print man_format Format.std_formatter page))
 
@@ -98,7 +97,7 @@ let copts cap_uri cap_uri_file env =
   { cap_uri }
 
 let copts_t =
-  let docs = Manpage.s_common_options in
+  let _docs = Manpage.s_common_options in
   let cap_uri =
     let doc =
       "Capability URI of the format capnp://sha-256:<hash>@address:port/<service-ID>. Takes priority over cap-file."
