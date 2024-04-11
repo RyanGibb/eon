@@ -7,26 +7,30 @@ let errcheck = function Ok v -> v | Error (`Msg m) -> raise (Le_error m)
 let gen_account_key () = `RSA (Mirage_crypto_pk.Rsa.generate ~bits:2048 ())
 let gen_private_key () = `RSA (Mirage_crypto_pk.Rsa.generate ~bits:4096 ())
 
-let gen_csr ~private_key ~email ~org ~domain =
-  (* looks like we might need to use Subject Alternative Name (SAN), rfc2818
-      e.g. chrome doesn't look at CN anymore
-      https://developer.chrome.com/blog/chrome-58-deprecations/#remove_support_for_commonname_matching_in_certificates
-      relevant rfc6125/rfc9525
-      also, do we need the org? *)
-  let dn =
-    let open X509.Distinguished_name in
-    [
-      Relative_distinguished_name.(singleton (CN (Domain_name.to_string domain)));
-      Relative_distinguished_name.(singleton (Mail email));
-    ]
-    @ if org != "" then [ Relative_distinguished_name.(singleton (O org)) ] else []
-  in
-  X509.Signing_request.create dn private_key |> errcheck
+let gen_csr ~private_key ~email ?(org = None) domains =
+  let open X509 in
+  match List.map Domain_name.to_string domains with
+  | [] -> raise (Invalid_argument "Must specify at least one domain")
+  | name :: names ->
+      let dn =
+        let open X509.Distinguished_name in
+        [ Relative_distinguished_name.(singleton (CN name)); Relative_distinguished_name.(singleton (Mail email)) ]
+        @ match org with Some org -> [ Relative_distinguished_name.(singleton (O org)) ] | None -> []
+      in
+      let extensions =
+        let extensions =
+          List.fold_left
+            (fun exn san -> Extension.(add Subject_alt_name (false, General_name.(singleton DNS [ san ]))) exn)
+            Extension.empty (name :: names)
+        in
+        Signing_request.Ext.(add Extensions extensions empty)
+      in
+      X509.Signing_request.create dn private_key ~extensions |> errcheck
 
-let gen_cert ?account_key ?private_key ~email ~org ~domain ~endpoint ~solver env =
+let gen_cert ?account_key ?private_key ~email ?(org = None) domains ~endpoint ~solver env =
   let account_key = Option.value account_key ~default:(Lazy.force (lazy (gen_account_key ()))) in
   let private_key = Option.value private_key ~default:(Lazy.force (lazy (gen_private_key ()))) in
-  let csr = gen_csr ~private_key ~email ~org ~domain in
+  let csr = gen_csr ~private_key ~email ~org domains in
   let sleep n = Eio.Time.sleep env#clock (float_of_int n) in
   let le = Letsencrypt.Client.initialise env ~endpoint ~email account_key |> errcheck in
   let cert = Letsencrypt.Client.sign_certificate env solver le sleep csr |> errcheck in

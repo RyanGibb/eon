@@ -20,7 +20,9 @@ let write_pem filepath pem =
     Format.pp_print_flush Format.err_formatter ();
     raise (Sys_error "Failed to write to file")
 
-let rec local env domain server_state provision_cert state_dir =
+let rec local env domain prod server_state state_dir =
+  let provision_cert = Dns_acme.provision_cert prod server_state env in
+
   let account_dir = Eio.Path.(env#fs / state_dir / "accounts") in
   let load_account_key email = read_pem Eio.Path.(account_dir / email / "account.pem") X509.Private_key.decode_pem in
   let save_account_key email key =
@@ -54,10 +56,15 @@ let rec local env domain server_state provision_cert state_dir =
     write_pem filepath (X509.Certificate.encode_pem_multiple key)
   in
 
-  let cert callback ~email ~org ~subdomain =
+  let cert callback ~email ~org ~domains =
     let callback_result =
       try
-        let domain = Domain_name.append_exn domain (Domain_name.of_string_exn subdomain) in
+        let domains = List.map Domain_name.of_string_exn domains in
+        let domain =
+          match domains with
+          | [] -> raise (Invalid_argument "Must specify at least one domain.")
+          | domain :: _ -> domain
+        in
         let cert, private_key =
           match (load_cert domain, load_private_key domain) with
           (* TODO what if this is out of date *)
@@ -66,7 +73,7 @@ let rec local env domain server_state provision_cert state_dir =
           | _ ->
               let cert, account_key, private_key, _csr =
                 provision_cert ?account_key:(load_account_key email) ?private_key:(load_private_key domain) ~email ~org
-                  domain
+                  domains
               in
               save_account_key email account_key;
               save_private_key domain private_key;
@@ -101,15 +108,15 @@ let rec local env domain server_state provision_cert state_dir =
        method cert_impl params release_param_caps =
          let open Domain.Cert in
          let email = Params.email_get params in
-         let org = Params.org_get params in
-         let subdomain = Params.subdomain_get params in
+         let org = match Params.org_get params with "" -> None | o -> Some o in
+         let domains = Params.domains_get_list params in
          let callback = Params.cert_callback_get params in
          release_param_caps ();
-         Eio.traceln "Domain.bind(email=%s, org=%s, subdomain=%s) domain=%s" email org subdomain
-           (Domain_name.to_string domain);
+         Eio.traceln "Domain.bind(email=%s, org=%a, domains=[%a]) in domain=%a" email (Fmt.option Fmt.string) org
+           (Fmt.list Fmt.string) domains Domain_name.pp domain;
          match callback with
          | None -> Service.fail "No callback parameter!"
-         | Some callback -> Service.return @@ Capability.with_ref callback (cert ~email ~org ~subdomain)
+         | Some callback -> Service.return @@ Capability.with_ref callback (cert ~email ~org ~domains)
 
        method delegate_impl params release_param_caps =
          let open Domain.Delegate in
@@ -121,7 +128,7 @@ let rec local env domain server_state provision_cert state_dir =
          | Error (`Msg e) -> Eio.traceln "Domain.delegate error parsing domain: %s" e
          | Ok subdomain ->
              let domain = Domain_name.append_exn domain subdomain in
-             Results.domain_set results (Some (local env domain server_state provision_cert state_dir)));
+             Results.domain_set results (Some (local env domain prod server_state state_dir)));
          Service.return response
 
        method update_impl params release_param_caps =
@@ -216,12 +223,12 @@ let rec local env domain server_state provision_cert state_dir =
          Service.return response
      end
 
-let cert t ~email ~org ~subdomain cert_callback =
+let cert t ~email ~org domains cert_callback =
   let open Api.Client.Domain.Cert in
   let request, params = Capability.Request.create Params.init_pointer in
   Params.email_set params email;
-  Params.org_set params org;
-  Params.subdomain_set params (Domain_name.to_string subdomain);
+  ignore @@ Params.domains_set_list params (List.map Domain_name.to_string domains);
+  Params.org_set params (match org with None -> "" | Some o -> o);
   Params.cert_callback_set params (Some cert_callback);
   Capability.call_for_unit t method_id request
 

@@ -1,6 +1,6 @@
 type copts = { cap_uri : Uri.t }
 
-let cert copts_env email domain org cert_root =
+let cert copts_env email domains org cert_root =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let copts = copts_env env in
@@ -8,6 +8,9 @@ let cert copts_env email domain org cert_root =
   let sturdy_ref =
     let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
     Capnp_rpc_unix.Vat.import_exn client_vat cap_uri
+  in
+  let domain =
+    match domains with [] -> raise (Invalid_argument "Must specify at least one domain.") | domain :: _ -> domain
   in
   let run_client cap =
     let domain_cap = Cap.Zone.init cap domain in
@@ -32,7 +35,7 @@ let cert copts_env email domain org cert_root =
                write_pem cert_file cert;
                Printf.printf "Updated cert for %s\n%!" (Domain_name.to_string domain)))
     @@ fun callback ->
-    match Cap.Domain.cert domain_cap ~email ~org ~subdomain:Domain_name.root callback with
+    match Cap.Domain.cert domain_cap ~email ~org domains callback with
     | Error (`Capnp e) -> Format.eprintf "%a" Capnp_rpc.Error.pp e
     | Ok () -> ()
   in
@@ -120,13 +123,13 @@ let cert_cmd =
     let doc = "The email address to use for the ACME account." in
     Arg.(required & pos 0 (some string) None & info [] ~docv:"EMAIL" ~doc)
   in
-  let domain =
-    let doc = "The domain name to query." in
-    Arg.(required & pos 1 (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [] ~docv:"DOMAIN" ~doc)
+  let domains =
+    let doc = "Domains to provision certificates for." in
+    Arg.(value & opt_all (conv (Domain_name.of_string, Domain_name.pp)) [] & info [ "d"; "domain" ] ~docv:"DOMAIN" ~doc)
   in
   let org =
     let doc = "The name of the organization requesting the certificate." in
-    Arg.(value & opt string "" & info [ "org" ] ~docv:"ORGANIZATION" ~doc)
+    Arg.(value & opt (some string) None & info [ "org" ] ~docv:"ORGANIZATION" ~doc)
   in
   let cert_root =
     let doc = "Directory to store the certificates and keys in at path <cert-root>/<domain>/." in
@@ -141,7 +144,7 @@ let cert_cmd =
     ]
   in
   let info = Cmd.info "cert" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const cert $ copts_t $ email $ domain $ org $ cert_root)
+  Cmd.v info Term.(const cert $ copts_t $ email $ domains $ org $ cert_root)
 
 let update_cmd =
   let domain =

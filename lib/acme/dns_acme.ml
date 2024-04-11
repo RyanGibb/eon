@@ -14,21 +14,24 @@ let protect ~f ~(finally : unit -> unit) =
       finally ();
       raise e
 
-let provision_cert prod server_state env ?account_key ?private_key ~email ~org domain =
-  (* check if there's any issues with the domain *)
-  (match
-     let trie = Dns_server.Primary.data !server_state in
-     Dns_trie.lookup domain Dns.Rr_map.Txt trie
-   with
-  (* if there is no record, all is well *)
-  | Error (`NotFound _) -> ()
-  | Error (`EmptyNonTerminal _) -> ()
-  (* if there is a record, we can ignore it *)
-  | Ok _ -> ()
-  (* if there's any other issues, like the server is not authorative for this zone, or the zone has been delegated *)
-  | Error e ->
-      let msg = Format.asprintf "%a" Dns_trie.pp_e e in
-      raise (Dns_acme_error msg));
+let provision_cert prod server_state env ?account_key ?private_key ~email ?(org = None) domains =
+  List.iter
+    (fun domain ->
+      (* check if there's any issues with the domain *)
+      match
+        let trie = Dns_server.Primary.data !server_state in
+        Dns_trie.lookup domain Dns.Rr_map.Txt trie
+      with
+      (* if there is no record, all is well *)
+      | Error (`NotFound _) -> ()
+      | Error (`EmptyNonTerminal _) -> ()
+      (* if there is a record, we can ignore it *)
+      | Ok _ -> ()
+      (* if there's any other issues, like the server is not authorative for this zone, or the zone has been delegated *)
+      | Error e ->
+          let msg = Format.asprintf "%a" Dns_trie.pp_e e in
+          raise (Dns_acme_error msg))
+    domains;
 
   let acmeName = ref @@ None in
   let solver =
@@ -97,7 +100,7 @@ let provision_cert prod server_state env ?account_key ?private_key ~email ~org d
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   protect
     ~f:(fun () ->
-      try Tls_le.gen_cert ?account_key ?private_key ~email ~org ~domain ~endpoint ~solver env
+      try Tls_le.gen_cert ?account_key ?private_key ~email ~org domains ~endpoint ~solver env
       with Tls_le.Le_error msg ->
         Eio.traceln "ACME error: %s" msg;
         raise (Tls_le.Le_error msg))
