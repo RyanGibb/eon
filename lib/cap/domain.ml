@@ -188,7 +188,8 @@ let rec local env domain server_state provision_cert state_dir =
                   | Undefined i -> raise (Invalid_argument (Printf.sprintf "Undefined update %d" i)))
                 ~init:Domain_name.Map.empty updates
             in
-            Eio.traceln "Domain.update(%a) domain=%s" Dns.Packet.Update.pp (prereqs, updates) (Domain_name.to_string domain);
+            Eio.traceln "Domain.update(%a) domain=%s" Dns.Packet.Update.pp (prereqs, updates)
+              (Domain_name.to_string domain);
             (* TODO locking *)
             let trie = Dns_server.Primary.data !server_state in
             match Dns_server.update_data trie domain (prereqs, updates) with
@@ -226,6 +227,7 @@ let delegate t domain =
 
 module Update = struct
   open Dns
+
   type prereq =
     | Exists of Dns.Rr_map.k
     | Exists_data of Dns.Rr_map.k * string
