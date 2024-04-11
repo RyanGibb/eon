@@ -15,7 +15,8 @@ let local vat_config services env prod server_state state_dir =
          let response, results = Service.Response.create Results.init_pointer in
          (match Domain_name.of_string domain with
          | Error (`Msg e) -> Eio.traceln "Zone error parsing domain: %s" e
-         | Ok domain -> Results.domain_set results (Some (Domain.local vat_config services env domain prod server_state state_dir)));
+         | Ok domain ->
+             Results.domain_set results (Some (Domain.local vat_config services env domain prod server_state state_dir)));
          Service.return response
      end
 

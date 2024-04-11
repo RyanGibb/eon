@@ -100,7 +100,10 @@ let rec local vat_config services env domain prod server_state state_dir =
   in
 
   let module Domain = Api.Service.Domain in
-  let sr = let id = Capnp_rpc_unix.Vat_config.derived_id vat_config (Domain_name.to_string domain) in Capnp_rpc_net.Restorer.Table.sturdy_ref services id in
+  let sr =
+    let id = Capnp_rpc_unix.Vat_config.derived_id vat_config (Domain_name.to_string domain) in
+    Capnp_rpc_net.Restorer.Table.sturdy_ref services id
+  in
   Persistence.with_sturdy_ref sr Domain.local
   @@ object
        inherit Domain.service
@@ -238,6 +241,13 @@ let rec local vat_config services env domain prod server_state state_dir =
          | _ -> Results.success_set results true);
          Service.return response
      end
+
+let get_name t =
+  let open Api.Client.Domain.GetName in
+  let request, params = Capability.Request.create Params.init_pointer in
+  match Capability.call_for_value t method_id request with
+  | Ok results -> Ok (Results.name_get results)
+  | Error e -> Error e
 
 let cert t ~email ~org domains cert_callback =
   let open Api.Client.Domain.Cert in

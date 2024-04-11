@@ -1,5 +1,28 @@
 type copts = { cap_uri : Uri.t }
 
+let get_name copts_env =
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+  let copts = copts_env env in
+  let cap_uri = copts.cap_uri in
+  let sturdy_ref =
+    let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
+    Capnp_rpc_unix.Vat.import_exn client_vat cap_uri
+  in
+  let run_client cap =
+    match Cap.Domain.get_name cap with
+    | Error (`Capnp e) ->
+        Format.eprintf "Capnp error: %a%!" Capnp_rpc.Error.pp e;
+        Unix._exit 1
+    | Error (`Remote e) ->
+        Format.eprintf "Remote error: %s%!" e;
+        Unix._exit 1
+    | Ok name ->
+        Printf.printf "%s\n%!" name;
+        Unix._exit 0
+  in
+  Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
+
 let cert copts_env email domains org cert_root =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
@@ -48,9 +71,20 @@ let delegate copts_env subdomain cap_root =
   let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
   let sturdy_ref = Capnp_rpc_unix.Vat.import_exn client_vat cap_uri in
   let run_client cap =
+    match Cap.Domain.get_name cap with
+    | Error (`Capnp e) ->
+        Format.eprintf "Capnp error: %a%!" Capnp_rpc.Error.pp e;
+        Unix._exit 1
+    | Error (`Remote e) ->
+        Format.eprintf "Remote error: %s%!" e;
+        Unix._exit 1
+    | Ok name -> name
+  in
+  let domain = Capnp_rpc_unix.with_cap_exn sturdy_ref run_client in
+  let run_client cap =
     let delegated_cap = Cap.Domain.delegate cap subdomain in
     let delegated_cap_uri = Capnp_rpc_lwt.Persistence.save_exn delegated_cap in
-    let file = Eio.Path.(env#fs / cap_root / (Domain_name.to_string subdomain ^ ".cap")) in
+    let file = Eio.Path.(env#fs / cap_root / (Domain_name.to_string subdomain ^ "." ^ domain ^ ".cap")) in
     Eio.Path.save ~create:(`Or_truncate 0o600) file (Uri.to_string delegated_cap_uri);
     let _, filepath = file in
     Printf.printf "Wrote capability to %s\n%!" filepath;
@@ -125,6 +159,11 @@ let copts_t =
 
 let sdocs = Manpage.s_common_options
 
+let get_name_cmd =
+  let doc = "Get the name for which this capability is authorative for." in
+  let info = Cmd.info "get-name" ~doc ~sdocs in
+  Cmd.v info Term.(const get_name $ copts_t)
+
 let cert_cmd =
   let email =
     let doc = "The email address to use for the ACME account." in
@@ -156,10 +195,7 @@ let cert_cmd =
 let delegate_cmd =
   let subdomain =
     let doc = "Subdomain to delegate a capability for." in
-    Arg.(
-      required
-      & pos 1 (some (conv (Domain_name.of_string, Domain_name.pp))) None
-      & info [ ] ~docv:"DOMAIN" ~doc)
+    Arg.(required & pos 1 (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [] ~docv:"DOMAIN" ~doc)
   in
   let cap_root =
     let doc = "Directory to store the capability in." in
@@ -266,6 +302,6 @@ let main_cmd =
   let man = help_secs in
   let info = Cmd.info "capc" ~version:"%%VERSION%%" ~doc ~sdocs ~man in
   let default = Term.(ret (const (fun _ -> `Help (`Pager, None)) $ copts_t)) in
-  Cmd.group info ~default [ cert_cmd; delegate_cmd; update_cmd; help_cmd ]
+  Cmd.group info ~default [ get_name_cmd; cert_cmd; delegate_cmd; update_cmd; help_cmd ]
 
 let () = exit (Cmd.eval main_cmd)
