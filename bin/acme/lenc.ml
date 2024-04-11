@@ -31,7 +31,7 @@ let () =
     in
     let socket_path =
       let doc = "The path to the Unix domain socket." in
-      Arg.(value & opt string "/run/lend/cert.socket" & info [ "s"; "socket" ] ~docv:"SOCKET_PATH" ~doc)
+      Arg.(value & opt string "/run/lend.socket" & info [ "s"; "socket" ] ~docv:"SOCKET_PATH" ~doc)
     in
     let term = Term.(const run $ email $ org $ domain $ socket_path) in
     let doc = "Let's Encrypt Nameserver Client." in

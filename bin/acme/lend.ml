@@ -44,7 +44,7 @@ let read_request sock =
   Eio.Flow.shutdown sock `Receive;
   (email, org, domain)
 
-let run zonefiles log_level addressStrings port proto prod cert_root socket_path =
+let run zonefiles log_level addressStrings port proto prod cert_root socket_path authorative =
   Eio_main.run @@ fun env ->
   let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
@@ -55,6 +55,11 @@ let run zonefiles log_level addressStrings port proto prod cert_root socket_path
   in
   let server_state =
     let trie, keys = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+    let trie =
+      match authorative with
+      | None -> trie
+      | Some authorative -> Dns_trie.insert Domain_name.root Dns.Rr_map.Soa (Dns.Soa.create authorative) trie
+    in
     ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
   in
 
@@ -91,11 +96,16 @@ let () =
     in
     let socket_path =
       let doc = "The path to the Unix domain socket." in
-      Arg.(value & opt string "/run/lend/cert.socket" & info [ "s"; "socket" ] ~docv:"SOCKET_PATH" ~doc)
+      Arg.(value & opt string "/run/lend.socket" & info [ "s"; "socket" ] ~docv:"SOCKET_PATH" ~doc)
+    in
+    let authorative =
+      let doc = "Domain(s) for which the nameserver is authorative for, if not passed in zonefiles." in
+      Arg.(value & opt (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [ "a"; "authorative" ] ~doc)
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ cert_root $ socket_path)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ cert_root $ socket_path
+        $ authorative)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "lend" ~doc ~man in
