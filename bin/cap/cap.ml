@@ -14,7 +14,8 @@ let capnp_serve env authorative vat_config prod server_state state_dir =
     let id = Cap.Db.save_new db ~name in
     Capnp_rpc_net.Restorer.restore restore id
   in
-  Eio.Std.Promise.resolve set_loader (fun sr ~name -> Capnp_rpc_net.Restorer.grant @@ Cap.Domain.local ~persist_new sr env name prod server_state state_dir);
+  Eio.Std.Promise.resolve set_loader (fun sr ~name ->
+      Capnp_rpc_net.Restorer.grant @@ Cap.Domain.local ~persist_new sr env name prod server_state state_dir);
   let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore vat_config in
 
   let zone_cap = Cap.Zone.local ~persist_new vat_config services env prod server_state state_dir in

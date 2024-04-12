@@ -1,9 +1,8 @@
 open Eio.Std
 open Capnp_rpc_lwt
 open Capnp_rpc_net
-
 module File_store = Capnp_rpc_unix.File_store
-module Store = Store.Make(Capnp.BytesMessage)
+module Store = Store.Make (Capnp.BytesMessage)
 
 type loader = [ `Domain_debb01f25d5fee15 ] Sturdy_ref.t -> name:[ `raw ] Domain_name.t -> Restorer.resolution
 
@@ -14,7 +13,6 @@ type t = {
 }
 
 let hash _ = `SHA256
-
 let make_sturdy t = t.make_sturdy
 
 let save t ~digest name =
@@ -34,15 +32,14 @@ let load t sr digest =
   match File_store.load t.store ~digest with
   | None -> Restorer.unknown_service_id
   | Some saved_service ->
-    let domain = Store.Reader.SavedService.domain_get saved_service in
-    let name = Domain_name.of_string_exn (Store.Reader.SavedDomain.name_get domain) in
-    let sr = Capnp_rpc_lwt.Sturdy_ref.cast sr in
-    let loader = Promise.await t.loader in
-    loader sr ~name
+      let domain = Store.Reader.SavedService.domain_get saved_service in
+      let name = Domain_name.of_string_exn (Store.Reader.SavedDomain.name_get domain) in
+      let sr = Capnp_rpc_lwt.Sturdy_ref.cast sr in
+      let loader = Promise.await t.loader in
+      loader sr ~name
 
 let create ~make_sturdy dir =
   let loader, set_loader = Promise.create () in
-  if not (Eio.Path.is_directory dir) then
-    Eio.Path.mkdir dir ~perm:0o755;
+  if not (Eio.Path.is_directory dir) then Eio.Path.mkdir dir ~perm:0o755;
   let store = File_store.create dir in
-  {store; loader; make_sturdy}, set_loader
+  ({ store; loader; make_sturdy }, set_loader)

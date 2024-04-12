@@ -130,18 +130,19 @@ let local ~persist_new sr env domain prod server_state state_dir =
          release_param_caps ();
          Eio.traceln "Domain.delegate(subdomain='%s')" subdomain;
          let response, _results = Service.Response.create Results.init_pointer in
-         (match Domain_name.of_string subdomain with
-         | Error (`Msg e) -> Eio.traceln "Domain.delegate error parsing domain: %s" e;
-               Service.return response
-         | Ok subdomain ->
+         match Domain_name.of_string subdomain with
+         | Error (`Msg e) ->
+             Eio.traceln "Domain.delegate error parsing domain: %s" e;
+             Service.return response
+         | Ok subdomain -> (
              let name = Domain_name.append_exn subdomain domain in
              match persist_new ~name with
-             | Error e -> Eio.traceln "hi"; Service.error (`Exception e)
+             | Error e -> Service.error (`Exception e)
              | Ok logger ->
-               let response, results = Service.Response.create Results.init_pointer in
-               Results.domain_set results (Some logger);
-               Capability.dec_ref logger;
-               Service.return response)
+                 let response, results = Service.Response.create Results.init_pointer in
+                 Results.domain_set results (Some logger);
+                 Capability.dec_ref logger;
+                 Service.return response)
 
        method update_impl params release_param_caps =
          let open Domain.Update in
