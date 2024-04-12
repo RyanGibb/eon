@@ -20,7 +20,7 @@ let write_pem filepath pem =
     Format.pp_print_flush Format.err_formatter ();
     raise (Sys_error "Failed to write to file")
 
-let rec local vat_config services env domain prod server_state state_dir =
+let local ~persist_new sr env domain prod server_state state_dir =
   let provision_cert = Dns_acme.provision_cert prod server_state env in
 
   let account_dir = Eio.Path.(env#fs / state_dir / "accounts") in
@@ -100,10 +100,6 @@ let rec local vat_config services env domain prod server_state state_dir =
   in
 
   let module Domain = Api.Service.Domain in
-  let sr =
-    let id = Capnp_rpc_unix.Vat_config.derived_id vat_config (Domain_name.to_string domain) in
-    Capnp_rpc_net.Restorer.Table.sturdy_ref services id
-  in
   Persistence.with_sturdy_ref sr Domain.local
   @@ object
        inherit Domain.service
@@ -133,13 +129,19 @@ let rec local vat_config services env domain prod server_state state_dir =
          let subdomain = Params.subdomain_get params in
          release_param_caps ();
          Eio.traceln "Service.delegate(subdomain='%s')" subdomain;
-         let response, results = Service.Response.create Results.init_pointer in
+         let response, _results = Service.Response.create Results.init_pointer in
          (match Domain_name.of_string subdomain with
-         | Error (`Msg e) -> Eio.traceln "Domain.delegate error parsing domain: %s" e
+         | Error (`Msg e) -> Eio.traceln "Domain.delegate error parsing domain: %s" e;
+               Service.return response
          | Ok subdomain ->
-             let domain = Domain_name.append_exn domain subdomain in
-             Results.domain_set results (Some (local vat_config services env domain prod server_state state_dir)));
-         Service.return response
+             let name = Domain_name.append_exn subdomain domain in
+             match persist_new ~name with
+             | Error e -> Eio.traceln "hi"; Service.error (`Exception e)
+             | Ok logger ->
+               let response, results = Service.Response.create Results.init_pointer in
+               Results.domain_set results (Some logger);
+               Capability.dec_ref logger;
+               Service.return response)
 
        method update_impl params release_param_caps =
          let open Domain.Update in
@@ -244,7 +246,7 @@ let rec local vat_config services env domain prod server_state state_dir =
 
 let get_name t =
   let open Api.Client.Domain.GetName in
-  let request, params = Capability.Request.create Params.init_pointer in
+  let request, _params = Capability.Request.create Params.init_pointer in
   match Capability.call_for_value t method_id request with
   | Ok results -> Ok (Results.name_get results)
   | Error e -> Error e

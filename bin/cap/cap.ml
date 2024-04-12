@@ -1,17 +1,23 @@
-let capnp_serve env authorative vat_config server_state provision_cert state_dir =
+let capnp_serve env authorative vat_config prod server_state state_dir =
   Eio.Switch.run @@ fun sw ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let cap_dir = Eio.Path.(env#fs / state_dir / "caps") in
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 cap_dir;
 
-  let services =
-    let make_sturdy = Capnp_rpc_unix.Vat_config.sturdy_uri vat_config in
-    Capnp_rpc_net.Restorer.Table.create make_sturdy
-  in
+  let make_sturdy = Capnp_rpc_unix.Vat_config.sturdy_uri vat_config in
+  let store_dir = Eio.Path.(env#cwd / state_dir / "store") in 
+  Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 store_dir;
+  let db, set_loader = Cap.Db.create ~make_sturdy store_dir in
+  let services = Capnp_rpc_net.Restorer.Table.of_loader ~sw (module Cap.Db) db in
   let restore = Capnp_rpc_net.Restorer.of_table services in
+  let persist_new ~name =
+    let id = Cap.Db.save_new db ~name in
+    Capnp_rpc_net.Restorer.restore restore id
+  in
+  Eio.Std.Promise.resolve set_loader (fun sr ~name -> Capnp_rpc_net.Restorer.grant @@ Cap.Domain.local ~persist_new sr env name prod server_state state_dir);
   let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore vat_config in
 
-  let zone_cap = Cap.Zone.local vat_config services env server_state provision_cert state_dir in
+  let zone_cap = Cap.Zone.local ~persist_new vat_config services env prod server_state state_dir in
   let _zone =
     let id = Capnp_rpc_unix.Vat_config.derived_id vat_config "zone" in
     Capnp_rpc_net.Restorer.Table.add services id zone_cap;
@@ -30,6 +36,7 @@ let capnp_serve env authorative vat_config server_state provision_cert state_dir
       (match Capnp_rpc_unix.Cap_file.save_service vat id file with Error (`Msg m) -> failwith m | Ok () -> ());
       Printf.printf "[server] saved %S\n" file)
     authorative;
+
   Eio.Fiber.await_cancel ()
 
 let run zonefiles log_level addressStrings port proto prod authorative state_dir vat_config =

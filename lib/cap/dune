@@ -10,3 +10,9 @@
  (deps schema.capnp)
  (action
   (run capnp compile -o %{bin:capnpc-ocaml} %{deps})))
+
+(rule
+ (targets store.ml store.mli)
+ (deps store.capnp)
+ (action
+  (run capnp compile -o %{bin:capnpc-ocaml} %{deps})))
