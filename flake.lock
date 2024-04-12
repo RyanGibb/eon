@@ -21,11 +21,11 @@
         "systems": "systems"
       },
       "locked": {
-        "lastModified": 1701680307,
-        "narHash": "sha256-kAuep2h5ajznlPMD9rnQyffWG8EM/C73lejGofXvdM8=",
+        "lastModified": 1710146030,
+        "narHash": "sha256-SZ5L6eA7HJ/nmkzGG7/ISclqe6oZdOZTNoesiInkXPQ=",
         "owner": "numtide",
         "repo": "flake-utils",
-        "rev": "4022d587cbbfd70fe950c1e2083a02621806a725",
+        "rev": "b1d9ab70662946ef0850d488da1c9019f3a9752a",
         "type": "github"
       },
       "original": {
@@ -52,12 +52,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1697125505,
-        "narHash": "sha256-GaWFFhYlh0xDwKivg68SVKePX9CZ2WqdAjBqNdy9bgE=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "974322cf31b85090a7f7dbc976b7908d5264ac70",
-        "type": "github"
+        "lastModified": 1712437997,
+        "narHash": "sha256-g0whLLwRvgO2FsyhY8fNk+TWenS3jg5UdlWL4uqgFeo=",
+        "path": "/nix/store/6nfpbajyzwxq6wrhn20l13rhckhv26rc-source",
+        "rev": "e38d7cb66ea4f7a0eb6681920615dfcc30fc2920",
+        "type": "path"
       },
       "original": {
         "id": "nixpkgs",
@@ -114,11 +113,11 @@
     "opam-repository": {
       "flake": false,
       "locked": {
-        "lastModified": 1702911475,
-        "narHash": "sha256-GLBqL378rDtKCDW6r5et/jG+1XwaIjhOauFVWq+K6mQ=",
+        "lastModified": 1712915335,
+        "narHash": "sha256-CLxKnc9GgeNom5LzGhDyq4ZP8Mx8NtwYsg2YQfcSk3U=",
         "owner": "ocaml",
         "repo": "opam-repository",
-        "rev": "b56daa9b5d762d02f791fa7ec4dc770b16944ba4",
+        "rev": "03178cf5192dd1a55105844365e56a2294cd9225",
         "type": "github"
       },
       "original": {
