@@ -118,7 +118,7 @@ let local ~persist_new sr env domain prod server_state state_dir =
          let domains = Params.domains_get_list params in
          let callback = Params.cert_callback_get params in
          release_param_caps ();
-         Eio.traceln "Domain.bind(email=%s, org=%a, domains=[%a]) in domain=%a" email (Fmt.option Fmt.string) org
+         Eio.traceln "Domain.cert(email=%s, org=%a, domains=[%a]) in domain=%a" email (Fmt.option Fmt.string) org
            (Fmt.list Fmt.string) domains Domain_name.pp domain;
          match callback with
          | None -> Service.fail "No callback parameter!"
@@ -128,7 +128,7 @@ let local ~persist_new sr env domain prod server_state state_dir =
          let open Domain.Delegate in
          let subdomain = Params.subdomain_get params in
          release_param_caps ();
-         Eio.traceln "Service.delegate(subdomain='%s')" subdomain;
+         Eio.traceln "Domain.delegate(subdomain='%s')" subdomain;
          let response, _results = Service.Response.create Results.init_pointer in
          (match Domain_name.of_string subdomain with
          | Error (`Msg e) -> Eio.traceln "Domain.delegate error parsing domain: %s" e;
