@@ -23,7 +23,7 @@ let get_name copts_env =
   in
   Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
 
-let cert copts_env email domains org cert_root =
+let cert copts_env email domains org cert_dir =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let copts = copts_env env in
@@ -49,7 +49,9 @@ let cert copts_env email domains org cert_root =
            | Ok (cert, key) ->
                let write_pem filepath pem = Eio.Path.save ~create:(`Or_truncate 0o600) filepath pem in
                let ( / ) = Eio.Path.( / ) in
-               let cert_dir = env#fs / cert_root / Domain_name.to_string domain in
+               let cert_dir =
+                 match cert_dir with Some d -> env#fs / d | None -> env#fs / "certs" / Domain_name.to_string domain
+               in
                Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 cert_dir;
                let private_key_file = cert_dir / "privkey.pem" in
                let cert_file = cert_dir / "fullcert.pem" in
@@ -177,9 +179,9 @@ let cert_cmd =
     let doc = "The name of the organization requesting the certificate." in
     Arg.(value & opt (some string) None & info [ "org" ] ~docv:"ORGANIZATION" ~doc)
   in
-  let cert_root =
-    let doc = "Directory to store the certificates and keys in at path <cert-root>/<domain>/." in
-    Arg.(value & opt string "certs" & info [ "cert-root" ] ~doc)
+  let cert_dir =
+    let doc = "Directory to store the certificates and keys in. Defaults to ./certs/<domain>." in
+    Arg.(value & opt (some string) None & info [ "cert-dir" ] ~doc)
   in
   let doc = "Provision a certificate." in
   let man =
@@ -190,7 +192,7 @@ let cert_cmd =
     ]
   in
   let info = Cmd.info "cert" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const cert $ copts_t $ email $ domains $ org $ cert_root)
+  Cmd.v info Term.(const cert $ copts_t $ email $ domains $ org $ cert_dir)
 
 let delegate_cmd =
   let subdomain =
