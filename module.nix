@@ -42,6 +42,10 @@ in {
       type = types.int;
       default = 7000;
     };
+    prod = lib.mkOption {
+      type = types.bool;
+      default = true;
+    };
   };
 
   config = mkIf cfg.enable {
@@ -59,7 +63,8 @@ in {
             "--capnp-secret-key-file /var/lib/eon/capnp-secret.pem "
             + "--capnp-listen-address tcp:${cfg.capnpAddress}:${
               builtins.toString cfg.capnpPort
-            } " + "--state-dir /var/lib/eon"
+            } " + "--state-dir /var/lib/eon "
+            + "${if cfg.prod then "--prod" else ""}"
           else
             "");
         Restart = "always";
