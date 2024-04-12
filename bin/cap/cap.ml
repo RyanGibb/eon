@@ -5,7 +5,7 @@ let capnp_serve env authorative vat_config prod server_state state_dir =
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 cap_dir;
 
   let make_sturdy = Capnp_rpc_unix.Vat_config.sturdy_uri vat_config in
-  let store_dir = Eio.Path.(env#cwd / state_dir / "store") in 
+  let store_dir = Eio.Path.(env#fs / state_dir / "store") in
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 store_dir;
   let db, set_loader = Cap.Db.create ~make_sturdy store_dir in
   let services = Capnp_rpc_net.Restorer.Table.of_loader ~sw (module Cap.Db) db in
