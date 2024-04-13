@@ -20,8 +20,8 @@ let write_pem filepath pem =
     Format.pp_print_flush Format.err_formatter ();
     raise (Sys_error "Failed to write to file")
 
-let local ~persist_new sr env domain prod server_state state_dir =
-  let provision_cert = Dns_acme.provision_cert prod server_state env in
+let local ~persist_new sr env domain prod endpoint server_state state_dir =
+  let provision_cert = Dns_acme.provision_cert prod endpoint server_state env in
 
   let account_dir = Eio.Path.(env#fs / state_dir / "accounts") in
   let load_account_key email = read_pem Eio.Path.(account_dir / email / "account.pem") X509.Private_key.decode_pem in

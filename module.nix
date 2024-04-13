@@ -46,6 +46,13 @@ in {
       type = types.bool;
       default = true;
     };
+    server = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = lib.mdDoc ''
+        ACME Directory Resource URI.
+      '';
+    };
   };
 
   config = mkIf cfg.enable {
@@ -65,6 +72,7 @@ in {
               builtins.toString cfg.capnpPort
             } " + "--state-dir /var/lib/eon "
             + "${if cfg.prod then "--prod" else ""}"
+            + "${if cfg.server != null then "--endpint ${cfg.server}" else ""}"
           else
             "");
         Restart = "always";

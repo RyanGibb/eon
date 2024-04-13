@@ -1,4 +1,4 @@
-let capnp_serve env authorative vat_config prod server_state state_dir =
+let capnp_serve env authorative vat_config prod endpoint server_state state_dir =
   Eio.Switch.run @@ fun sw ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let cap_dir = Eio.Path.(env#fs / state_dir / "caps") in
@@ -15,10 +15,10 @@ let capnp_serve env authorative vat_config prod server_state state_dir =
     Capnp_rpc_net.Restorer.restore restore id
   in
   Eio.Std.Promise.resolve set_loader (fun sr ~name ->
-      Capnp_rpc_net.Restorer.grant @@ Cap.Domain.local ~persist_new sr env name prod server_state state_dir);
+      Capnp_rpc_net.Restorer.grant @@ Cap.Domain.local ~persist_new sr env name prod endpoint server_state state_dir);
   let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore vat_config in
 
-  let zone_cap = Cap.Zone.local ~persist_new vat_config services env prod server_state state_dir in
+  let zone_cap = Cap.Zone.local ~persist_new vat_config services env prod endpoint server_state state_dir in
   let _zone =
     let id = Capnp_rpc_unix.Vat_config.derived_id vat_config "zone" in
     Capnp_rpc_net.Restorer.Table.add services id zone_cap;
@@ -40,7 +40,7 @@ let capnp_serve env authorative vat_config prod server_state state_dir =
 
   Eio.Fiber.await_cancel ()
 
-let run zonefiles log_level addressStrings port proto prod authorative state_dir vat_config =
+let run zonefiles log_level addressStrings port proto prod endpoint authorative state_dir vat_config =
   Eio_main.run @@ fun env ->
   let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
@@ -63,7 +63,7 @@ let run zonefiles log_level addressStrings port proto prod authorative state_dir
   Eio.Switch.run @@ fun sw ->
   Eio.Fiber.fork ~sw (fun () ->
       Dns_server_eio.primary ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto server_state log addresses);
-  capnp_serve env authorative vat_config prod server_state state_dir
+  capnp_serve env authorative vat_config prod endpoint server_state state_dir
 
 let () =
   Logs.set_level (Some Logs.Info);
@@ -75,6 +75,25 @@ let () =
     let prod =
       let doc = "Production certification generation" in
       Arg.(value & flag & info [ "prod" ] ~doc)
+    in
+    let endpoint =
+      let doc =
+        "ACME Directory Resource URI. Defaults to Let's Encrypt's staging endpoint \
+         https://acme-staging-v02.api.letsencrypt.org/directory, or if --prod set Let's Encrypt's production endpoint \
+         https://acme-v02.api.letsencrypt.org/directory."
+      in
+      let i = Arg.info [ "cap" ] ~docv:"CAP" ~doc in
+      Arg.(
+        value
+        @@ opt
+             (some
+                (Cmdliner.Arg.conv
+                   ( (fun s ->
+                       match Uri.of_string s with
+                       | exception ex -> Error (`Msg (Fmt.str "Failed to parse URI %S: %a" s Fmt.exn ex))
+                       | uri -> Ok uri),
+                     Uri.pp_hum )))
+             None i)
     in
     let authorative =
       let doc = "Domain(s) for which the nameserver is authorative for, if not passed in zonefiles." in
@@ -89,8 +108,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ authorative $ state_dir
-        $ Capnp_rpc_unix.Vat_config.cmd)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ endpoint $ authorative
+        $ state_dir $ Capnp_rpc_unix.Vat_config.cmd)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "cap" ~doc ~man in

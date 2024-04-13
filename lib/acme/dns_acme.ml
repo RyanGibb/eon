@@ -14,7 +14,7 @@ let protect ~f ~(finally : unit -> unit) =
       finally ();
       raise e
 
-let provision_cert prod server_state env ?account_key ?private_key ~email ?(org = None) domains =
+let provision_cert prod endpoint server_state env ?account_key ?private_key ~email ?(org = None) domains =
   List.iter
     (fun domain ->
       (* check if there's any issues with the domain *)
@@ -96,7 +96,11 @@ let provision_cert prod server_state env ?account_key ?private_key ~email ?(org 
     Letsencrypt_dns.dns_solver add_record
   in
 
-  let endpoint = if prod then Letsencrypt.letsencrypt_production_url else Letsencrypt.letsencrypt_staging_url in
+  let endpoint =
+    match endpoint with
+    | Some e -> e
+    | None -> if prod then Letsencrypt.letsencrypt_production_url else Letsencrypt.letsencrypt_staging_url
+  in
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   protect
     ~f:(fun () ->

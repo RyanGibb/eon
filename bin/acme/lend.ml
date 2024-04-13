@@ -8,7 +8,7 @@ module Eiox = struct
     with _ -> false
 end
 
-let generate_cert ~email ~domain ~org cert_root prod server_state env =
+let generate_cert ~email ~domain ~org cert_root prod endpoint server_state env =
   let read_pem filepath decode_pem =
     match Eiox.file_exists filepath with
     | true -> Some (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem |> Tls_le.errcheck)
@@ -27,7 +27,7 @@ let generate_cert ~email ~domain ~org cert_root prod server_state env =
   let private_key = read_pem private_key_file Private_key.decode_pem in
   try
     let cert, account_key, private_key, csr =
-      Dns_acme.provision_cert prod server_state env ?account_key ?private_key ~email [ domain ] ~org
+      Dns_acme.provision_cert prod endpoint server_state env ?account_key ?private_key ~email [ domain ] ~org
     in
     write_pem account_key_file (Private_key.encode_pem account_key);
     write_pem private_key_file (Private_key.encode_pem private_key);
@@ -44,7 +44,7 @@ let read_request sock =
   Eio.Flow.shutdown sock `Receive;
   (email, (match org with "" -> None | o -> Some o), domain)
 
-let run zonefiles log_level addressStrings port proto prod cert_root socket_path authorative =
+let run zonefiles log_level addressStrings port proto prod endpoint cert_root socket_path authorative =
   Eio_main.run @@ fun env ->
   let log = log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
@@ -75,7 +75,7 @@ let run zonefiles log_level addressStrings port proto prod cert_root socket_path
         let msg =
           match Domain_name.of_string domain with
           | Error (`Msg e) -> "Error: " ^ e
-          | Ok domain -> generate_cert ~email ~domain ~org cert_root prod server_state env
+          | Ok domain -> generate_cert ~email ~domain ~org cert_root prod endpoint server_state env
         in
         Eio.traceln "Recieved request: email '%s'; '%s'domain '%s'" email
           (match org with None -> "" | Some o -> Fmt.str "; org '%s' " o)
@@ -92,6 +92,25 @@ let () =
       let doc = "Production certification generation." in
       Arg.(value & flag & info [ "prod" ] ~doc)
     in
+    let endpoint =
+      let doc =
+        "ACME Directory Resource URI. Defaults to Let's Encrypt's staging endpoint \
+         https://acme-staging-v02.api.letsencrypt.org/directory, or if --prod set Let's Encrypt's production endpoint \
+         https://acme-v02.api.letsencrypt.org/directory."
+      in
+      let i = Arg.info [ "cap" ] ~docv:"CAP" ~doc in
+      Arg.(
+        value
+        @@ opt
+             (some
+                (Cmdliner.Arg.conv
+                   ( (fun s ->
+                       match Uri.of_string s with
+                       | exception ex -> Error (`Msg (Fmt.str "Failed to parse URI %S: %a" s Fmt.exn ex))
+                       | uri -> Ok uri),
+                     Uri.pp_hum )))
+             None i)
+    in
     let cert_root =
       let doc = "Directory to store the certificates and keys in at path <cert-root>/<domain>/." in
       Arg.(value & opt string "certs" & info [ "cert-root" ] ~doc)
@@ -106,8 +125,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ cert_root $ socket_path
-        $ authorative)
+        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ endpoint $ cert_root
+        $ socket_path $ authorative)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "lend" ~doc ~man in
