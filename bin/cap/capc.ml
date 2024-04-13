@@ -46,18 +46,28 @@ let cert copts_env email domains org cert_dir =
            | Error (`Remote msg) ->
                Printf.eprintf "Remote error: %s%!" msg;
                Unix._exit 1
-           | Ok (cert, key) ->
-               let write_pem filepath pem = Eio.Path.save ~create:(`Or_truncate 0o600) filepath pem in
-               let ( / ) = Eio.Path.( / ) in
-               let cert_dir =
-                 match cert_dir with Some d -> env#fs / d | None -> env#fs / "certs" / Domain_name.to_string domain
-               in
-               Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 cert_dir;
-               let private_key_file = cert_dir / "privkey.pem" in
-               let cert_file = cert_dir / "fullcert.pem" in
-               write_pem private_key_file key;
-               write_pem cert_file cert;
-               Printf.printf "Updated cert for %s\n%!" (Domain_name.to_string domain)))
+           | Ok (fullchain, key) -> (
+               match Cstruct.of_string fullchain |> X509.Certificate.decode_pem_multiple with
+               | Error (`Msg msg) ->
+                   Printf.eprintf "Failed to decode cert %s%!" msg;
+                   Unix._exit 1
+               | Ok (cert :: chain) ->
+                   let write_pem filepath pem = Eio.Path.save ~create:(`Or_truncate 0o600) filepath pem in
+                   let ( / ) = Eio.Path.( / ) in
+                   let cert_dir =
+                     match cert_dir with
+                     | Some d -> env#fs / d
+                     | None -> env#fs / "certs" / Domain_name.to_string domain
+                   in
+                   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 cert_dir;
+                   write_pem (cert_dir / "key.pem") key;
+                   write_pem (cert_dir / "fullchain.pem") fullchain;
+                   write_pem (cert_dir / "cert.pem") (X509.Certificate.encode_pem cert |> Cstruct.to_string);
+                   write_pem (cert_dir / "chain.pem") (X509.Certificate.encode_pem_multiple chain |> Cstruct.to_string);
+                   Printf.printf "Updated cert for %s\n%!" (Domain_name.to_string domain)
+               | _ ->
+                   Printf.eprintf "Failed to get chain from %s%!" fullchain;
+                   Unix._exit 1)))
     @@ fun callback ->
     match Cap.Domain.cert cap ~email ~org domains callback with
     | Error (`Capnp e) -> Format.eprintf "%a" Capnp_rpc.Error.pp e
