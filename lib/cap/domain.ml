@@ -20,7 +20,7 @@ let write_pem filepath pem =
     Format.pp_print_flush Format.err_formatter ();
     raise (Sys_error "Failed to write to file")
 
-let local ~persist_new sr env domain prod endpoint server_state state_dir =
+let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
   let provision_cert = Dns_acme.provision_cert prod endpoint server_state env in
 
   let account_dir = Eio.Path.(env#fs / state_dir / "accounts") in
@@ -56,49 +56,6 @@ let local ~persist_new sr env domain prod endpoint server_state state_dir =
     write_pem filepath (X509.Certificate.encode_pem_multiple key)
   in
 
-  let cert callback ~email ~org ~domains =
-    let callback_result =
-      try
-        let domains = List.map Domain_name.of_string_exn domains in
-        let domain =
-          match domains with
-          | [] -> raise (Invalid_argument "Must specify at least one domain.")
-          | domain :: _ -> domain
-        in
-        List.iter
-          (fun subdomain ->
-            if not (Domain_name.is_subdomain ~subdomain ~domain) then
-              raise
-                (Invalid_argument (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp subdomain Domain_name.pp domain)))
-          domains;
-        let cert, private_key, renewed =
-          match (load_cert domain, load_private_key domain) with
-          (* TODO what if this is out of date *)
-          | Some cert, Some private_key -> (cert, private_key, false)
-          (* if we don't have them cached, provision them *)
-          | _ ->
-              let cert, account_key, private_key, _csr =
-                provision_cert ?account_key:(load_account_key email) ?private_key:(load_private_key domain) ~email ~org
-                  domains
-              in
-              save_account_key email account_key;
-              save_private_key domain private_key;
-              save_cert domain cert;
-              (cert, private_key, true)
-        in
-        Cert_callback.register callback true "" (Some cert) (Some private_key) renewed
-      with
-      | Tls_le.Le_error msg -> Cert_callback.register callback false msg None None false
-      | e ->
-          let msg = Printexc.to_string e in
-          Cert_callback.register callback false msg None None false
-    in
-    (match callback_result with
-    | Ok () -> ()
-    | Error (`Capnp e) -> Eio.traceln "Error calling callback %a" Capnp_rpc.Error.pp e);
-    Service.Response.create_empty ()
-  in
-
   let module Domain = Api.Service.Domain in
   Persistence.with_sturdy_ref sr Domain.local
   @@ object
@@ -121,8 +78,75 @@ let local ~persist_new sr env domain prod endpoint server_state state_dir =
          Eio.traceln "Domain.cert(email=%s, org=%a, domains=[%a]) in domain=%a" email (Fmt.option Fmt.string) org
            (Fmt.list Fmt.string) domains Domain_name.pp domain;
          match callback with
-         | None -> Service.fail "No callback parameter!"
-         | Some callback -> Service.return @@ Capability.with_ref callback (cert ~email ~org ~domains)
+         | None -> Service.fail "No callback parameter."
+         | Some callback -> (
+             let callback_result =
+               try
+                 let domains = List.map Domain_name.of_string_exn domains in
+                 let domain =
+                   match domains with
+                   | [] -> raise (Invalid_argument "Must specify at least one domain.")
+                   | domain :: _ -> domain
+                 in
+                 List.iter
+                   (fun subdomain ->
+                     if not (Domain_name.is_subdomain ~subdomain ~domain) then
+                       raise
+                         (Invalid_argument
+                            (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp subdomain Domain_name.pp domain)))
+                   domains;
+                 let rec renew () =
+                   let provision () =
+                     let cert, account_key, private_key, _csr =
+                       provision_cert ?account_key:(load_account_key email) ?private_key:(load_private_key domain)
+                         ~email ~org domains
+                     in
+                     save_account_key email account_key;
+                     save_private_key domain private_key;
+                     save_cert domain cert;
+                     (cert, private_key, true)
+                   in
+                   let now = Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get in
+                   let get_renew_date cert =
+                     let _from, until = X509.Certificate.validity (List.hd cert) in
+                     (* renew 30 days before expiry *)
+                     Option.get (Ptime.sub_span until (Ptime.Span.v (30, 0L)))
+                   in
+                   let cert, private_key, renewed =
+                     match (load_cert domain, load_private_key domain) with
+                     (* check if cert out of date*)
+                     | Some cert, Some private_key -> (
+                         match Ptime.is_later now ~than:(get_renew_date cert) with
+                         | false ->
+                             Eio.traceln "Cert renew date is %a, reading from disk" Ptime.pp (get_renew_date cert);
+                             (cert, private_key, false)
+                         | true ->
+                             Eio.traceln "Cert renew date is %a, provisioning one" Ptime.pp (get_renew_date cert);
+                             provision ())
+                     (* if we don't have them cached, provision them *)
+                     | _ ->
+                         Eio.traceln "No cert found for %a, provisioning one" Domain_name.pp domain;
+                         provision ()
+                   in
+                   let renew_date = get_renew_date cert in
+                   Eio.Fiber.fork ~sw (fun () ->
+                       Eio.traceln "Renewing at %a" Ptime.pp renew_date;
+                       Eio.Time.sleep_until env#clock (Ptime.to_float_s renew_date);
+                       ignore @@ renew ());
+                   Cert_callback.register callback true "" (Some cert) (Some private_key) renewed
+                 in
+                 renew ()
+               with
+               | Tls_le.Le_error msg -> Cert_callback.register callback false msg None None false
+               | e ->
+                   let msg = Printexc.to_string e in
+                   Cert_callback.register callback false msg None None false
+             in
+             match callback_result with
+             | Error (`Capnp e) ->
+                 Eio.traceln "Error calling callback %a" Capnp_rpc.Error.pp e;
+                 Service.fail "No callback parameter!"
+             | Ok () -> Service.return @@ Service.Response.create_empty ())
 
        method delegate_impl params release_param_caps =
          let open Domain.Delegate in

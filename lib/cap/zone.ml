@@ -1,7 +1,7 @@
 open Raw
 open Capnp_rpc_lwt
 
-let local ~persist_new vat_config services env prod endpoint server_state state_dir =
+let local ~sw ~persist_new vat_config services env prod endpoint server_state state_dir =
   let module Zone = Api.Service.Zone in
   Zone.local
   @@ object
@@ -21,7 +21,7 @@ let local ~persist_new vat_config services env prod endpoint server_state state_
                Capnp_rpc_net.Restorer.Table.sturdy_ref services id
              in
              Results.domain_set results
-               (Some (Domain.local ~persist_new sr env domain prod endpoint server_state state_dir)));
+               (Some (Domain.local ~sw ~persist_new sr env domain prod endpoint server_state state_dir)));
          Service.return response
      end
 
