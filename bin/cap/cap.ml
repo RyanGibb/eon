@@ -63,6 +63,7 @@ let run zonefiles log_level addressStrings port proto prod endpoint authorative 
   Eio.Switch.run @@ fun sw ->
   Eio.Fiber.fork ~sw (fun () ->
       Dns_server_eio.primary ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto server_state log addresses);
+  Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 Eio.Path.(env#fs / state_dir);
   capnp_serve env authorative vat_config prod endpoint server_state state_dir
 
 let () =
