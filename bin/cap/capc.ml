@@ -52,7 +52,7 @@ let cert copts_env email domains org cert_dir =
                    Printf.eprintf "Failed to decode cert %s%!" msg;
                    Unix._exit 1
                | Ok (cert :: chain) ->
-                   let write_pem filepath pem = Eio.Path.save ~create:(`Or_truncate 0o600) filepath pem in
+                   let write_pem filepath pem = Eio.Path.save ~create:(`Or_truncate 0o640) filepath pem in
                    let ( / ) = Eio.Path.( / ) in
                    let cert_dir =
                      match cert_dir with
