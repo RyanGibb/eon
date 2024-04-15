@@ -23,7 +23,7 @@ let get_name copts_env =
   in
   Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
 
-let cert copts_env email domains org cert_dir =
+let cert copts_env email domains org cert_dir exit_when_renewed =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let copts = copts_env env in
@@ -68,7 +68,8 @@ let cert copts_env email domains org cert_dir =
                    | false -> Printf.printf "Updated certificate for %s\n%!" (Domain_name.to_string domain)
                    | true ->
                        Eio.Path.save ~create:(`Or_truncate 0o640) (cert_dir / "renewed") "";
-                       Printf.printf "Renewed certificate for %s\n%!" (Domain_name.to_string domain))
+                       Printf.printf "Renewed certificate for %s\n%!" (Domain_name.to_string domain);
+                       if exit_when_renewed then Unix._exit 0)
                | _ ->
                    Printf.eprintf "Failed to get chain from %s%!" fullchain;
                    Unix._exit 1)))
@@ -197,6 +198,10 @@ let cert_cmd =
     let doc = "Directory to store the certificates and keys in. Defaults to ./certs/<domain>." in
     Arg.(value & opt (some string) None & info [ "cert-dir" ] ~doc)
   in
+  let exit_when_renewed =
+    let doc = "Whether to exit once a certificate is renewed." in
+    Arg.(value & flag & info [ "exit-when-renewed" ] ~doc)
+  in
   let doc = "Provision a certificate." in
   let man =
     [
@@ -206,7 +211,7 @@ let cert_cmd =
     ]
   in
   let info = Cmd.info "cert" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const cert $ copts_t $ email $ domains $ org $ cert_dir)
+  Cmd.v info Term.(const cert $ copts_t $ email $ domains $ org $ cert_dir $ exit_when_renewed)
 
 let delegate_cmd =
   let subdomain =
