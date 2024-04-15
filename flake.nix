@@ -43,8 +43,9 @@
           buildInputs = devPackages;
         };
       }) // {
-    nixosModules.default = {
-      imports = [ ./module.nix ];
+    nixosModules = {
+      default.imports = [ ./module.nix ];
+      acme.imports = [ ./acme.nix ];
     };
   };
 }
