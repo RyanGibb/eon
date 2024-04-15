@@ -46,12 +46,12 @@ let cert copts_env email domains org cert_dir =
            | Error (`Remote msg) ->
                Printf.eprintf "Remote error: %s%!" msg;
                Unix._exit 1
-           | Ok (fullchain, key) -> (
+           | Ok (fullchain, key, renewed) -> (
                match Cstruct.of_string fullchain |> X509.Certificate.decode_pem_multiple with
                | Error (`Msg msg) ->
                    Printf.eprintf "Failed to decode cert %s%!" msg;
                    Unix._exit 1
-               | Ok (cert :: chain) ->
+               | Ok (cert :: chain) -> (
                    let write_pem filepath pem = Eio.Path.save ~create:(`Or_truncate 0o640) filepath pem in
                    let ( / ) = Eio.Path.( / ) in
                    let cert_dir =
@@ -64,7 +64,11 @@ let cert copts_env email domains org cert_dir =
                    write_pem (cert_dir / "fullchain.pem") fullchain;
                    write_pem (cert_dir / "cert.pem") (X509.Certificate.encode_pem cert |> Cstruct.to_string);
                    write_pem (cert_dir / "chain.pem") (X509.Certificate.encode_pem_multiple chain |> Cstruct.to_string);
-                   Printf.printf "Updated cert for %s\n%!" (Domain_name.to_string domain)
+                   match renewed with
+                   | false -> Printf.printf "Updated certificate for %s\n%!" (Domain_name.to_string domain)
+                   | true ->
+                       Eio.Path.save ~create:(`Or_truncate 0o640) (cert_dir / "renewed") "";
+                       Printf.printf "Renewed certificate for %s\n%!" (Domain_name.to_string domain))
                | _ ->
                    Printf.eprintf "Failed to get chain from %s%!" fullchain;
                    Unix._exit 1)))

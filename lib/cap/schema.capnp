@@ -68,6 +68,6 @@ interface Domain {
 
 interface CertCallback {
   # Callback to support renewal
-  register @0 (success :Bool, error :Text, cert :Data, key :Text) -> ();
+  register @0 (success :Bool, error :Text, cert :Data, key :Text, renewed: Bool) -> ();
 }
 

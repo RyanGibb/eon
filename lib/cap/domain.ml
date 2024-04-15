@@ -71,10 +71,10 @@ let local ~persist_new sr env domain prod endpoint server_state state_dir =
               raise
                 (Invalid_argument (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp subdomain Domain_name.pp domain)))
           domains;
-        let cert, private_key =
+        let cert, private_key, renewed =
           match (load_cert domain, load_private_key domain) with
           (* TODO what if this is out of date *)
-          | Some cert, Some private_key -> (cert, private_key)
+          | Some cert, Some private_key -> (cert, private_key, false)
           (* if we don't have them cached, provision them *)
           | _ ->
               let cert, account_key, private_key, _csr =
@@ -84,14 +84,14 @@ let local ~persist_new sr env domain prod endpoint server_state state_dir =
               save_account_key email account_key;
               save_private_key domain private_key;
               save_cert domain cert;
-              (cert, private_key)
+              (cert, private_key, true)
         in
-        Cert_callback.register callback true "" (Some cert) (Some private_key)
+        Cert_callback.register callback true "" (Some cert) (Some private_key) renewed
       with
-      | Tls_le.Le_error msg -> Cert_callback.register callback false msg None None
+      | Tls_le.Le_error msg -> Cert_callback.register callback false msg None None false
       | e ->
           let msg = Printexc.to_string e in
-          Cert_callback.register callback false msg None None
+          Cert_callback.register callback false msg None None false
     in
     (match callback_result with
     | Ok () -> ()
