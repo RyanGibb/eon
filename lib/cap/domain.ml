@@ -129,11 +129,10 @@ let local ~persist_new sr env domain prod endpoint server_state state_dir =
          let subdomain = Params.subdomain_get params in
          release_param_caps ();
          Eio.traceln "Domain.delegate(subdomain='%s')" subdomain;
-         let response, _results = Service.Response.create Results.init_pointer in
          match Domain_name.of_string subdomain with
          | Error (`Msg e) ->
              Eio.traceln "Domain.delegate error parsing domain: %s" e;
-             Service.return response
+             Service.fail "Error parsing domain"
          | Ok subdomain -> (
              let name = Domain_name.append_exn subdomain domain in
              match persist_new ~name with
