@@ -1,7 +1,7 @@
 
 # Effects-based OCaml Nameserver (EON)
 
-EON is an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for multicore OCaml](https://github.com/ocaml-multicore/eio).
+EON is an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for multicore OCaml](https://github.com/ocaml-multicore/eio), along with some experimental uses of the DNS.
 
 ### Quick start
 
@@ -84,34 +84,6 @@ It's also possible to simply run this as a binary.
 
 You'll need to configure your zonefile with an [NS](https://www.ietf.org/rfc/rfc1035.html#section-3.3.11) record, and set up a glue record with your registrar to point this domain to the IP that your nameserver is hosted on. See [example.org](./example/example.org) for an example NS record.
 
-### Dynamic Updates
-
-The server uses [TSIG](https://www.rfc-editor.org/rfc/rfc2845) resources records (RRs) to authenticate queries. For example, [DNS UPDATE](https://www.rfc-editor.org/rfc/rfc2136) queries can be authenticated to provide secure dynamic updates.
-
-We pass [HMAC](https://www.rfc-editor.org/rfc/rfc2104) keys to the server through a zonefile representation that is in a file eon `<zonefile>._keys`, e.g. [example.org._keys](./example/example.org._keys). These are secret keys, and should not be published.
-
-A DNSKEY RR domain name in this file must be of the format `<name>.<operation>.<domain>`, where `<operation>` can be `_update`, `_transfer`, or `_notify`.
-
-To generate these keys we can use:
-```
-$ cat /dev/random | head -c 32 | base64
-FGwot7AqiDIthEv6TippJm35DaRpRac5NSLd/wSp9go=
-```
-
-Then to perform a dynamic update we can use use the BIND utility `nsupdate`:
-```
-$ echo "update add test.example.org 86400 A 203.0.113.1\n" | nsupdate -l -y hmac-sha256:client._update.example.org:FGwot7AqiDIthEv6TippJm35DaRpRac5NSLd/wSp9go=
-$ dig test.example.org @localhost
-203.0.113.1
-```
-
-The TSIG key name, `client._update.example.org` here, must match the name in the zonefile.
-
-### Transport
-
-The [transport.ml](src/transport.ml) file contains logic to use DNS as a stream [transport](https://en.wikipedia.org/wiki/Transport_layer) protocol.
-An example application that uses this can be found in [netcat.ml](bin/transport/netcat.ml)/[netcatd.ml](bin/transport/netcatd.ml).
-
 ### Development
 
 While it's possible to continuously rebuild the Nix derivation during development, this is quite slow due to isolated builds. A nice compromise is to use Nix to provide the dependencies but to use an un-sandboxed dune to build the project benefiting from caches and incremental builds.
@@ -127,3 +99,7 @@ nix develop . -c <your-favourite-editor>
 ```
 
 Alternatively, opam tooling can be used to provide the development dependencies.
+
+### Documentation
+
+See [./docs/](./docs/).
