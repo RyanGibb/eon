@@ -21,6 +21,12 @@ let
       };
     in {
       options = {
+        capFile = mkOption {
+          type = types.str;
+          inherit (defaultAndText "capFile" null) default defaultText;
+          description = lib.mdDoc "Capability file path.";
+        };
+
         email = mkOption {
           type = types.nullOr types.str;
           inherit (defaultAndText "email" null) default defaultText;
@@ -78,13 +84,6 @@ let
         description = lib.mdDoc ''
           A list of extra domain names, which are included in the one certificate to be issued.
         '';
-      };
-
-      capFile = mkOption {
-        type = types.str;
-        readOnly = true;
-        default = "/var/lib/eon/caps/${name}.cap";
-        description = lib.mdDoc "Capability file path.";
       };
 
       inheritDefaults = mkOption {
