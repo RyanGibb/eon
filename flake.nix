@@ -27,10 +27,9 @@
           ocamlformat = "*";
           utop = "*";
         };
-        query = {
-          ocaml-base-compiler = "*";
-        };
-        scope = opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery);
+        query = { ocaml-base-compiler = "*"; };
+        scope =
+          opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery);
       in {
         packages = scope;
         defaultPackage = scope.${package};
@@ -43,9 +42,9 @@
           buildInputs = devPackages;
         };
       }) // {
-    nixosModules = {
-      default.imports = [ ./module.nix ];
-      acme.imports = [ ./acme.nix ];
-    };
-  };
+        nixosModules = {
+          default.imports = [ ./module.nix ];
+          acme.imports = [ ./acme.nix ];
+        };
+      };
 }
