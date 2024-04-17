@@ -174,7 +174,7 @@ in {
             lib.strings.concatMapStringsSep " " (d: "-d " + d)
             cert.extraDomainNames
           } \
-          --cert-dir ${cert.directory}
+          --cert-dir ${cert.directory} \
           --exit-when-renewed
         '';
         # Run as root (Prefixed with +)
