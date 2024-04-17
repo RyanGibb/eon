@@ -42,6 +42,10 @@ in {
       type = types.int;
       default = 7000;
     };
+    capnpSecretKeyFile = lib.mkOption {
+      type = types.nullOr types.path;
+      default = null;
+    };
     prod = lib.mkOption {
       type = types.bool;
       default = true;
@@ -67,8 +71,12 @@ in {
             cfg.zoneFiles) + "-p ${builtins.toString cfg.port} "
           + "-l ${builtins.toString cfg.logLevel} "
           + (if cfg.application == "cap" then
-            "--capnp-secret-key-file /var/lib/eon/capnp-secret.pem "
-            + "--capnp-listen-address tcp:${cfg.capnpAddress}:${
+            "--capnp-secret-key-file ${
+              if cfg.capnpSecretKeyFile != null then
+                cfg.capnpSecretKeyFile
+              else
+                "/var/lib/eon/capnp-secret.pem"
+            } " + "--capnp-listen-address tcp:${cfg.capnpAddress}:${
               builtins.toString cfg.capnpPort
             } " + "--state-dir /var/lib/eon "
             + "${if cfg.prod then "--prod" else ""}"
