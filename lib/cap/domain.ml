@@ -20,6 +20,8 @@ let write_pem filepath pem =
     Format.pp_print_flush Format.err_formatter ();
     raise (Sys_error "Failed to write to file")
 
+let acme_pool = Eio.Pool.create 1 (fun () -> ())
+
 let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
   let provision_cert = Dns_acme.provision_cert prod endpoint server_state env in
 
@@ -97,6 +99,7 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
                    domains;
                  let rec renew () =
                    let provision () =
+                     Eio.Pool.use acme_pool @@ fun () ->
                      let cert, account_key, private_key, _csr =
                        provision_cert ?account_key:(load_account_key email) ?private_key:(load_private_key domain)
                          ~email ~org domains
