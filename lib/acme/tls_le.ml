@@ -11,17 +11,17 @@ let gen_csr ~private_key ~email ?(org = None) domains =
   let open X509 in
   match List.map Domain_name.to_string domains with
   | [] -> raise (Invalid_argument "Must specify at least one domain")
-  | name :: names ->
+  | names ->
       let dn =
         let open X509.Distinguished_name in
-        [ Relative_distinguished_name.(singleton (CN name)); Relative_distinguished_name.(singleton (Mail email)) ]
+        [ Relative_distinguished_name.(singleton (Mail email)) ]
         @ match org with Some org -> [ Relative_distinguished_name.(singleton (O org)) ] | None -> []
       in
       let extensions =
         let extensions =
           List.fold_left
             (fun exn san -> Extension.(add Subject_alt_name (false, General_name.(singleton DNS [ san ]))) exn)
-            Extension.empty (name :: names)
+            Extension.empty names
         in
         Signing_request.Ext.(add Extensions extensions empty)
       in
