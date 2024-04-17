@@ -50,7 +50,7 @@ in {
       type = types.bool;
       default = true;
     };
-    server = mkOption {
+    acmeServer = mkOption {
       type = types.nullOr types.str;
       default = null;
       description = lib.mdDoc ''
@@ -80,7 +80,10 @@ in {
               builtins.toString cfg.capnpPort
             } " + "--state-dir /var/lib/eon "
             + "${if cfg.prod then "--prod" else ""}"
-            + "${if cfg.server != null then "--endpint ${cfg.server}" else ""}"
+            + "${if cfg.acmeServer != null then
+              "--endpint ${cfg.acmeServer}"
+            else
+              ""}"
           else
             "");
         Restart = "always";
