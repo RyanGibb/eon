@@ -141,9 +141,9 @@ in {
 
     nginxCerts = mkOption {
       type = types.listOf types.str;
-      default = builtins.attrNames cfg.certs;
+      default = [ ];
       description = lib.mdDoc ''
-        Domain names certificates to configure Nginx to use.
+        Domain names to configure Nginx certificates for.
       '';
     };
   };
@@ -209,10 +209,23 @@ in {
     };
     users.groups.acme-eon = { };
 
-    systemd.services = lib.attrsets.mapAttrs' (name: cert: {
+    security.acme-eon.certs = builtins.listToAttrs (builtins.map (name: {
+      inherit name;
+      value = {
+        group = "nginx";
+        reloadServices = [ "nginx" ];
+      };
+    }) cfg.nginxCerts);
+
+    systemd.services = (lib.attrsets.mapAttrs' (name: cert: {
       name = "acme-eon-${name}";
       value = mkCertService name cert;
-    }) cfg.certs;
+    }) cfg.certs) // {
+      nginx.wants =
+        builtins.map (name: "acme-eon-${name}.service") cfg.nginxCerts;
+      nginx-config-reload.after =
+        builtins.map (name: "acme-eon-${name}.service") cfg.nginxCerts;
+    };
 
     services.nginx.virtualHosts = builtins.listToAttrs (builtins.map (name: {
       name = name;
