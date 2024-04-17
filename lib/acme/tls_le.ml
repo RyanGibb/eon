@@ -19,9 +19,7 @@ let gen_csr ~private_key ~email ?(org = None) domains =
       in
       let extensions =
         let extensions =
-          List.fold_left
-            (fun exn san -> Extension.(add Subject_alt_name (false, General_name.(singleton DNS [ san ]))) exn)
-            Extension.empty names
+          Extension.(singleton Subject_alt_name (false, General_name.(General_name.singleton DNS names)))
         in
         Signing_request.Ext.(add Extensions extensions empty)
       in
