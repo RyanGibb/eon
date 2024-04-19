@@ -42,7 +42,7 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir 
 
 let run zonefiles log_level addressStrings port proto prod endpoint authorative state_dir vat_config =
   Eio_main.run @@ fun env ->
-  let log = log_level Format.std_formatter in
+  let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
   let rng ?_g length =
     let buf = Cstruct.create length in
@@ -109,7 +109,7 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ port $ proto $ prod $ endpoint $ authorative
+        const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ port $ proto $ prod $ endpoint $ authorative
         $ state_dir $ Capnp_rpc_unix.Vat_config.cmd)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in

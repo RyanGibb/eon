@@ -1,7 +1,7 @@
 let run zonefiles log_level addressStrings port proto resolver =
   Eio_main.run @@ fun env ->
   let addresses = Server_args.parse_addresses port addressStrings in
-  let log = log_level Format.std_formatter in
+  let log = Dns_log.get log_level Format.std_formatter in
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact env#secure_random buf;
@@ -27,7 +27,7 @@ let () =
   let open Cmdliner in
   let open Server_args in
   let cmd =
-    let term = Term.(const run $ zonefiles $ log_level Dns_log.level_0 $ addresses $ port $ proto $ resolver) in
+    let term = Term.(const run $ zonefiles $ log_level Dns_log.Level0 $ addresses $ port $ proto $ resolver) in
     let info = Cmd.info "eon" ~man in
     Cmd.v info term
   in

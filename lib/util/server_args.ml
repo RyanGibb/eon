@@ -4,7 +4,7 @@ let zonefiles = Arg.(value & opt_all string [] & info [ "z"; "zonefile" ] ~docv:
 
 let log_level default =
   let doc = "Log level for DNS packets. See the LOGGING section." in
-  let log_levels = [ ("0", Dns_log.level_0); ("1", Dns_log.level_1); ("2", Dns_log.level_2); ("3", Dns_log.level_3) ] in
+  let log_levels = Dns_log.([ ("0", Level0); ("1", Level1); ("2", Level2); ("3", Level3) ]) in
   Arg.(value & opt (enum log_levels) default & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc)
 
 let port =
@@ -13,8 +13,8 @@ let port =
 
 let addresses =
   let doc = "Socket addresses to bind too. By default `in6addr_any` ('::') is used. See the BINDING section." in
-  Arg.((* :: is IPv6 local *)
-       value & opt_all string [ "::" ] & info [ "b"; "bind" ] ~docv:"BIND" ~doc)
+  (* :: is IPv6 local *)
+  Arg.(value & opt_all string [ "::" ] & info [ "b"; "bind" ] ~docv:"BIND" ~doc)
 
 let parse_addresses port addressStrings =
   List.map
@@ -48,8 +48,7 @@ let man =
         \    0 - No logging\n\
         \    1 - Log query id, question, and anwer\n\
         \    2 - Log all fields of DNS packets\n\
-        \    3 - Log hex dumps of DNS packets\n\
-         A level specified outside of this range will default to the closest.";
+        \    3 - Log hex dumps of DNS packets";
       `S "BINDING";
       `P
         "The socket(s) the server binds too can be configured with the ADDRESSES and PORT options. This allows \

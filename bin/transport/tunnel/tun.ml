@@ -1,7 +1,7 @@
 let run log_level domain subdomain port nameserver netmask tunnel_ip =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  let log = log_level Format.std_formatter in
+  let log = Dns_log.get log_level Format.std_formatter in
   let client =
     Transport.dns_client_datagram ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
       domain port log
@@ -53,7 +53,7 @@ let () =
     let netmask = Arg.(value & opt string "10.0.0.0/24" & info [ "m"; "netmask" ] ~docv:"NETMASK") in
     let tunnel_ip = Arg.(value & opt string "10.0.0.2" & info [ "i"; "tunnel_ip" ] ~docv:"TUNNEL_IP") in
     let term =
-      Term.(const run $ log_level Dns_log.level_0 $ domain $ subdomain $ port $ nameserver $ netmask $ tunnel_ip)
+      Term.(const run $ log_level Dns_log.Level0 $ domain $ subdomain $ port $ nameserver $ netmask $ tunnel_ip)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "tun" ~man ~doc in

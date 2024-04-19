@@ -27,7 +27,7 @@ let run_shell ~stdout ~stdin pty =
 let run zonefiles log_level addressStrings subdomain port proto =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  let log = log_level Format.std_formatter in
+  let log = Dns_log.get log_level Format.std_formatter in
   let server =
     let addresses = Server_args.parse_addresses port addressStrings in
     let server_state =
@@ -76,7 +76,7 @@ let () =
       in
       Arg.(value & opt string "rpc" & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
     in
-    let term = Term.(const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ subdomain $ port $ proto) in
+    let term = Term.(const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ subdomain $ port $ proto) in
     let info = Cmd.info "sodd" ~man in
     Cmd.v info term
   in

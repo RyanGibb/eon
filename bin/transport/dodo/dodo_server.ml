@@ -1,7 +1,7 @@
 let run zonefiles log_level addressStrings domain subdomain port proto =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  let log = log_level Format.std_formatter in
+  let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
   let rng ?_g length =
     let buf = Cstruct.create length in
@@ -63,7 +63,7 @@ let () =
       Arg.(value & opt string "rpc" & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
     in
     let term =
-      Term.(const run $ zonefiles $ log_level Dns_log.level_1 $ addresses $ domain $ subdomain $ port $ proto)
+      Term.(const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ domain $ subdomain $ port $ proto)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcatd" ~man ~doc in
