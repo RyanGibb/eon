@@ -32,7 +32,7 @@ let run zonefiles log_level addressStrings domain subdomain port proto =
     (fun () ->
       let buf = Cstruct.create 4096 in
       while true do
-        let got = server#recv buf in
+        let got = server.recv buf in
         let trimmedBuf = Cstruct.sub buf 0 got in
         Dns_log.level_1 Format.std_formatter Dns_log.Rx (`Unix "tunneled") trimmedBuf;
         Eio.Net.send clientSock ~dst:(`Udp (Eio.Net.Ipaddr.V4.loopback, 5056)) [ buf ]
@@ -43,7 +43,7 @@ let run zonefiles log_level addressStrings domain subdomain port proto =
         let addr, size = Eio.Net.recv clientSock buf in
         let trimmedBuf = Cstruct.sub buf 0 size in
         Dns_log.level_1 Format.std_formatter Dns_log.Tx (`Unix "tunneled") trimmedBuf;
-        server#send trimmedBuf
+        server.send trimmedBuf
       done)
 
 let () =

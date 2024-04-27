@@ -1,8 +1,4 @@
-class virtual dns_datagram =
-  object
-    method virtual send : Cstruct.t -> unit
-    method virtual recv : Cstruct.t -> int
-  end
+type dns_datagram = { send : Cstruct.t -> unit; recv : Cstruct.t -> int }
 
 (* rfc1035 section 2.3.4 *)
 let max_name_len = 255
@@ -102,33 +98,31 @@ end = struct
 end
 
 module FragPacket : sig
-  type t = {
-    (* identifying packets *)
-    packet_id : int;
-    (* identifying fragment in packet *)
-    frag_no : int;
-    (* how many fragments to expect for this packet *)
-    no_frags : int;
-    data : Cstruct.t;
-  }
+  type packet = { id : int; n_frags : int  (** how many fragments to expect for this packet *) }
+  type t = { packet : packet; frag_nb : int;  (** identifying fragment in packet *) data : Cstruct.t }
 
   val decode : Cstruct.t -> t
-  val encode : int -> int -> int -> Cstruct.t -> Cstruct.t
+  val encode : t -> Cstruct.t
+  val empty : packet_id:int -> t
 end = struct
-  type t = { packet_id : int; frag_no : int; no_frags : int; data : Cstruct.t }
+  type packet = { id : int; n_frags : int  (** how many fragments to expect for this packet *) }
+  type t = { packet : packet; frag_nb : int; data : Cstruct.t }
+
+  let empty ~packet_id = { packet = { id = packet_id; n_frags = 0 }; frag_nb = 0; data = Cstruct.empty }
 
   let decode buf =
-    let packet_id = Cstruct.BE.get_uint16 buf 0 in
-    let frag_no = Cstruct.BE.get_uint16 buf 2 in
-    let no_frags = Cstruct.BE.get_uint16 buf 4 in
+    let id = Cstruct.BE.get_uint16 buf 0 in
+    let frag_nb = Cstruct.BE.get_uint16 buf 2 in
+    let n_frags = Cstruct.BE.get_uint16 buf 4 in
+    let packet = { id; n_frags } in
     let data = Cstruct.sub buf 6 (Cstruct.length buf - 6) in
-    { packet_id; frag_no; no_frags; data }
+    { packet; frag_nb; data }
 
-  let encode packet_id frag_no no_frags data =
+  let encode { packet; frag_nb; data } =
     let buf = Cstruct.create (6 + Cstruct.length data) in
-    Cstruct.BE.set_uint16 buf 0 packet_id;
-    Cstruct.BE.set_uint16 buf 2 frag_no;
-    Cstruct.BE.set_uint16 buf 4 no_frags;
+    Cstruct.BE.set_uint16 buf 0 packet.id;
+    Cstruct.BE.set_uint16 buf 2 frag_nb;
+    Cstruct.BE.set_uint16 buf 4 packet.n_frags;
     Cstruct.blit data 0 buf 6 (Cstruct.length data);
     buf
 end
@@ -347,7 +341,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain authorit
   and seq_no = ref (-1)
   and id = ref 0 in
 
-  let handle_dns _proto _addr buf : unit =
+  let handle_dns _proto _addr buf () : unit =
     let ( let* ) o f = match o with None -> () | Some v -> f v in
     let* packet =
       match Dns.Packet.decode buf with
@@ -415,7 +409,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain authorit
     let buf =
       (* String.length (data_subdomain ^ "." ^ authority) *)
       let rootLen = String.length data_subdomain + 1 + String.length authority in
-      Cstruct.create (max_encoded_len - rootLen)
+      Cstruct.create (max_encoded_len - rootLen - 20)
     in
     while true do
       let read = CstructStream.take out buf in
@@ -453,10 +447,69 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain authorit
                  Ok ()))
     done
   in
-  Eio.Fiber.fork ~sw (fun () -> Dns_client_eio.listen sock log handle_dns);
+  Eio.Fiber.fork ~sw (fun () -> Dns_client_eio.listen sock log handle_dns ());
   Eio.Fiber.fork ~sw (fun () -> send_data_fiber ());
   Eio.Fiber.fork ~sw (fun () -> send_empty_query_fiber ());
   create_flow ~inc ~out
+
+module Server_state = struct
+  type receiving_state = { packet : FragPacket.packet; next_frag_nb : int; acc_frags : Cstruct.t list }
+  type sending_state = { packet : FragPacket.packet; next_frag_nb : int; packet_data : Cstruct.t }
+
+  let receive (receiving_state : receiving_state option) (frag_packet : FragPacket.t) inc =
+    match receiving_state with
+    | None -> None
+    | Some receiving_state ->
+        let receiving_state =
+          (* If we're receiving a new fragment packet *)
+          (* NB this may drop an old packet, we don't deal with out of order delivery *)
+          if Cstruct.length frag_packet.data > 0 && frag_packet.packet.id != receiving_state.packet.id then
+            { packet = frag_packet.packet; next_frag_nb = 0; acc_frags = [] }
+          else receiving_state
+        in
+        if frag_packet.frag_nb == receiving_state.next_frag_nb then
+          let receiving_state =
+            {
+              receiving_state with
+              acc_frags = frag_packet.data :: receiving_state.acc_frags;
+              next_frag_nb = receiving_state.next_frag_nb + 1;
+            }
+          in
+          if frag_packet.frag_nb != frag_packet.packet.n_frags - 1 then Some receiving_state
+          else (
+            CstructStream.add inc [ Cstruct.concat (List.rev receiving_state.acc_frags) ];
+            None)
+        else Some receiving_state
+
+  let send sending_state mtu out =
+    let get_frag sending_state =
+      let frag_buf =
+        let offset = sending_state.next_frag_nb * mtu in
+        Cstruct.sub sending_state.packet_data offset (min mtu (Cstruct.length sending_state.packet_data - offset))
+      in
+      let frag = FragPacket.{ packet = sending_state.packet; frag_nb = sending_state.next_frag_nb; data = frag_buf } in
+      let sending_state =
+        if sending_state.next_frag_nb < sending_state.packet.n_frags - 1 then
+          Some { sending_state with next_frag_nb = sending_state.next_frag_nb + 1 }
+        else None
+      in
+      (sending_state, frag)
+    in
+    match sending_state with
+    | Some sending_state -> get_frag sending_state
+    | None -> (
+        match CstructStream.try_take_one out with
+        | None -> (sending_state, FragPacket.empty ~packet_id:0)
+        | Some packet ->
+            let sending_state =
+              {
+                packet_data = packet;
+                packet = { id = 1; n_frags = (Cstruct.length packet + (mtu - 1)) / mtu };
+                next_frag_nb = 0;
+              }
+            in
+            get_frag sending_state)
+end
 
 (* TODO refactor and deduplicate these behemoths *)
 let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain authority server_state log addresses =
@@ -464,30 +517,25 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain author
   let out = CstructStream.create () in
 
   (* don't handle out of order transmission *)
-  (* frag_id = 0 means we're not processing any currently *)
-  let recv_packet_id = ref 0
-  and recv_next_frag_no = ref 0
-  and recv_frags = ref []
-  (* sending fragments -- 0 means none currently sending *)
-  and send_packet_id = ref 0
-  and send_next_frag_no = ref 0
-  and send_no_frags = ref 0
-  and send_packet = ref Cstruct.empty in
-
+  let receiving_state_ref : Server_state.receiving_state option ref = ref None in
+  let sending_state_ref = ref None in
   let mtu =
     (* String.length (data_subdomain ^ "." ^ authority) *)
     let rootLen = String.length data_subdomain + 1 + String.length authority in
-    max_encoded_len - rootLen
+    max_encoded_len - rootLen - 20
   in
 
   let packet_callback (p : Dns.Packet.t) : Dns.Packet.t option =
+    (* let state = !state_ref in *)
+    let receiving_state = !receiving_state_ref and sending_state = !sending_state_ref in
     let ( let* ) = Option.bind in
     let* name, qtype = match p.Dns.Packet.data with `Query -> Some p.question | _ -> None in
     let* recv_buf, root = buf_of_domain_name data_subdomain name in
+
     assert (String.lowercase_ascii (Domain_name.to_string root) = authority);
 
     (* Only process CNAME queries *)
-    let* _ =
+    let* () =
       match qtype with
       | `K (Dns.Rr_map.K Dns.Rr_map.Cname) -> Some ()
       | `Axfr | `Ixfr ->
@@ -504,63 +552,61 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain author
           None
     in
 
-    let packet = FragPacket.decode recv_buf in
+    let frag_packet = FragPacket.decode recv_buf in
 
-    let reply =
-      if Cstruct.length packet.data > 0 then
-        (* If we're receiving a new fragment packet *)
-        (* NB this may drop an old packet, we don't deal with out of order delivery *)
-        if packet.packet_id != !recv_packet_id then (
-          recv_packet_id := packet.packet_id;
-          recv_next_frag_no := 0;
-          recv_frags := []);
-      if packet.frag_no == !recv_next_frag_no then (
-        recv_frags := !recv_frags @ [ packet.data ];
-        recv_next_frag_no := !recv_next_frag_no + 1;
-        if packet.frag_no == packet.no_frags - 1 then (
-          CstructStream.add inc [ Cstruct.concat !recv_frags ];
-          recv_packet_id := 0;
-          recv_next_frag_no := 0;
-          recv_frags := []));
-      let get_frag () =
-        let frag_buf =
-          let offset = !send_next_frag_no * mtu in
-          Cstruct.sub !send_packet offset (min mtu (Cstruct.length !send_packet - offset))
-        in
-        let p = FragPacket.encode !send_packet_id !send_next_frag_no !send_no_frags frag_buf in
-        if !send_next_frag_no < !send_no_frags - 1 then send_next_frag_no := !send_next_frag_no + 1
-        else send_packet_id := 0;
-        p
-      in
-      if !send_packet_id == 0 then (
-        match CstructStream.try_take_one out with
-        | None -> FragPacket.encode 0 0 0 Cstruct.empty
-        | Some packet ->
-            send_packet := packet;
-            send_packet_id := !send_packet_id + 1;
-            send_next_frag_no := 0;
-            send_no_frags := (Cstruct.length packet + (mtu - 1)) / mtu;
-            get_frag ())
-      else get_frag ()
+    (* Update state, get reply *)
+    let receiving_state = Server_state.receive receiving_state frag_packet inc in
+    let sending_state, reply = Server_state.send sending_state mtu out in
+    sending_state_ref := sending_state;
+    receiving_state_ref := receiving_state;
+
+    (* Build and return the packet *)
+    let packet =
+      let hostname = domain_name_of_buf root (FragPacket.encode reply) in
+      let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
+      let answer = Domain_name.Map.singleton name rr in
+      let authority = Dns.Name_rr_map.empty in
+      let data = `Answer (answer, authority) in
+      let additional = None in
+      let flags = Dns.Packet.Flags.singleton `Authoritative in
+      Dns.Packet.create ?additional (fst p.header, flags) p.question data
     in
-
-    let hostname = domain_name_of_buf root reply in
-    let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
-    let answer = Domain_name.Map.singleton name rr in
-    let authority = Dns.Name_rr_map.empty in
-    let data = `Answer (answer, authority) in
-    let additional = None in
-    let flags = Dns.Packet.Flags.singleton `Authoritative in
-    let packet = Dns.Packet.create ?additional (fst p.header, flags) p.question data in
     Some packet
   in
 
   Eio.Fiber.fork ~sw (fun () ->
       Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback server_state log addresses);
-  object (_self : < dns_datagram >)
-    method send buf = CstructStream.add out [ buf ]
-    method recv buf = CstructStream.take_one inc buf
-  end
+  { send = (fun buf -> CstructStream.add out [ buf ]); recv = (fun buf -> CstructStream.take_one inc buf) }
+
+module Client_state = struct
+  type client_state = {
+    current_packet : FragPacket.packet;  (** The id of the packet we are currently receiving *)
+    acc_frags : Cstruct.t list;  (** The list of data received so far (most recent first) *)
+    next_frag_nb : int;  (** The nb of the next fragment we are expecting *)
+  }
+
+  let receive state (frag : FragPacket.t) (inc : CstructStream.t) =
+    let state =
+      match state with
+      | None -> { current_packet = frag.packet; next_frag_nb = 0; acc_frags = [] }
+      | Some state ->
+          (* If we're receiving a new fragment packet *)
+          (* NB this may drop an old packet, we don't deal with out of order delivery *)
+          if frag.packet.id != state.current_packet.id then
+            { current_packet = frag.packet; next_frag_nb = 0; acc_frags = [] }
+          else state
+    in
+    Eio.traceln "IN_FRAG id %d no %d t %d" frag.packet.id frag.frag_nb frag.packet.n_frags;
+    if frag.frag_nb != state.next_frag_nb then Some state
+    else
+      let state = { state with acc_frags = frag.data :: state.acc_frags; next_frag_nb = state.next_frag_nb + 1 } in
+      if frag.frag_nb != frag.packet.n_frags - 1 then Some state
+      else
+        let reconsituted_data = Cstruct.concat (List.rev state.acc_frags) in
+        inc.items := reconsituted_data :: !(inc.items);
+        Eio.Condition.broadcast inc.cond;
+        None
+end
 
 let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain authority port log =
   let inc = CstructStream.create () in
@@ -579,14 +625,13 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain author
 
   (* don't handle out of order transmission *)
   (* frag_id = 0 means we're not processing any currently *)
-  let packet_id = ref 0 in
-  let next_frag_no = ref 0 in
-  let frags = ref [] in
-  let handle_dns _proto _addr buf : unit =
-    let ( let* ) o f = match o with None -> () | Some v -> f v in
-    let* packet =
+  let state = None in
+  let handle_dns _proto _addr buf state =
+    let open Option in
+    let ( let* ) o f = match o with None -> state | Some v -> f v in
+    let packet =
       match Dns.Packet.decode buf with
-      | Ok packet -> Some packet
+      | Ok packet -> packet
       | Error err ->
           Format.fprintf Format.err_formatter "Transport: error decoding %a\n" Dns.Packet.pp_err err;
           Format.pp_print_flush Format.err_formatter ();
@@ -614,26 +659,11 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain author
     match buf_of_domain_name data_subdomain cname with
     | None -> exit 1
     | Some (recv_buf, _root) ->
-        if Cstruct.length recv_buf > 0 then
-          let packet = FragPacket.decode recv_buf in
-          if Cstruct.length packet.data > 0 then
-            Eio.Mutex.use_rw inc.mut ~protect:false (fun () ->
-                (* If we're receiving a new fragment packet *)
-                (* NB this may drop an old packet, we don't deal with out of order delivery *)
-                if packet.packet_id != !packet_id then (
-                  packet_id := packet.packet_id;
-                  next_frag_no := 0;
-                  frags := []);
-                Eio.traceln "IN_FRAG id %d no %d t %d" packet.packet_id packet.frag_no packet.no_frags;
-                if packet.frag_no == !next_frag_no then (
-                  frags := !frags @ [ packet.data ];
-                  next_frag_no := !next_frag_no + 1;
-                  if packet.frag_no == packet.no_frags - 1 then (
-                    inc.items := !(inc.items) @ [ Cstruct.concat !frags ];
-                    Eio.Condition.broadcast inc.cond;
-                    packet_id := 0;
-                    next_frag_no := 0;
-                    frags := [])))
+        if Cstruct.length recv_buf = 0 then state
+        else
+          let frag = FragPacket.decode recv_buf in
+          if Cstruct.length frag.data = 0 then state
+          else Eio.Mutex.use_rw inc.mut ~protect:false (fun () -> Client_state.receive state frag inc)
   in
   let sock =
     let proto =
@@ -655,7 +685,8 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain author
     while true do
       Eio.Mutex.use_rw inc.mut ~protect:false (fun () ->
           (* sent a packet with a random id and hope that it doesn't collide *)
-          let reply_buf = FragPacket.encode (get_id ()) 0 0 Cstruct.empty in
+          let frag = FragPacket.empty ~packet_id:(get_id ()) in
+          let reply_buf = FragPacket.encode frag in
           let hostname = domain_name_of_buf root reply_buf in
 
           Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
@@ -666,32 +697,39 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain author
       Eio.Fiber.yield ()
     done
   in
-  Eio.Fiber.fork ~sw (fun () -> Dns_client_eio.listen sock log handle_dns);
+  Eio.Fiber.fork ~sw (fun () -> Dns_client_eio.listen sock log handle_dns state);
   Eio.Fiber.fork ~sw (fun () -> send_empty_query_fiber ());
 
-  let id = ref 0 in
-  object (_self : < dns_datagram >)
-    method send buf =
-      let buf_len = Cstruct.length buf in
-      let mtu =
-        (* String.length (data_subdomain ^ "." ^ authority) *)
-        let rootLen = String.length data_subdomain + 1 + String.length authority in
-        max_encoded_len - rootLen
-      in
-      id := !id + 1;
-      let frag_no = ref 0 in
-      let no_frags = (buf_len + (mtu - 1)) / mtu in
-      while !frag_no < no_frags do
-        let frag_buf =
-          let offset = !frag_no * mtu in
+  let new_id =
+    let id = ref 0 in
+    fun () ->
+      incr id;
+      !id - 1
+  in
+  let send buf =
+    let buf_len = Cstruct.length buf in
+    let mtu =
+      (* String.length (data_subdomain ^ "." ^ authority) *)
+      let rootLen = String.length data_subdomain + 1 + String.length authority in
+      max_encoded_len - rootLen - 20
+    in
+    let id = new_id () in
+    let n_frags = (buf_len + (mtu - 1)) / mtu in
+    for frag_nb = 0 to n_frags do
+      let packet =
+        let data =
+          let offset = frag_nb * mtu in
           Cstruct.sub buf offset (min mtu (buf_len - offset))
         in
-        let packet = FragPacket.encode !id !frag_no no_frags frag_buf in
-        let hostname = domain_name_of_buf root packet in
-        Eio.traceln "OUT_FRAG id %d no %d t %d" !id !frag_no no_frags;
-        Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
-        frag_no := !frag_no + 1
-      done
-
-    method recv buf = CstructStream.take_one inc buf
-  end
+        let open FragPacket in
+        let packet = { id; n_frags } in
+        let frag = { packet; frag_nb; data } in
+        encode frag
+      in
+      let hostname = domain_name_of_buf root packet in
+      Eio.traceln "OUT_FRAG id %d no %d t %d" id frag_nb n_frags;
+      Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr
+    done
+  in
+  let recv buf = CstructStream.take_one inc buf in
+  { send; recv }

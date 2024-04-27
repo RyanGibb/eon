@@ -110,7 +110,7 @@ val handle_tsig : ?mac:Cstruct.t -> t -> Ptime.t -> Packet.t ->
     signature if present, returning the keyname, tsig, mac, and used key. *)
 
 type packet_callback = Packet.t -> Packet.t option
-(** [callback question] either returns a faux-handled DNS query [Some answer)] or [None]. *)
+(** [callback question] either returns a faux-handled DNS query [Some answer] or [None]. *)
 
 module Primary : sig
 
@@ -200,7 +200,7 @@ module Secondary : sig
     s * Packet.t option * (Ipaddr.t * Cstruct.t) option
   (** [handle_packet s now ts ip proto key t] handles the incoming packet. *)
 
-  val handle_buf : ?packet_callback:packet_callback  -> s -> Ptime.t -> int64 -> proto -> Ipaddr.t -> Cstruct.t ->
+  val handle_buf : ?packet_callback:packet_callback -> s -> Ptime.t -> int64 -> proto -> Ipaddr.t -> Cstruct.t ->
 s * Cstruct.t option * (Ipaddr.t * Cstruct.t) option
   (** [handle_buf ~packet_callback s now ts proto src buf] decodes [buf], processes with
       {!handle_packet}, and encodes the results. *)

@@ -23,14 +23,14 @@ let run zonefiles log_level addressStrings domain subdomain port proto netmask t
     (fun () ->
       let buf = Cstruct.create (Tuntap.get_mtu tun_name) in
       while true do
-        let got = server#recv buf in
+        let got = server.recv buf in
         Eio.Flow.write tun [ Cstruct.sub buf 0 got ]
       done)
     (fun () ->
       let buf = Cstruct.create (Tuntap.get_mtu tun_name) in
       while true do
         let got = Eio.Flow.single_read tun buf in
-        server#send (Cstruct.sub buf 0 got)
+        server.send (Cstruct.sub buf 0 got)
       done)
 
 let () =

@@ -13,10 +13,15 @@ let run zonefiles log_level addressStrings subdomain port proto =
     ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
   in
   let server =
-    Transport.dns_server_stream ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain
-      server_state log addresses
+    Transport.dns_server_datagram ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain
+      "rpc.example.org" server_state log addresses
   in
-  Eio.Flow.copy server server
+  let buf = Cstruct.create 1000 in
+  while true do
+    let got = server.recv buf in
+    server.send (Cstruct.sub buf 0 got)
+  done
+(* Eio.Flow.copy server server *)
 
 let () =
   let open Cmdliner in

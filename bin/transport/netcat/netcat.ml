@@ -3,10 +3,24 @@ let run log_level domain subdomain port nameserver =
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
   let client =
-    Transport.dns_client_stream ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain domain
-      port log
+    Transport.dns_client_datagram ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
+      domain port log
   in
-  Eio.Fiber.both (fun () -> Eio.Flow.copy env#stdin client) (fun () -> Eio.Flow.copy client env#stdout)
+  Eio.Fiber.both
+    (fun () ->
+      let buf = Cstruct.create 1000 in
+      while true do
+        let got = Eio.Flow.single_read env#stdin buf in
+        client.send (Cstruct.sub buf 0 got)
+      done)
+    (fun () ->
+      let buf = Cstruct.create 1000 in
+      while true do
+        let got = client.recv buf in
+        Eio.Flow.write env#stdout [ Cstruct.sub buf 0 got ]
+      done)
+
+(* Eio.Fiber.both (fun () -> Eio.Flow.copy env#stdin client) (fun () -> Eio.Flow.copy client env#stdout) *)
 
 let () =
   let open Cmdliner in

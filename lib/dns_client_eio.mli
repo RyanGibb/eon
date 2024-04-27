@@ -1,4 +1,4 @@
-type dns_handler = Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
+type 'a dns_handler = Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> 'a -> 'a
 
 val send_query :
   Dns_log.formattedLog ->
@@ -9,4 +9,4 @@ val send_query :
   Eio.Net.Sockaddr.datagram ->
   unit
 
-val listen : _ Eio.Net.datagram_socket -> Dns_log.formattedLog -> dns_handler -> unit
+val listen : _ Eio.Net.datagram_socket -> Dns_log.formattedLog -> 'a dns_handler -> 'a -> unit

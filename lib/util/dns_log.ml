@@ -1,11 +1,7 @@
 type dir = Rx | Tx
 type log = Format.formatter -> dir -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
 type formattedLog = dir -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
-type level =
-  | Level0
-  | Level1
-  | Level2
-  | Level3
+type level = Level0 | Level1 | Level2 | Level3
 
 let level_0 _fmt (_direction : dir) _addr _buf = ()
 
@@ -54,8 +50,4 @@ let level_3 fmt (direction : dir) addr buf =
   Format.print_space ();
   Format.print_flush ()
 
-let get i = match i with
-  | Level0 -> level_0
-  | Level1 -> level_1
-  | Level2 -> level_2
-  | Level3 -> level_3
+let get i = match i with Level0 -> level_0 | Level1 -> level_1 | Level2 -> level_2 | Level3 -> level_3

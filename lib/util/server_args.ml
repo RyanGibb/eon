@@ -4,7 +4,7 @@ let zonefiles = Arg.(value & opt_all string [] & info [ "z"; "zonefile" ] ~docv:
 
 let log_level default =
   let doc = "Log level for DNS packets. See the LOGGING section." in
-  let log_levels = Dns_log.([ ("0", Level0); ("1", Level1); ("2", Level2); ("3", Level3) ]) in
+  let log_levels = Dns_log.[ ("0", Level0); ("1", Level1); ("2", Level2); ("3", Level3) ] in
   Arg.(value & opt (enum log_levels) default & info [ "l"; "log-level" ] ~docv:"LOG_LEVEL" ~doc)
 
 let port =

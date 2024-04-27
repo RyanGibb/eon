@@ -14,7 +14,7 @@ let run log_level domain subdomain port nameserver netmask tunnel_ip =
     (fun () ->
       let buf = Cstruct.create mtu in
       while true do
-        let got = client#recv buf in
+        let got = client.recv buf in
         Eio.traceln "OUT %d" got;
         Eio.Flow.write tun [ Cstruct.sub buf 0 got ]
       done)
@@ -23,7 +23,7 @@ let run log_level domain subdomain port nameserver netmask tunnel_ip =
       while true do
         let got = Eio.Flow.single_read tun buf in
         Eio.traceln "INC %d" got;
-        client#send (Cstruct.sub buf 0 got)
+        client.send (Cstruct.sub buf 0 got)
       done)
 
 let () =

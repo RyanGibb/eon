@@ -22,10 +22,7 @@ val dns_client_stream :
   Dns_log.formattedLog ->
   Eio.Flow.two_way_ty Eio.Resource.t
 
-class virtual dns_datagram : object
-  method virtual send : Cstruct.t -> unit
-  method virtual recv : Cstruct.t -> int
-end
+type dns_datagram = { send : Cstruct.t -> unit; recv : Cstruct.t -> int }
 
 val dns_server_datagram :
   sw:Eio.Switch.t ->
@@ -34,11 +31,13 @@ val dns_server_datagram :
   mono_clock:_ Eio.Time.Mono.t ->
   proto:[ `Tcp | `Udp ] list ->
   string ->
+  (* subdomain *)
   string ->
+  (* authority *)
   Dns_server.Primary.s ref ->
   Dns_log.formattedLog ->
   (Eio.Net.Ipaddr.v4v6 * int) list ->
-  < dns_datagram >
+  dns_datagram
 
 val dns_client_datagram :
   sw:Eio.Switch.t ->
@@ -50,6 +49,6 @@ val dns_client_datagram :
   string ->
   int ->
   Dns_log.formattedLog ->
-  < dns_datagram >
+  dns_datagram
 
 (* TODO docs *)
