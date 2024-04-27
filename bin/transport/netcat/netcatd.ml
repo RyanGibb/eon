@@ -1,4 +1,4 @@
-let run zonefiles log_level addressStrings subdomain port proto mode =
+let run zonefiles log_level addressStrings subdomain port proto authorative mode =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
@@ -9,7 +9,12 @@ let run zonefiles log_level addressStrings subdomain port proto mode =
     buf
   in
   let server_state =
-    let trie, keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+    let trie', keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+    let trie =
+      List.fold_left
+        (fun trie domain -> Dns_trie.insert Domain_name.root Dns.Rr_map.Soa (Dns.Soa.create domain) trie)
+        trie' authorative
+    in
     ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
   in
   match mode with
@@ -43,12 +48,19 @@ let () =
       in
       Arg.(value & opt string "rpc" & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
     in
+    let authorative =
+      let doc = "Domain(s) for which the nameserver is authorative for, if not passed in zonefiles." in
+      Arg.(
+        value
+        & opt_all (conv (Domain_name.of_string, Domain_name.pp)) []
+        & info [ "a"; "authorative" ] ~docv:"AUTHORATIVE" ~doc)
+    in
     let mode =
       let doc = "The type of transport protocol to run over DNS." in
       let modes = [ ("datagram", `Datagram); ("stream", `Stream) ] in
       Arg.(value & opt (enum modes) `Datagram & info [ "m"; "mode" ] ~docv:"MODES" ~doc)
     in
-    let term = Term.(const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ subdomain $ port $ proto $ mode) in
+    let term = Term.(const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ subdomain $ port $ proto $ authorative $ mode) in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcatd" ~man ~doc in
     Cmd.v info term
