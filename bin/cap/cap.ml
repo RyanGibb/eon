@@ -24,6 +24,7 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir 
     Capnp_rpc_net.Restorer.Table.add services id zone_cap;
     let _, file = Eio.Path.(cap_dir / "zone.cap") in
     (match Capnp_rpc_unix.Cap_file.save_service vat id file with Error (`Msg m) -> failwith m | Ok () -> ());
+    (* todo chgrp acme-eon caps dir *)
     Printf.printf "[server] saved %S\n" file
   in
 
