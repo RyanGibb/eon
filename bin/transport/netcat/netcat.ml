@@ -1,26 +1,32 @@
-let run log_level domain subdomain port nameserver =
+let run log_level domain subdomain port nameserver mode =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
-  let client =
-    Transport.dns_client_datagram ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
-      domain port log
-  in
-  Eio.Fiber.both
-    (fun () ->
-      let buf = Cstruct.create 1000 in
-      while true do
-        let got = Eio.Flow.single_read env#stdin buf in
-        client.send (Cstruct.sub buf 0 got)
-      done)
-    (fun () ->
-      let buf = Cstruct.create 1000 in
-      while true do
-        let got = client.recv buf in
-        Eio.Flow.write env#stdout [ Cstruct.sub buf 0 got ]
-      done)
-
-(* Eio.Fiber.both (fun () -> Eio.Flow.copy env#stdin client) (fun () -> Eio.Flow.copy client env#stdout) *)
+  match mode with
+  | `Datagram ->
+      let client =
+        Transport.dns_client_datagram ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
+          domain port log
+      in
+      Eio.Fiber.both
+        (fun () ->
+          let buf = Cstruct.create 1000 in
+          while true do
+            let got = Eio.Flow.single_read env#stdin buf in
+            client.send (Cstruct.sub buf 0 got)
+          done)
+        (fun () ->
+          let buf = Cstruct.create 1000 in
+          while true do
+            let got = client.recv buf in
+            Eio.Flow.write env#stdout [ Cstruct.sub buf 0 got ]
+          done)
+  | `Stream ->
+      let client =
+        Transport.dns_client_stream ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
+          domain port log
+      in
+      Eio.Fiber.both (fun () -> Eio.Flow.copy env#stdin client) (fun () -> Eio.Flow.copy client env#stdout)
 
 let () =
   let open Cmdliner in
@@ -46,7 +52,12 @@ let () =
       in
       Arg.(value & opt string "127.0.0.1" & info [ "n"; "nameserver" ] ~docv:"NAMESERVER" ~doc)
     in
-    let term = Term.(const run $ log_level Dns_log.Level0 $ domain $ subdomain $ port $ nameserver) in
+    let mode =
+      let doc = "The type of transport protocol to run over DNS." in
+      let modes = [ ("datagram", `Datagram); ("stream", `Stream) ] in
+      Arg.(value & opt (enum modes) `Datagram & info [ "m"; "mode" ] ~docv:"MODES" ~doc)
+    in
+    let term = Term.(const run $ log_level Dns_log.Level0 $ domain $ subdomain $ port $ nameserver $ mode) in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcat" ~man ~doc in
     Cmd.v info term

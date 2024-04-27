@@ -99,32 +99,53 @@ end
 
 module FragPacket : sig
   type packet = { id : int; n_frags : int  (** how many fragments to expect for this packet *) }
-  type t = { packet : packet; frag_nb : int;  (** identifying fragment in packet *) data : Cstruct.t }
+
+  type t =
+    | Packet of { packet : packet; frag_nb : int;  (** identifying fragment in packet *) data : Cstruct.t }
+    (* we need a packet id for the client to send unique dummy packets to avoid caching *)
+    | Dummy of { id : int }
 
   val decode : Cstruct.t -> t
   val encode : t -> Cstruct.t
-  val empty : packet_id:int -> t
+  val dummy : int -> t
 end = struct
   type packet = { id : int; n_frags : int  (** how many fragments to expect for this packet *) }
-  type t = { packet : packet; frag_nb : int; data : Cstruct.t }
 
-  let empty ~packet_id = { packet = { id = packet_id; n_frags = 0 }; frag_nb = 0; data = Cstruct.empty }
+  type t =
+    | Packet of { packet : packet; frag_nb : int;  (** identifying fragment in packet *) data : Cstruct.t }
+    | Dummy of { id : int }
 
   let decode buf =
     let id = Cstruct.BE.get_uint16 buf 0 in
     let frag_nb = Cstruct.BE.get_uint16 buf 2 in
     let n_frags = Cstruct.BE.get_uint16 buf 4 in
-    let packet = { id; n_frags } in
-    let data = Cstruct.sub buf 6 (Cstruct.length buf - 6) in
-    { packet; frag_nb; data }
+    match n_frags with
+    | 0 -> Dummy { id }
+    | _ ->
+        let packet = { id; n_frags } in
+        let data = Cstruct.sub buf 6 (Cstruct.length buf - 6) in
+        Packet { packet; frag_nb; data }
 
-  let encode { packet; frag_nb; data } =
-    let buf = Cstruct.create (6 + Cstruct.length data) in
-    Cstruct.BE.set_uint16 buf 0 packet.id;
-    Cstruct.BE.set_uint16 buf 2 frag_nb;
-    Cstruct.BE.set_uint16 buf 4 packet.n_frags;
-    Cstruct.blit data 0 buf 6 (Cstruct.length data);
-    buf
+  let encode frag =
+    match frag with
+    | Dummy { id } ->
+        let buf = Cstruct.create 6 in
+        let frag_nb = 0 in
+        let n_frags = 0 in
+        Cstruct.BE.set_uint16 buf 0 id;
+        Cstruct.BE.set_uint16 buf 2 frag_nb;
+        Cstruct.BE.set_uint16 buf 4 n_frags;
+        buf
+    | Packet { packet; frag_nb; data } ->
+        let { id; n_frags } = packet in
+        let buf = Cstruct.create (6 + Cstruct.length data) in
+        Cstruct.BE.set_uint16 buf 0 id;
+        Cstruct.BE.set_uint16 buf 2 frag_nb;
+        Cstruct.BE.set_uint16 buf 4 n_frags;
+        Cstruct.blit data 0 buf 6 (Cstruct.length data);
+        buf
+
+  let dummy id = Dummy { id }
 end
 
 module CstructStream : sig
@@ -341,6 +362,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain authorit
   and seq_no = ref (-1)
   and id = ref 0 in
 
+  (* TODO handle state like for datagram *)
   let handle_dns _proto _addr buf () : unit =
     let ( let* ) o f = match o with None -> () | Some v -> f v in
     let* packet =
@@ -409,6 +431,7 @@ let dns_client_stream ~sw ~net ~clock ~random nameserver data_subdomain authorit
     let buf =
       (* String.length (data_subdomain ^ "." ^ authority) *)
       let rootLen = String.length data_subdomain + 1 + String.length authority in
+      (* TODO figure out why our mtu calc is wrong *)
       Cstruct.create (max_encoded_len - rootLen - 20)
     in
     while true do
@@ -456,18 +479,25 @@ module Server_state = struct
   type receiving_state = { packet : FragPacket.packet; next_frag_nb : int; acc_frags : Cstruct.t list }
   type sending_state = { packet : FragPacket.packet; next_frag_nb : int; packet_data : Cstruct.t }
 
-  let receive (receiving_state : receiving_state option) (frag_packet : FragPacket.t) inc =
-    match receiving_state with
-    | None -> None
-    | Some receiving_state ->
+  let receive (receiving_state_opt : receiving_state option) (frag_packet : FragPacket.t) inc =
+    (* ignore dummy packets *)
+    match frag_packet with
+    | Dummy _ -> receiving_state_opt
+    | Packet frag_packet ->
+        (* see if we need to reset recieving state *)
         let receiving_state =
-          (* If we're receiving a new fragment packet *)
-          (* NB this may drop an old packet, we don't deal with out of order delivery *)
-          if Cstruct.length frag_packet.data > 0 && frag_packet.packet.id != receiving_state.packet.id then
-            { packet = frag_packet.packet; next_frag_nb = 0; acc_frags = [] }
-          else receiving_state
+          match receiving_state_opt with
+          | None -> { packet = frag_packet.packet; next_frag_nb = 0; acc_frags = [] }
+          | Some receiving_state ->
+              (* If we're receiving a new fragment packet *)
+              (* NB this may drop an old packet, we don't deal with out of order delivery *)
+              if frag_packet.packet.id != receiving_state.packet.id then
+                { packet = frag_packet.packet; next_frag_nb = 0; acc_frags = [] }
+              else receiving_state
         in
-        if frag_packet.frag_nb == receiving_state.next_frag_nb then
+        (* if this is not the next fragment, ignore it, we don't deal with out of order delivery *)
+        if frag_packet.frag_nb != receiving_state.next_frag_nb then Some receiving_state
+        else
           let receiving_state =
             {
               receiving_state with
@@ -479,7 +509,6 @@ module Server_state = struct
           else (
             CstructStream.add inc [ Cstruct.concat (List.rev receiving_state.acc_frags) ];
             None)
-        else Some receiving_state
 
   let send sending_state mtu out =
     let get_frag sending_state =
@@ -487,7 +516,9 @@ module Server_state = struct
         let offset = sending_state.next_frag_nb * mtu in
         Cstruct.sub sending_state.packet_data offset (min mtu (Cstruct.length sending_state.packet_data - offset))
       in
-      let frag = FragPacket.{ packet = sending_state.packet; frag_nb = sending_state.next_frag_nb; data = frag_buf } in
+      let frag =
+        FragPacket.(Packet { packet = sending_state.packet; frag_nb = sending_state.next_frag_nb; data = frag_buf })
+      in
       let sending_state =
         if sending_state.next_frag_nb < sending_state.packet.n_frags - 1 then
           Some { sending_state with next_frag_nb = sending_state.next_frag_nb + 1 }
@@ -499,7 +530,7 @@ module Server_state = struct
     | Some sending_state -> get_frag sending_state
     | None -> (
         match CstructStream.try_take_one out with
-        | None -> (sending_state, FragPacket.empty ~packet_id:0)
+        | None -> (sending_state, FragPacket.dummy 0)
         | Some packet ->
             let sending_state =
               {
@@ -522,6 +553,7 @@ let dns_server_datagram ~sw ~net ~clock ~mono_clock ~proto data_subdomain author
   let mtu =
     (* String.length (data_subdomain ^ "." ^ authority) *)
     let rootLen = String.length data_subdomain + 1 + String.length authority in
+    (* TODO figure out why our mtu calc is wrong *)
     max_encoded_len - rootLen - 20
   in
 
@@ -586,26 +618,29 @@ module Client_state = struct
   }
 
   let receive state (frag : FragPacket.t) (inc : CstructStream.t) =
-    let state =
-      match state with
-      | None -> { current_packet = frag.packet; next_frag_nb = 0; acc_frags = [] }
-      | Some state ->
-          (* If we're receiving a new fragment packet *)
-          (* NB this may drop an old packet, we don't deal with out of order delivery *)
-          if frag.packet.id != state.current_packet.id then
-            { current_packet = frag.packet; next_frag_nb = 0; acc_frags = [] }
-          else state
-    in
-    Eio.traceln "IN_FRAG id %d no %d t %d" frag.packet.id frag.frag_nb frag.packet.n_frags;
-    if frag.frag_nb != state.next_frag_nb then Some state
-    else
-      let state = { state with acc_frags = frag.data :: state.acc_frags; next_frag_nb = state.next_frag_nb + 1 } in
-      if frag.frag_nb != frag.packet.n_frags - 1 then Some state
-      else
-        let reconsituted_data = Cstruct.concat (List.rev state.acc_frags) in
-        inc.items := reconsituted_data :: !(inc.items);
-        Eio.Condition.broadcast inc.cond;
-        None
+    match frag with
+    | Dummy _ -> state
+    | Packet frag ->
+        let state =
+          match state with
+          | None -> { current_packet = frag.packet; next_frag_nb = 0; acc_frags = [] }
+          | Some state ->
+              (* If we're receiving a new fragment packet *)
+              (* NB this may drop an old packet, we don't deal with out of order delivery *)
+              if frag.packet.id != state.current_packet.id then
+                { current_packet = frag.packet; next_frag_nb = 0; acc_frags = [] }
+              else state
+        in
+        Eio.traceln "IN_FRAG id %d no %d t %d" frag.packet.id frag.frag_nb frag.packet.n_frags;
+        if frag.frag_nb != state.next_frag_nb then Some state
+        else
+          let state = { state with acc_frags = frag.data :: state.acc_frags; next_frag_nb = state.next_frag_nb + 1 } in
+          if frag.frag_nb != frag.packet.n_frags - 1 then Some state
+          else
+            let reconsituted_data = Cstruct.concat (List.rev state.acc_frags) in
+            inc.items := reconsituted_data :: !(inc.items);
+            Eio.Condition.broadcast inc.cond;
+            None
 end
 
 let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain authority port log =
@@ -662,8 +697,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain author
         if Cstruct.length recv_buf = 0 then state
         else
           let frag = FragPacket.decode recv_buf in
-          if Cstruct.length frag.data = 0 then state
-          else Eio.Mutex.use_rw inc.mut ~protect:false (fun () -> Client_state.receive state frag inc)
+          Eio.Mutex.use_rw inc.mut ~protect:false (fun () -> Client_state.receive state frag inc)
   in
   let sock =
     let proto =
@@ -685,7 +719,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain author
     while true do
       Eio.Mutex.use_rw inc.mut ~protect:false (fun () ->
           (* sent a packet with a random id and hope that it doesn't collide *)
-          let frag = FragPacket.empty ~packet_id:(get_id ()) in
+          let frag = FragPacket.dummy (get_id ()) in
           let reply_buf = FragPacket.encode frag in
           let hostname = domain_name_of_buf root reply_buf in
 
@@ -711,11 +745,12 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain author
     let mtu =
       (* String.length (data_subdomain ^ "." ^ authority) *)
       let rootLen = String.length data_subdomain + 1 + String.length authority in
+      (* TODO figure out why our mtu calc is wrong *)
       max_encoded_len - rootLen - 20
     in
     let id = new_id () in
     let n_frags = (buf_len + (mtu - 1)) / mtu in
-    for frag_nb = 0 to n_frags do
+    for frag_nb = 0 to n_frags - 1 do
       let packet =
         let data =
           let offset = frag_nb * mtu in
@@ -723,7 +758,7 @@ let dns_client_datagram ~sw ~net ~clock ~random nameserver data_subdomain author
         in
         let open FragPacket in
         let packet = { id; n_frags } in
-        let frag = { packet; frag_nb; data } in
+        let frag = Packet { packet; frag_nb; data } in
         encode frag
       in
       let hostname = domain_name_of_buf root packet in
