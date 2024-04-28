@@ -53,11 +53,11 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
 
   Eio.Fiber.await_cancel ()
 
-let run zonefiles log_level addressStrings port proto prod endpoint authorative
+let run zonefiles log_level address_strings port proto prod endpoint authorative
     state_dir vat_config =
   Eio_main.run @@ fun env ->
   let log = Dns_log.get log_level Format.std_formatter in
-  let addresses = Server_args.parse_addresses port addressStrings in
+  let addresses = Server_args.parse_addresses port address_strings in
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact env#secure_random buf;

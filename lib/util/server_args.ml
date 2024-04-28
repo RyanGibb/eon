@@ -29,7 +29,7 @@ let addresses =
   (* :: is IPv6 local *)
   Arg.(value & opt_all string [ "::" ] & info [ "b"; "bind" ] ~docv:"BIND" ~doc)
 
-let parse_addresses port addressStrings =
+let parse_addresses port address_strings =
   List.map
     (fun ip ->
       match Ipaddr.with_port_of_string ~default:port ip with
@@ -41,7 +41,7 @@ let parse_addresses port addressStrings =
             ip msg;
           Format.pp_print_flush Format.err_formatter ();
           exit 1)
-    addressStrings
+    address_strings
 
 let proto =
   let doc =

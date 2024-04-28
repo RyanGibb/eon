@@ -1,9 +1,9 @@
-let run log_level addressStrings port port2 proto domain subdomain nameserver
+let run log_level address_strings port port2 proto domain subdomain nameserver
     timeout =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
-  let addresses = Server_args.parse_addresses port addressStrings in
+  let addresses = Server_args.parse_addresses port address_strings in
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact env#secure_random buf;

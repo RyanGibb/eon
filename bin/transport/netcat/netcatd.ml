@@ -1,9 +1,9 @@
-let run zonefiles log_level addressStrings subdomain authorative port proto mode
+let run zonefiles log_level address_strings subdomain authorative port proto mode
     =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
-  let addresses = Server_args.parse_addresses port addressStrings in
+  let addresses = Server_args.parse_addresses port address_strings in
   let server_state =
     let trie', keys, parsedAuthorative =
       Zonefile.parse_zonefiles ~fs:env#fs zonefiles

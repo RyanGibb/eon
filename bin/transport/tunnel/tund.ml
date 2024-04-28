@@ -1,9 +1,9 @@
-let run zonefiles log_level addressStrings subdomain authorative port proto
+let run zonefiles log_level address_strings subdomain authorative port proto
     netmask tunnel_ip =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
-  let addresses = Server_args.parse_addresses port addressStrings in
+  let addresses = Server_args.parse_addresses port address_strings in
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact env#secure_random buf;
