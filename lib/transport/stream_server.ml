@@ -1,4 +1,4 @@
-let run ~sw ~net ~clock ~mono_clock ~proto data_subdomain server_state log addresses =
+let run ~sw env proto data_subdomain server_state log addresses =
   let inc = Cstruct_stream.create () and out = Cstruct_stream.create () in
 
   (* TODO mutex *)
@@ -90,6 +90,5 @@ let run ~sw ~net ~clock ~mono_clock ~proto data_subdomain server_state log addre
     Some packet
   in
 
-  Eio.Fiber.fork ~sw (fun () ->
-      Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback server_state log addresses);
+  Eio.Fiber.fork ~sw (fun () -> Dns_server_eio.primary env proto ~packet_callback server_state log addresses);
   Stream.create ~inc ~out

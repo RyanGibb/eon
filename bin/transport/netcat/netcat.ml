@@ -4,10 +4,7 @@ let run log_level domain subdomain port nameserver mode timeout =
   let log = Dns_log.get log_level Format.std_formatter in
   match mode with
   | `Datagram ->
-      let client =
-        Transport.Datagram_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
-          domain port log timeout
-      in
+      let client = Transport.Datagram_client.run ~sw env nameserver subdomain domain port log timeout in
       Eio.Fiber.both
         (fun () ->
           let buf = Cstruct.create 1000 in
@@ -22,10 +19,7 @@ let run log_level domain subdomain port nameserver mode timeout =
             Eio.Flow.write env#stdout [ Cstruct.sub buf 0 got ]
           done)
   | `Stream ->
-      let client =
-        Transport.Stream_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
-          domain port log timeout
-      in
+      let client = Transport.Stream_client.run ~sw env nameserver subdomain domain port log timeout in
       Eio.Fiber.both (fun () -> Eio.Flow.copy env#stdin client) (fun () -> Eio.Flow.copy client env#stdout)
 
 let () =

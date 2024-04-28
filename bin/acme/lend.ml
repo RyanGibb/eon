@@ -64,8 +64,7 @@ let run zonefiles log_level addressStrings port proto prod endpoint cert_root so
   in
 
   Eio.Switch.run @@ fun sw ->
-  Eio.Fiber.fork ~sw (fun () ->
-      Dns_server_eio.primary ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto server_state log addresses);
+  Eio.Fiber.fork ~sw (fun () -> Dns_server_eio.primary env proto server_state log addresses);
 
   let socket = Eio.Net.listen ~backlog:128 ~sw env#net (`Unix socket_path) in
   while true do

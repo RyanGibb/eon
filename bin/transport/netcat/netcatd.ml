@@ -17,8 +17,7 @@ let run zonefiles log_level addressStrings subdomain port proto authorative mode
   | `Datagram ->
       let server =
         (* TODO remember why datagram needs and authority, but not stream, and then remove the hardcoded value *)
-        Transport.Datagram_server.run ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain
-          "rpc.example.org" server_state log addresses
+        Transport.Datagram_server.run ~sw env proto subdomain "rpc.example.org" server_state log addresses
       in
       let buf = Cstruct.create 1000 in
       while true do
@@ -26,10 +25,7 @@ let run zonefiles log_level addressStrings subdomain port proto authorative mode
         server.send (Cstruct.sub buf 0 got)
       done
   | `Stream ->
-      let server =
-        Transport.Stream_server.run ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain
-          server_state log addresses
-      in
+      let server = Transport.Stream_server.run ~sw env proto subdomain server_state log addresses in
       Eio.Flow.copy server server
 
 let () =

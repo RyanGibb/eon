@@ -13,18 +13,14 @@ let run zonefiles log_level addressStrings domain subdomain port proto =
     ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
   in
 
-  let server =
-    Transport.Datagram_server.run ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain domain
-      server_state log addresses
-  in
+  let server = Transport.Datagram_server.run ~sw env proto subdomain domain server_state log addresses in
 
   let resolver_state =
     let now = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
     ref @@ Dns_resolver.create ~cache_size:29 ~dnssec:false ~ip_protocol:`Ipv4_only now rng !server_state
   in
   Eio.Fiber.fork ~sw (fun () ->
-      Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto resolver_state
-        (Dns_log.level_1 Format.std_formatter)
+      Dns_resolver_eio.resolver env proto resolver_state (Dns_log.level_1 Format.std_formatter)
         [ (Eio.Net.Ipaddr.V4.any, 5056) ]);
 
   let clientSock = Eio.Net.datagram_socket ~sw env#net `UdpV4 in

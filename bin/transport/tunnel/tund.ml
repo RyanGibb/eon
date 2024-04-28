@@ -12,10 +12,7 @@ let run zonefiles log_level addressStrings domain subdomain port proto netmask t
     let trie, keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
     ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
   in
-  let server =
-    Transport.Datagram_server.run ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain domain
-      server_state log addresses
-  in
+  let server = Transport.Datagram_server.run ~sw env proto subdomain domain server_state log addresses in
   let tun_fd, tun_name = Tuntap.opentun ~devname:"tun-dnsd" () in
   let tun = Eio_unix.Net.import_socket_stream ~sw ~close_unix:false tun_fd in
   Tuntap.set_ipv4 tun_name ~netmask:(Ipaddr.V4.Prefix.of_string_exn netmask) (Ipaddr.V4.of_string_exn tunnel_ip);

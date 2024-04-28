@@ -2,10 +2,7 @@ let run log_level domain subdomain port nameserver timeout =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
-  let client =
-    Transport.Stream_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain domain
-      port log timeout
-  in
+  let client = Transport.Stream_client.run ~sw env nameserver subdomain domain port log timeout in
 
   let savedTio = Unix.tcgetattr Unix.stdin in
 

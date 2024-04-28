@@ -17,11 +17,8 @@ let run zonefiles log_level addressStrings port proto resolver =
         let now = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
         Dns_resolver.create ~cache_size:29 ~dnssec:false ~ip_protocol:`Ipv4_only now rng server_state
       in
-      Dns_resolver_eio.resolver ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto (ref resolver_state) log
-        addresses
-  | false ->
-      Dns_server_eio.primary ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto (ref server_state) log
-        addresses
+      Dns_resolver_eio.resolver env proto (ref resolver_state) log addresses
+  | false -> Dns_server_eio.primary env proto (ref server_state) log addresses
 
 let () =
   let open Cmdliner in

@@ -66,7 +66,7 @@ module Server_state = struct
 end
 
 (* TODO refactor and deduplicate these behemoths *)
-let run ~sw ~net ~clock ~mono_clock ~proto data_subdomain authority server_state log addresses =
+let run ~sw env proto data_subdomain authority server_state log addresses =
   let inc = Cstruct_stream.create () in
   let out = Cstruct_stream.create () in
 
@@ -129,7 +129,6 @@ let run ~sw ~net ~clock ~mono_clock ~proto data_subdomain authority server_state
     Some packet
   in
 
-  Eio.Fiber.fork ~sw (fun () ->
-      Dns_server_eio.primary ~net ~clock ~mono_clock ~proto ~packet_callback server_state log addresses);
+  Eio.Fiber.fork ~sw (fun () -> Dns_server_eio.primary env proto ~packet_callback server_state log addresses);
   let send buf = Cstruct_stream.add out [ buf ] and recv buf = Cstruct_stream.take_one inc buf in
   Datagram.create send recv

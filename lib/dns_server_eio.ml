@@ -1,11 +1,11 @@
 type dns_handler = Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
 
-let primary_handle_dns ~clock ~mono_clock server_state packet_callback : dns_handler =
+let primary_handle_dns env server_state packet_callback : dns_handler =
  fun proto (addr : Eio.Net.Sockaddr.t) buf ->
   (* TODO handle notify, n, and key *)
   let new_server_state, answers, _notify, _n, _key =
-    let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get
-    and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock
+    let now = Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
+    and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock
     and ipaddr, port =
       match addr with
       | `Udp (ip, p) | `Tcp (ip, p) -> (Ipaddr.of_octets_exn (ip :> string), p)
@@ -79,9 +79,9 @@ let tcp_listen log handle_dns sock =
     Eio.Switch.run @@ fun sw -> Eio.Net.accept_fork ~sw sock ~on_error (tcp_handle log handle_dns)
   done
 
-let with_handler ~net ~proto handle_dns log addresses =
-  Listen.on_addrs ~net ~proto (udp_listen log handle_dns) (tcp_listen log handle_dns) addresses
+let with_handler env proto handle_dns log addresses =
+  Listen.on_addrs ~net:env#net ~proto (udp_listen log handle_dns) (tcp_listen log handle_dns) addresses
 
-let primary ~net ~clock ~mono_clock ~proto ?(packet_callback = fun _q -> None) server_state log addresses =
-  let handle_dns = primary_handle_dns ~clock ~mono_clock server_state packet_callback in
-  Listen.on_addrs ~net ~proto (udp_listen log handle_dns) (tcp_listen log handle_dns) addresses
+let primary env proto ?(packet_callback = fun _q -> None) server_state log addresses =
+  let handle_dns = primary_handle_dns env server_state packet_callback in
+  Listen.on_addrs ~net:env#net ~proto (udp_listen log handle_dns) (tcp_listen log handle_dns) addresses

@@ -5,11 +5,11 @@ type dns_handler =
   (* answers *)
   (Dns.proto * Ipaddr.t * int * Cstruct.t) list (* queries *) * (Dns.proto * Ipaddr.t * Cstruct.t) list
 
-let resolver_handle_dns ~clock ~mono_clock resolver_state : dns_handler =
+let resolver_handle_dns env resolver_state : dns_handler =
  fun proto (addr : Eio.Net.Sockaddr.t) buf ->
   let new_resolver_state, answers, queries =
-    let now = Ptime.of_float_s @@ Eio.Time.now clock |> Option.get
-    and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now mono_clock
+    let now = Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
+    and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock
     and ipaddr, port =
       match addr with
       | `Udp (ip, p) | `Tcp (ip, p) -> (
@@ -110,6 +110,6 @@ let tcp_listen log handle_dns sock =
     Eio.Switch.run @@ fun sw -> Eio.Net.accept_fork ~sw sock ~on_error (tcp_handle log handle_dns)
   done
 
-let resolver ~net ~clock ~mono_clock ~proto resolver_state log addresses =
-  let handle_dns = resolver_handle_dns ~clock ~mono_clock resolver_state in
-  Listen.on_addrs ~net ~proto (udp_listen log handle_dns) (tcp_listen log handle_dns) addresses
+let resolver env proto resolver_state log addresses =
+  let handle_dns = resolver_handle_dns env resolver_state in
+  Listen.on_addrs ~net:env#net ~proto (udp_listen log handle_dns) (tcp_listen log handle_dns) addresses

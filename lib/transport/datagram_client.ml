@@ -31,13 +31,13 @@ module Client_state = struct
             None
 end
 
-let run ~sw ~net ~clock ~random nameserver data_subdomain authority port log timeout =
+let run ~sw env nameserver data_subdomain authority port log timeout =
   let inc = Cstruct_stream.create () in
 
   (* TODO support different queries, or probing access *)
   let record_type = Dns.Rr_map.Cname
   and addr =
-    match Eio.Net.getaddrinfo_datagram net ~service:(Int.to_string port) nameserver with
+    match Eio.Net.getaddrinfo_datagram env#net ~service:(Int.to_string port) nameserver with
     (* just takes first returned value, which is probably ipv6 *)
     | ipaddr :: _ -> ipaddr
     | [] ->
@@ -93,13 +93,13 @@ let run ~sw ~net ~clock ~random nameserver data_subdomain authority port log tim
       | `Udp (ipaddr, _p) -> Eio.Net.Ipaddr.fold ~v4:(fun _v4 -> `UdpV4) ~v6:(fun _v6 -> `UdpV6) ipaddr
       | `Unix _ -> failwith "unix domain sockets unsupported"
     in
-    Eio.Net.datagram_socket ~sw net proto
+    Eio.Net.datagram_socket ~sw env#net proto
   in
   let root = Domain_name.of_strings_exn (data_subdomain :: String.split_on_char '.' authority) in
   let get_id () =
     Cstruct.LE.get_uint16
       (let b = Cstruct.create 2 in
-       Eio.Flow.read_exact random b;
+       Eio.Flow.read_exact env#secure_random b;
        b)
       0
   in
@@ -113,7 +113,7 @@ let run ~sw ~net ~clock ~random nameserver data_subdomain authority port log tim
 
           Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
           ignore
-          @@ Eio.Time.with_timeout clock timeout (fun () ->
+          @@ Eio.Time.with_timeout env#clock timeout (fun () ->
                  Eio.Condition.await inc.cond inc.mut;
                  Ok ()));
       Eio.Fiber.yield ()
