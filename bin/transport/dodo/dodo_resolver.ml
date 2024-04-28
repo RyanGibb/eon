@@ -1,4 +1,5 @@
-let run log_level addressStrings port port2 proto domain subdomain nameserver timeout =
+let run log_level addressStrings port port2 proto domain subdomain nameserver
+    timeout =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
@@ -11,7 +12,8 @@ let run log_level addressStrings port port2 proto domain subdomain nameserver ti
 
   let client =
     (* todo use open resolver... *)
-    Transport.Datagram_client.run ~sw env nameserver subdomain domain port2 log timeout
+    Transport.Datagram_client.run ~sw env nameserver subdomain domain port2 log
+      timeout
   in
 
   let handle_dns _proto (addr : Eio.Net.Sockaddr.t) buf =
@@ -33,26 +35,36 @@ let () =
   let cmd =
     let subdomain =
       let doc =
-        "Sudomain to use custom processing on. This will be combined with the root DOMAIN to form \
-         <SUBDOMAIN>.<DOMAIN>, e.g. rpc.example.org. Data will be encoded as a base 64 string as a sudomain of this \
-         domain giving <DATA>.<SUBDOMAIN>.<DOMAIN>, e.g. aGVsbG8K.rpc.example.org."
+        "Sudomain to use custom processing on. This will be combined with the \
+         root DOMAIN to form <SUBDOMAIN>.<DOMAIN>, e.g. rpc.example.org. Data \
+         will be encoded as a base 64 string as a sudomain of this domain \
+         giving <DATA>.<SUBDOMAIN>.<DOMAIN>, e.g. aGVsbG8K.rpc.example.org."
       in
-      Arg.(value & opt string "rpc" & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
+      Arg.(
+        value & opt string "rpc"
+        & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
     in
     let domain =
       let doc = "Domain that the NAMESERVER is authorative for." in
-      Arg.(value & opt string "example.org" & info [ "d"; "domain" ] ~docv:"DOMAIN" ~doc)
+      Arg.(
+        value & opt string "example.org"
+        & info [ "d"; "domain" ] ~docv:"DOMAIN" ~doc)
     in
     let nameserver =
       let doc =
-        "The address of the nameserver to query. The first result returned by getaddrinfo will be used. If this may \
-         return multiple values, e.g. an IPv4 and IPv6 address for a host, and a specific one is desired it should be \
-         specified."
+        "The address of the nameserver to query. The first result returned by \
+         getaddrinfo will be used. If this may return multiple values, e.g. an \
+         IPv4 and IPv6 address for a host, and a specific one is desired it \
+         should be specified."
       in
-      Arg.(value & opt string "127.0.0.1" & info [ "n"; "nameserver" ] ~docv:"NAMESERVER" ~doc)
+      Arg.(
+        value & opt string "127.0.0.1"
+        & info [ "n"; "nameserver" ] ~docv:"NAMESERVER" ~doc)
     in
     let port2 =
-      let doc = "Port to bind on. By default 53 is used. See the BINDING section." in
+      let doc =
+        "Port to bind on. By default 53 is used. See the BINDING section."
+      in
       Arg.(value & opt int 53 & info [ ""; "port2" ] ~docv:"PORT" ~doc)
     in
     let timeout =
@@ -61,8 +73,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ log_level Dns_log.Level0 $ addresses $ port $ port2 $ proto $ domain $ subdomain $ nameserver
-        $ timeout)
+        const run $ log_level Dns_log.Level0 $ addresses $ port $ port2 $ proto
+        $ domain $ subdomain $ nameserver $ timeout)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcat" ~man ~doc in

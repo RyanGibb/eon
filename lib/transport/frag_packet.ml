@@ -1,7 +1,14 @@
-type packet = { id : int; n_frags : int  (** how many fragments to expect for this packet *) }
+type packet = {
+  id : int;
+  n_frags : int;  (** how many fragments to expect for this packet *)
+}
 
 type t =
-  | Packet of { packet : packet; frag_nb : int;  (** identifying fragment in packet *) data : Cstruct.t }
+  | Packet of {
+      packet : packet;
+      frag_nb : int;  (** identifying fragment in packet *)
+      data : Cstruct.t;
+    }
   | Dummy of { id : int }
 
 let decode buf =

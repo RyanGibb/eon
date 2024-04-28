@@ -12,11 +12,15 @@ let run_shell ~stdout ~stdin pty =
       [
         (fun () ->
           Eio.Switch.run @@ fun sw ->
-          let sink = Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd in
+          let sink =
+            Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd
+          in
           Eio.Flow.copy stdin sink);
         (fun () ->
           Eio.Switch.run @@ fun sw ->
-          let source = Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd in
+          let source =
+            Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd
+          in
           Eio.Flow.copy source stdout);
         (fun () ->
           Eio.Condition.await_no_mutex sigchld;
@@ -37,9 +41,12 @@ let run zonefiles log_level addressStrings subdomain port proto =
         Eio.Flow.read_exact env#secure_random buf;
         buf
       in
-      ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
+      ref
+      @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
+           ~tsig_sign:Dns_tsig.sign trie
     in
-    Transport.Stream_server.run ~sw env proto subdomain server_state log addresses
+    Transport.Stream_server.run ~sw env proto subdomain server_state log
+      addresses
   in
   while true do
     (* TODO support parallel with transport support) *)
@@ -69,13 +76,20 @@ let () =
   let cmd =
     let subdomain =
       let doc =
-        "Sudomain to use custom processing on. This will be combined with the root DOMAIN to form \
-         <SUBDOMAIN>.<DOMAIN>, e.g. rpc.example.org. Data will be encoded as a base 64 string as a sudomain of this \
-         domain giving <DATA>.<SUBDOMAIN>.<DOMAIN>, e.g. aGVsbG8K.rpc.example.org."
+        "Sudomain to use custom processing on. This will be combined with the \
+         root DOMAIN to form <SUBDOMAIN>.<DOMAIN>, e.g. rpc.example.org. Data \
+         will be encoded as a base 64 string as a sudomain of this domain \
+         giving <DATA>.<SUBDOMAIN>.<DOMAIN>, e.g. aGVsbG8K.rpc.example.org."
       in
-      Arg.(value & opt string "rpc" & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
+      Arg.(
+        value & opt string "rpc"
+        & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
     in
-    let term = Term.(const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ subdomain $ port $ proto) in
+    let term =
+      Term.(
+        const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ subdomain
+        $ port $ proto)
+    in
     let info = Cmd.info "sodd" ~man in
     Cmd.v info term
   in

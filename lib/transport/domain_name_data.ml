@@ -10,8 +10,15 @@ let max_encoded_len =
 
 let decode sudbomain name =
   let ( let* ) = Option.bind in
-  let* i = Domain_name.find_label name (fun s -> String.equal sudbomain (String.lowercase_ascii s)) in
-  let data_name = Domain_name.drop_label_exn ~rev:true ~amount:(Domain_name.count_labels name - i) name in
+  let* i =
+    Domain_name.find_label name (fun s ->
+        String.equal sudbomain (String.lowercase_ascii s))
+  in
+  let data_name =
+    Domain_name.drop_label_exn ~rev:true
+      ~amount:(Domain_name.count_labels name - i)
+      name
+  in
   let root = Domain_name.drop_label_exn ~amount:i name in
   let data_array = Domain_name.to_array data_name in
   let data = String.concat "" (Array.to_list data_array) in

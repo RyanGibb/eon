@@ -1,5 +1,10 @@
 (* Pseudo terminal handling functions *)
-type pty = { masterfd : Unix.file_descr; slavefd : Unix.file_descr; name : string }
+type pty = {
+  masterfd : Unix.file_descr;
+  slavefd : Unix.file_descr;
+  name : string;
+}
+
 type pty_window = { row : int32; col : int32; xpixel : int32; ypixel : int32 }
 
 (* Exceptions raised by Pty functions *)

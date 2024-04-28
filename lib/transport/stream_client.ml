@@ -4,7 +4,10 @@ let run ~sw env nameserver data_subdomain authority port log timeout =
   (* TODO support different queries, or probing access *)
   let record_type = Dns.Rr_map.Cname
   and addr =
-    match Eio.Net.getaddrinfo_datagram env#net ~service:(Int.to_string port) nameserver with
+    match
+      Eio.Net.getaddrinfo_datagram env#net ~service:(Int.to_string port)
+        nameserver
+    with
     (* just takes first returned value, which is probably ipv6 *)
     | ipaddr :: _ -> ipaddr
     | [] ->
@@ -29,7 +32,8 @@ let run ~sw env nameserver data_subdomain authority port log timeout =
       match Dns.Packet.decode buf with
       | Ok packet -> Some packet
       | Error err ->
-          Format.fprintf Format.err_formatter "Transport: error decoding %a\n" Dns.Packet.pp_err err;
+          Format.fprintf Format.err_formatter "Transport: error decoding %a\n"
+            Dns.Packet.pp_err err;
           Format.pp_print_flush Format.err_formatter ();
           exit 1
     in
@@ -74,12 +78,19 @@ let run ~sw env nameserver data_subdomain authority port log timeout =
   let sock =
     let proto =
       match addr with
-      | `Udp (ipaddr, _p) -> Eio.Net.Ipaddr.fold ~v4:(fun _v4 -> `UdpV4) ~v6:(fun _v6 -> `UdpV6) ipaddr
+      | `Udp (ipaddr, _p) ->
+          Eio.Net.Ipaddr.fold
+            ~v4:(fun _v4 -> `UdpV4)
+            ~v6:(fun _v6 -> `UdpV6)
+            ipaddr
       | `Unix _ -> failwith "unix domain sockets unsupported"
     in
     Eio.Net.datagram_socket ~sw env#net proto
   in
-  let root = Domain_name.of_strings_exn (data_subdomain :: String.split_on_char '.' authority) in
+  let root =
+    Domain_name.of_strings_exn
+      (data_subdomain :: String.split_on_char '.' authority)
+  in
   let get_id () =
     Cstruct.LE.get_uint16
       (let b = Cstruct.create 2 in
@@ -90,7 +101,9 @@ let run ~sw env nameserver data_subdomain authority port log timeout =
   let send_data_fiber () =
     let buf =
       (* String.length (data_subdomain ^ "." ^ authority) *)
-      let rootLen = String.length data_subdomain + 1 + String.length authority in
+      let rootLen =
+        String.length data_subdomain + 1 + String.length authority
+      in
       (* TODO figure out why our mtu calc is wrong *)
       Cstruct.create (Domain_name_data.max_encoded_len - rootLen - 20)
     in
@@ -107,7 +120,8 @@ let run ~sw env nameserver data_subdomain authority port log timeout =
           let hostname = Domain_name_data.encode root reply_buf in
           (* retransmit *)
           while !last_acked_seq_no != sent_seq_no do
-            Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
+            Dns_client_eio.send_query log (get_id ()) record_type hostname sock
+              addr;
             ignore
             @@ Eio.Time.with_timeout env#clock timeout (fun () ->
                    Eio.Condition.await acked acked_mut;
@@ -119,11 +133,14 @@ let run ~sw env nameserver data_subdomain authority port log timeout =
     while true do
       Eio.Mutex.use_rw recv_data_mut ~protect:false (fun () ->
           (* sent a packet with the last recieved sequence number *)
-          let reply_buf = Unique_packet.encode !id !last_recv_seq_no Cstruct.empty in
+          let reply_buf =
+            Unique_packet.encode !id !last_recv_seq_no Cstruct.empty
+          in
           id := !id + 1;
           let hostname = Domain_name_data.encode root reply_buf in
 
-          Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
+          Dns_client_eio.send_query log (get_id ()) record_type hostname sock
+            addr;
           ignore
           @@ Eio.Time.with_timeout env#clock timeout (fun () ->
                  Eio.Condition.await recv_data recv_data_mut;

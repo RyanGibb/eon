@@ -14,7 +14,8 @@ let protect ~f ~(finally : unit -> unit) =
       finally ();
       raise e
 
-let provision_cert prod endpoint server_state env ?account_key ?private_key ~email ?(org = None) domains =
+let provision_cert prod endpoint server_state env ?account_key ?private_key
+    ~email ?(org = None) domains =
   List.iter
     (fun domain ->
       (* check if there's any issues with the domain *)
@@ -47,7 +48,10 @@ let provision_cert prod endpoint server_state env ?account_key ?private_key ~ema
         (* vertify that the name provided in the ACME server challenge begins with `_acme-challenge` *)
         let verify_name name =
           let labels = Domain_name.to_array name in
-          match Array.length labels > 0 && labels.(Array.length labels - 1) = "_acme-challenge" with
+          match
+            Array.length labels > 0
+            && labels.(Array.length labels - 1) = "_acme-challenge"
+          with
           | false -> Error (`Msg "error")
           | true -> Ok ()
         in
@@ -65,12 +69,15 @@ let provision_cert prod endpoint server_state env ?account_key ?private_key ~ema
           | Ok (ttl, records) ->
               let trie = Dns_trie.remove_ty name Dns.Rr_map.Txt trie in
               Dns.Rr_map.Txt_set.iter
-                (fun record -> Eio.traceln "Clear '%a %ld IN TXT \"%s\"'" Domain_name.pp name ttl record)
+                (fun record ->
+                  Eio.traceln "Clear '%a %ld IN TXT \"%s\"'" Domain_name.pp name
+                    ttl record)
                 records;
               Ok trie
           (* if there's any other issues, like the server is not authorative for this zone, or the zone has been delegated *)
           | Error e ->
-              Eio.traceln "Error with ACME CSR name '%a': %a" Domain_name.pp name Dns_trie.pp_e e;
+              Eio.traceln "Error with ACME CSR name '%a': %a" Domain_name.pp
+                name Dns_trie.pp_e e;
               let msg = Format.asprintf "%a" Dns_trie.pp_e e in
               Error (`Msg msg)
         in
@@ -87,7 +94,8 @@ let provision_cert prod endpoint server_state env ?account_key ?private_key ~ema
         in
         server_state := new_server_state;
         acmeName := Some name;
-        Eio.traceln "Create '%a %ld IN TXT \"%s\"'" Domain_name.pp name ttl record;
+        Eio.traceln "Create '%a %ld IN TXT \"%s\"'" Domain_name.pp name ttl
+          record;
         (* we could wait for dns propigation here...
            but we hope that a new un-cached record is created
            and if not, the server should retry (RFC 8555 S8.2) *)
@@ -99,12 +107,16 @@ let provision_cert prod endpoint server_state env ?account_key ?private_key ~ema
   let endpoint =
     match endpoint with
     | Some e -> e
-    | None -> if prod then Letsencrypt.letsencrypt_production_url else Letsencrypt.letsencrypt_staging_url
+    | None ->
+        if prod then Letsencrypt.letsencrypt_production_url
+        else Letsencrypt.letsencrypt_staging_url
   in
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   protect
     ~f:(fun () ->
-      try Tls_le.gen_cert ?account_key ?private_key ~email ~org domains ~endpoint ~solver env
+      try
+        Tls_le.gen_cert ?account_key ?private_key ~email ~org domains ~endpoint
+          ~solver env
       with Tls_le.Le_error msg ->
         Eio.traceln "ACME error: %s" msg;
         raise (Tls_le.Le_error msg))
@@ -115,17 +127,24 @@ let provision_cert prod endpoint server_state env ?account_key ?private_key ~ema
       | Some name -> (
           let trie = Dns_server.Primary.data !server_state in
           match Dns_trie.lookup name Dns.Rr_map.Txt trie with
-          | Error e -> Eio.traceln "Error removing %a from trie: %a" Domain_name.pp name Dns_trie.pp_e e
+          | Error e ->
+              Eio.traceln "Error removing %a from trie: %a" Domain_name.pp name
+                Dns_trie.pp_e e
           | Ok (ttl, records) ->
               let data = Dns_trie.remove_ty name Dns.Rr_map.Txt trie in
               (* TODO send out notifications *)
               let new_server_state, _notifications =
-                let now = Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
-                and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
+                let now =
+                  Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
+                and ts =
+                  Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock
+                in
                 Dns_server.Primary.with_data !server_state now ts data
               in
               server_state := new_server_state;
               Dns.Rr_map.Txt_set.iter
-                (fun record -> Eio.traceln "Remove '%a %ld IN TXT \"%s\"'" Domain_name.pp name ttl record)
+                (fun record ->
+                  Eio.traceln "Remove '%a %ld IN TXT \"%s\"'" Domain_name.pp
+                    name ttl record)
                 records;
               ()))

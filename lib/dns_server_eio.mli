@@ -1,7 +1,8 @@
 (* The plumbing for a process to send and receive DNS packets.
    Takes a `dns_handler` that returns a list of answers *)
 
-type dns_handler = Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
+type dns_handler =
+  Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
 
 val with_handler :
   < net : _ Eio.Net.t ; .. > ->
@@ -12,7 +13,10 @@ val with_handler :
   unit
 
 val primary :
-  < net : _ Eio.Net.t ; clock : _ Eio.Time.clock ; mono_clock : _ Eio.Time.Mono.t ; .. > ->
+  < net : _ Eio.Net.t
+  ; clock : _ Eio.Time.clock
+  ; mono_clock : _ Eio.Time.Mono.t
+  ; .. > ->
   [ `Tcp | `Udp ] list ->
   ?packet_callback:Dns_server.packet_callback ->
   Dns_server.Primary.s ref ->

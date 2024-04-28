@@ -1,8 +1,18 @@
 module Server_state = struct
-  type receiving_state = { packet : Frag_packet.packet; next_frag_nb : int; acc_frags : Cstruct.t list }
-  type sending_state = { packet : Frag_packet.packet; next_frag_nb : int; packet_data : Cstruct.t }
+  type receiving_state = {
+    packet : Frag_packet.packet;
+    next_frag_nb : int;
+    acc_frags : Cstruct.t list;
+  }
 
-  let receive (receiving_state_opt : receiving_state option) (frag_packet : Frag_packet.t) inc =
+  type sending_state = {
+    packet : Frag_packet.packet;
+    next_frag_nb : int;
+    packet_data : Cstruct.t;
+  }
+
+  let receive (receiving_state_opt : receiving_state option)
+      (frag_packet : Frag_packet.t) inc =
     (* ignore dummy packets *)
     match frag_packet with
     | Dummy _ -> receiving_state_opt
@@ -10,16 +20,22 @@ module Server_state = struct
         (* see if we need to reset recieving state *)
         let receiving_state =
           match receiving_state_opt with
-          | None -> { packet = frag_packet.packet; next_frag_nb = 0; acc_frags = [] }
+          | None ->
+              { packet = frag_packet.packet; next_frag_nb = 0; acc_frags = [] }
           | Some receiving_state ->
               (* If we're receiving a new fragment packet *)
               (* NB this may drop an old packet, we don't deal with out of order delivery *)
               if frag_packet.packet.id != receiving_state.packet.id then
-                { packet = frag_packet.packet; next_frag_nb = 0; acc_frags = [] }
+                {
+                  packet = frag_packet.packet;
+                  next_frag_nb = 0;
+                  acc_frags = [];
+                }
               else receiving_state
         in
         (* if this is not the next fragment, ignore it, we don't deal with out of order delivery *)
-        if frag_packet.frag_nb != receiving_state.next_frag_nb then Some receiving_state
+        if frag_packet.frag_nb != receiving_state.next_frag_nb then
+          Some receiving_state
         else
           let receiving_state =
             {
@@ -28,23 +44,33 @@ module Server_state = struct
               next_frag_nb = receiving_state.next_frag_nb + 1;
             }
           in
-          if frag_packet.frag_nb != frag_packet.packet.n_frags - 1 then Some receiving_state
+          if frag_packet.frag_nb != frag_packet.packet.n_frags - 1 then
+            Some receiving_state
           else (
-            Cstruct_stream.add inc [ Cstruct.concat (List.rev receiving_state.acc_frags) ];
+            Cstruct_stream.add inc
+              [ Cstruct.concat (List.rev receiving_state.acc_frags) ];
             None)
 
   let send sending_state mtu out =
     let get_frag sending_state =
       let frag_buf =
         let offset = sending_state.next_frag_nb * mtu in
-        Cstruct.sub sending_state.packet_data offset (min mtu (Cstruct.length sending_state.packet_data - offset))
+        Cstruct.sub sending_state.packet_data offset
+          (min mtu (Cstruct.length sending_state.packet_data - offset))
       in
       let frag =
-        Frag_packet.(Packet { packet = sending_state.packet; frag_nb = sending_state.next_frag_nb; data = frag_buf })
+        Frag_packet.(
+          Packet
+            {
+              packet = sending_state.packet;
+              frag_nb = sending_state.next_frag_nb;
+              data = frag_buf;
+            })
       in
       let sending_state =
         if sending_state.next_frag_nb < sending_state.packet.n_frags - 1 then
-          Some { sending_state with next_frag_nb = sending_state.next_frag_nb + 1 }
+          Some
+            { sending_state with next_frag_nb = sending_state.next_frag_nb + 1 }
         else None
       in
       (sending_state, frag)
@@ -58,7 +84,11 @@ module Server_state = struct
             let sending_state =
               {
                 packet_data = packet;
-                packet = { id = 1; n_frags = (Cstruct.length packet + (mtu - 1)) / mtu };
+                packet =
+                  {
+                    id = 1;
+                    n_frags = (Cstruct.length packet + (mtu - 1)) / mtu;
+                  };
                 next_frag_nb = 0;
               }
             in
@@ -71,7 +101,9 @@ let run ~sw env proto data_subdomain authority server_state log addresses =
   let out = Cstruct_stream.create () in
 
   (* don't handle out of order transmission *)
-  let receiving_state_ref : Server_state.receiving_state option ref = ref None in
+  let receiving_state_ref : Server_state.receiving_state option ref =
+    ref None
+  in
   let sending_state_ref = ref None in
   let mtu =
     (* String.length (data_subdomain ^ "." ^ authority) *)
@@ -82,9 +114,12 @@ let run ~sw env proto data_subdomain authority server_state log addresses =
 
   let packet_callback (p : Dns.Packet.t) : Dns.Packet.t option =
     (* let state = !state_ref in *)
-    let receiving_state = !receiving_state_ref and sending_state = !sending_state_ref in
+    let receiving_state = !receiving_state_ref
+    and sending_state = !sending_state_ref in
     let ( let* ) = Option.bind in
-    let* name, qtype = match p.Dns.Packet.data with `Query -> Some p.question | _ -> None in
+    let* name, qtype =
+      match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
+    in
     let* recv_buf, root = Domain_name_data.decode data_subdomain name in
 
     (* assert (String.lowercase_ascii (Domain_name.to_string root) = authority); *)
@@ -94,7 +129,8 @@ let run ~sw env proto data_subdomain authority server_state log addresses =
       match qtype with
       | `K (Dns.Rr_map.K Dns.Rr_map.Cname) -> Some ()
       | `Axfr | `Ixfr ->
-          Format.fprintf Format.err_formatter "Transport: unsupported operation zonetransfer\n";
+          Format.fprintf Format.err_formatter
+            "Transport: unsupported operation zonetransfer\n";
           Format.pp_print_flush Format.err_formatter ();
           None
       | `Any ->
@@ -102,7 +138,8 @@ let run ~sw env proto data_subdomain authority server_state log addresses =
           Format.pp_print_flush Format.err_formatter ();
           None
       | `K rr ->
-          Format.fprintf Format.err_formatter "Transport: unsupported RR %a\n" Dns.Rr_map.ppk rr;
+          Format.fprintf Format.err_formatter "Transport: unsupported RR %a\n"
+            Dns.Rr_map.ppk rr;
           Format.pp_print_flush Format.err_formatter ();
           None
     in
@@ -110,7 +147,9 @@ let run ~sw env proto data_subdomain authority server_state log addresses =
     let frag_packet = Frag_packet.decode recv_buf in
 
     (* Update state, get reply *)
-    let receiving_state = Server_state.receive receiving_state frag_packet inc in
+    let receiving_state =
+      Server_state.receive receiving_state frag_packet inc
+    in
     let sending_state, reply = Server_state.send sending_state mtu out in
     sending_state_ref := sending_state;
     receiving_state_ref := receiving_state;
@@ -129,6 +168,9 @@ let run ~sw env proto data_subdomain authority server_state log addresses =
     Some packet
   in
 
-  Eio.Fiber.fork ~sw (fun () -> Dns_server_eio.primary env proto ~packet_callback server_state log addresses);
-  let send buf = Cstruct_stream.add out [ buf ] and recv buf = Cstruct_stream.take_one inc buf in
+  Eio.Fiber.fork ~sw (fun () ->
+      Dns_server_eio.primary env proto ~packet_callback server_state log
+        addresses);
+  let send buf = Cstruct_stream.add out [ buf ]
+  and recv buf = Cstruct_stream.take_one inc buf in
   Datagram.create send recv

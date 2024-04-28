@@ -1,8 +1,13 @@
-type t = { items : Cstruct.t list ref; mut : Eio.Mutex.t; cond : Eio.Condition.t }
+type t = {
+  items : Cstruct.t list ref;
+  mut : Eio.Mutex.t;
+  cond : Eio.Condition.t;
+}
 
 exception Empty
 
-let create () = { items = ref []; mut = Eio.Mutex.create (); cond = Eio.Condition.create () }
+let create () =
+  { items = ref []; mut = Eio.Mutex.create (); cond = Eio.Condition.create () }
 
 let add t bufs =
   Eio.Mutex.use_rw t.mut ~protect:false (fun () ->

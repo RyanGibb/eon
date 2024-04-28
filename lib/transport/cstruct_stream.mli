@@ -1,4 +1,8 @@
-type t = { items : Cstruct.t list ref; mut : Eio.Mutex.t; cond : Eio.Condition.t }
+type t = {
+  items : Cstruct.t list ref;
+  mut : Eio.Mutex.t;
+  cond : Eio.Condition.t;
+}
 
 exception Empty
 

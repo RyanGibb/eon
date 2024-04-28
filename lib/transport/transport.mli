@@ -1,7 +1,10 @@
 module Datagram_server : sig
   val run :
     sw:Eio.Switch.t ->
-    < net : _ Eio.Net.t ; clock : _ Eio.Time.clock ; mono_clock : _ Eio.Time.Mono.t ; .. > ->
+    < net : _ Eio.Net.t
+    ; clock : _ Eio.Time.clock
+    ; mono_clock : _ Eio.Time.Mono.t
+    ; .. > ->
     [ `Tcp | `Udp ] list ->
     (* TODO add names *)
     string ->
@@ -17,7 +20,10 @@ end
 module Datagram_client : sig
   val run :
     sw:Eio.Switch.t ->
-    < net : _ Eio.Net.t ; clock : _ Eio.Time.clock ; secure_random : _ Eio.Flow.source ; .. > ->
+    < net : _ Eio.Net.t
+    ; clock : _ Eio.Time.clock
+    ; secure_random : _ Eio.Flow.source
+    ; .. > ->
     string ->
     string ->
     string ->
@@ -30,7 +36,10 @@ end
 module Stream_server : sig
   val run :
     sw:Eio.Switch.t ->
-    < net : _ Eio.Net.t ; clock : _ Eio.Time.clock ; mono_clock : _ Eio.Time.Mono.t ; .. > ->
+    < net : _ Eio.Net.t
+    ; clock : _ Eio.Time.clock
+    ; mono_clock : _ Eio.Time.Mono.t
+    ; .. > ->
     [ `Tcp | `Udp ] list ->
     string ->
     Dns_server.Primary.s ref ->
@@ -42,7 +51,10 @@ end
 module Stream_client : sig
   val run :
     sw:Eio.Switch.t ->
-    < net : _ Eio.Net.t ; clock : _ Eio.Time.clock ; secure_random : _ Eio.Flow.source ; .. > ->
+    < net : _ Eio.Net.t
+    ; clock : _ Eio.Time.clock
+    ; secure_random : _ Eio.Flow.source
+    ; .. > ->
     string ->
     string ->
     string ->

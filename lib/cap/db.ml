@@ -4,7 +4,10 @@ open Capnp_rpc_net
 module File_store = Capnp_rpc_unix.File_store
 module Store = Store.Make (Capnp.BytesMessage)
 
-type loader = [ `Domain_debb01f25d5fee15 ] Sturdy_ref.t -> name:[ `raw ] Domain_name.t -> Restorer.resolution
+type loader =
+  [ `Domain_debb01f25d5fee15 ] Sturdy_ref.t ->
+  name:[ `raw ] Domain_name.t ->
+  Restorer.resolution
 
 type t = {
   store : Store.Reader.SavedService.struct_t File_store.t;
@@ -33,7 +36,9 @@ let load t sr digest =
   | None -> Restorer.unknown_service_id
   | Some saved_service ->
       let domain = Store.Reader.SavedService.domain_get saved_service in
-      let name = Domain_name.of_string_exn (Store.Reader.SavedDomain.name_get domain) in
+      let name =
+        Domain_name.of_string_exn (Store.Reader.SavedDomain.name_get domain)
+      in
       let sr = Capnp_rpc_lwt.Sturdy_ref.cast sr in
       let loader = Promise.await t.loader in
       loader sr ~name

@@ -11,14 +11,22 @@ end
 let generate_cert ~email ~domain ~org cert_root prod endpoint server_state env =
   let read_pem filepath decode_pem =
     match Eiox.file_exists filepath with
-    | true -> Some (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem |> Tls_le.errcheck)
+    | true ->
+        Some
+          (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem
+         |> Tls_le.errcheck)
     | false -> None
   in
-  let write_pem filepath pem = Eio.Path.save ~create:(`Or_truncate 0o600) filepath (pem |> Cstruct.to_string) in
+  let write_pem filepath pem =
+    Eio.Path.save ~create:(`Or_truncate 0o600) filepath
+      (pem |> Cstruct.to_string)
+  in
   let ( / ) = Eio.Path.( / ) in
   let open X509 in
   Eio.Switch.run @@ fun sw ->
-  let cert_dir = Eio.Path.open_dir ~sw (env#fs / Domain_name.to_string domain / cert_root) in
+  let cert_dir =
+    Eio.Path.open_dir ~sw (env#fs / Domain_name.to_string domain / cert_root)
+  in
   let account_key_file = cert_dir / "account.pem" in
   let private_key_file = cert_dir / "privkey.pem" in
   let csr_file = cert_dir / "csr.pem" in
@@ -27,7 +35,8 @@ let generate_cert ~email ~domain ~org cert_root prod endpoint server_state env =
   let private_key = read_pem private_key_file Private_key.decode_pem in
   try
     let cert, account_key, private_key, csr =
-      Dns_acme.provision_cert prod endpoint server_state env ?account_key ?private_key ~email [ domain ] ~org
+      Dns_acme.provision_cert prod endpoint server_state env ?account_key
+        ?private_key ~email [ domain ] ~org
     in
     write_pem account_key_file (Private_key.encode_pem account_key);
     write_pem private_key_file (Private_key.encode_pem private_key);
@@ -44,7 +53,8 @@ let read_request sock =
   Eio.Flow.shutdown sock `Receive;
   (email, (match org with "" -> None | o -> Some o), domain)
 
-let run zonefiles log_level addressStrings port proto prod endpoint cert_root socket_path authorative =
+let run zonefiles log_level addressStrings port proto prod endpoint cert_root
+    socket_path authorative =
   Eio_main.run @@ fun env ->
   let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
@@ -58,13 +68,19 @@ let run zonefiles log_level addressStrings port proto prod endpoint cert_root so
     let trie =
       match authorative with
       | None -> trie
-      | Some authorative -> Dns_trie.insert Domain_name.root Dns.Rr_map.Soa (Dns.Soa.create authorative) trie
+      | Some authorative ->
+          Dns_trie.insert Domain_name.root Dns.Rr_map.Soa
+            (Dns.Soa.create authorative)
+            trie
     in
-    ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
+    ref
+    @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
+         ~tsig_sign:Dns_tsig.sign trie
   in
 
   Eio.Switch.run @@ fun sw ->
-  Eio.Fiber.fork ~sw (fun () -> Dns_server_eio.primary env proto server_state log addresses);
+  Eio.Fiber.fork ~sw (fun () ->
+      Dns_server_eio.primary env proto server_state log addresses);
 
   let socket = Eio.Net.listen ~backlog:128 ~sw env#net (`Unix socket_path) in
   while true do
@@ -74,7 +90,9 @@ let run zonefiles log_level addressStrings port proto prod endpoint cert_root so
         let msg =
           match Domain_name.of_string domain with
           | Error (`Msg e) -> "Error: " ^ e
-          | Ok domain -> generate_cert ~email ~domain ~org cert_root prod endpoint server_state env
+          | Ok domain ->
+              generate_cert ~email ~domain ~org cert_root prod endpoint
+                server_state env
         in
         Eio.traceln "Recieved request: email '%s'; '%s'domain '%s'" email
           (match org with None -> "" | Some o -> Fmt.str "; org '%s' " o)
@@ -93,8 +111,9 @@ let () =
     in
     let endpoint =
       let doc =
-        "ACME Directory Resource URI. Defaults to Let's Encrypt's staging endpoint \
-         https://acme-staging-v02.api.letsencrypt.org/directory, or if --prod set Let's Encrypt's production endpoint \
+        "ACME Directory Resource URI. Defaults to Let's Encrypt's staging \
+         endpoint https://acme-staging-v02.api.letsencrypt.org/directory, or \
+         if --prod set Let's Encrypt's production endpoint \
          https://acme-v02.api.letsencrypt.org/directory."
       in
       let i = Arg.info [ "cap" ] ~docv:"CAP" ~doc in
@@ -105,27 +124,43 @@ let () =
                 (Cmdliner.Arg.conv
                    ( (fun s ->
                        match Uri.of_string s with
-                       | exception ex -> Error (`Msg (Fmt.str "Failed to parse URI %S: %a" s Fmt.exn ex))
+                       | exception ex ->
+                           Error
+                             (`Msg
+                               (Fmt.str "Failed to parse URI %S: %a" s Fmt.exn
+                                  ex))
                        | uri -> Ok uri),
                      Uri.pp_hum )))
              None i)
     in
     let cert_root =
-      let doc = "Directory to store the certificates and keys in at path <cert-root>/<domain>/." in
+      let doc =
+        "Directory to store the certificates and keys in at path \
+         <cert-root>/<domain>/."
+      in
       Arg.(value & opt string "certs" & info [ "cert-root" ] ~doc)
     in
     let socket_path =
       let doc = "The path to the Unix domain socket." in
-      Arg.(value & opt string "/run/lend.socket" & info [ "s"; "socket" ] ~docv:"SOCKET_PATH" ~doc)
+      Arg.(
+        value
+        & opt string "/run/lend.socket"
+        & info [ "s"; "socket" ] ~docv:"SOCKET_PATH" ~doc)
     in
     let authorative =
-      let doc = "Domain(s) for which the nameserver is authorative for, if not passed in zonefiles." in
-      Arg.(value & opt (some (conv (Domain_name.of_string, Domain_name.pp))) None & info [ "a"; "authorative" ] ~doc)
+      let doc =
+        "Domain(s) for which the nameserver is authorative for, if not passed \
+         in zonefiles."
+      in
+      Arg.(
+        value
+        & opt (some (conv (Domain_name.of_string, Domain_name.pp))) None
+        & info [ "a"; "authorative" ] ~doc)
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ port $ proto $ prod $ endpoint $ cert_root
-        $ socket_path $ authorative)
+        const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ port
+        $ proto $ prod $ endpoint $ cert_root $ socket_path $ authorative)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "lend" ~doc ~man in

@@ -1,7 +1,8 @@
 open Raw
 open Capnp_rpc_lwt
 
-let local ~sw ~persist_new vat_config services env prod endpoint server_state state_dir =
+let local ~sw ~persist_new vat_config services env prod endpoint server_state
+    state_dir =
   let module Zone = Api.Service.Zone in
   Zone.local
   @@ object
@@ -17,11 +18,16 @@ let local ~sw ~persist_new vat_config services env prod endpoint server_state st
          | Error (`Msg e) -> Eio.traceln "Zone error parsing domain: %s" e
          | Ok domain ->
              let sr =
-               let id = Capnp_rpc_unix.Vat_config.derived_id vat_config (Domain_name.to_string domain) in
+               let id =
+                 Capnp_rpc_unix.Vat_config.derived_id vat_config
+                   (Domain_name.to_string domain)
+               in
                Capnp_rpc_net.Restorer.Table.sturdy_ref services id
              in
              Results.domain_set results
-               (Some (Domain.local ~sw ~persist_new sr env domain prod endpoint server_state state_dir)));
+               (Some
+                  (Domain.local ~sw ~persist_new sr env domain prod endpoint
+                     server_state state_dir)));
          Service.return response
      end
 

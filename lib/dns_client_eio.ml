@@ -6,7 +6,11 @@ let udp_listen log sock handle_dns state =
     let addr, size = Eio.Net.recv sock buf in
     let trimmedBuf = Cstruct.sub buf 0 size in
     (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
-    let addr = match addr with `Udp a -> `Udp a | `Unix _ -> failwith "unix domain sockets unsupported" in
+    let addr =
+      match addr with
+      | `Udp a -> `Udp a
+      | `Unix _ -> failwith "unix domain sockets unsupported"
+    in
     log Dns_log.Rx addr trimmedBuf;
     let state = handle_dns `Udp addr trimmedBuf state in
     loop state
@@ -26,8 +30,13 @@ let create_query identifier record_type name =
 let send_query log identifier record_type name sock addr =
   let query = create_query identifier record_type name in
   (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
-  let addr = match addr with `Udp a -> `Udp a | `Unix _ -> failwith "unix domain sockets unsupported" in
+  let addr =
+    match addr with
+    | `Udp a -> `Udp a
+    | `Unix _ -> failwith "unix domain sockets unsupported"
+  in
   log Dns_log.Tx addr query;
   Eio.Net.send sock ~dst:addr [ query ]
 
-let listen sock log (handle_dns : _ dns_handler) state = udp_listen log sock handle_dns state
+let listen sock log (handle_dns : _ dns_handler) state =
+  udp_listen log sock handle_dns state

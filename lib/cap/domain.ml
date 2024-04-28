@@ -4,19 +4,26 @@ open Capnp_rpc_lwt
 let read_pem filepath decode_pem =
   try
     match Eio.Path.is_file filepath with
-    | true -> Some (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem |> Tls_le.errcheck)
+    | true ->
+        Some
+          (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem
+         |> Tls_le.errcheck)
     | false -> None
   with exn ->
     let _fd, path = filepath in
-    Format.fprintf Format.err_formatter "error reading %s %a\n" path Eio.Exn.pp exn;
+    Format.fprintf Format.err_formatter "error reading %s %a\n" path Eio.Exn.pp
+      exn;
     Format.pp_print_flush Format.err_formatter ();
     None
 
 let write_pem filepath pem =
-  try Eio.Path.save ~create:(`Or_truncate 0o600) filepath (pem |> Cstruct.to_string)
+  try
+    Eio.Path.save ~create:(`Or_truncate 0o600) filepath
+      (pem |> Cstruct.to_string)
   with exn ->
     let _fd, path = filepath in
-    Format.fprintf Format.err_formatter "error saving %s %a\n" path Eio.Exn.pp exn;
+    Format.fprintf Format.err_formatter "error saving %s %a\n" path Eio.Exn.pp
+      exn;
     Format.pp_print_flush Format.err_formatter ();
     raise (Sys_error "Failed to write to file")
 
@@ -26,7 +33,11 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
   let provision_cert = Dns_acme.provision_cert prod endpoint server_state env in
 
   let account_dir = Eio.Path.(env#fs / state_dir / "accounts") in
-  let load_account_key email = read_pem Eio.Path.(account_dir / email / "account.pem") X509.Private_key.decode_pem in
+  let load_account_key email =
+    read_pem
+      Eio.Path.(account_dir / email / "account.pem")
+      X509.Private_key.decode_pem
+  in
   let save_account_key email key =
     let ( / ) = Eio.Path.( / ) in
     let dir = account_dir / email in
@@ -37,7 +48,9 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
 
   let cert_dir = Eio.Path.(env#fs / state_dir / "certs") in
   let load_private_key domain =
-    read_pem Eio.Path.(cert_dir / Domain_name.to_string domain / "privkey.pem") X509.Private_key.decode_pem
+    read_pem
+      Eio.Path.(cert_dir / Domain_name.to_string domain / "privkey.pem")
+      X509.Private_key.decode_pem
   in
   let save_private_key domain key =
     let ( / ) = Eio.Path.( / ) in
@@ -48,7 +61,9 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
   in
 
   let load_cert domain =
-    read_pem Eio.Path.(cert_dir / Domain_name.to_string domain / "fullcert.pem") X509.Certificate.decode_pem_multiple
+    read_pem
+      Eio.Path.(cert_dir / Domain_name.to_string domain / "fullcert.pem")
+      X509.Certificate.decode_pem_multiple
   in
   let save_cert domain key =
     let ( / ) = Eio.Path.( / ) in
@@ -73,12 +88,15 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
        method cert_impl params release_param_caps =
          let open Domain.Cert in
          let email = Params.email_get params in
-         let org = match Params.org_get params with "" -> None | o -> Some o in
+         let org =
+           match Params.org_get params with "" -> None | o -> Some o
+         in
          let domains = Params.domains_get_list params in
          let callback = Params.cert_callback_get params in
          release_param_caps ();
-         Eio.traceln "Domain.cert(email=%s, org=%a, domains=[%a]) in domain=%a" email (Fmt.option Fmt.string) org
-           (Fmt.list Fmt.string) domains Domain_name.pp domain;
+         Eio.traceln "Domain.cert(email=%s, org=%a, domains=[%a]) in domain=%a"
+           email (Fmt.option Fmt.string) org (Fmt.list Fmt.string) domains
+           Domain_name.pp domain;
          match callback with
          | None -> Service.fail "No callback parameter."
          | Some callback -> (
@@ -87,7 +105,9 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
                  let domains = List.map Domain_name.of_string_exn domains in
                  let domain =
                    match domains with
-                   | [] -> raise (Invalid_argument "Must specify at least one domain.")
+                   | [] ->
+                       raise
+                         (Invalid_argument "Must specify at least one domain.")
                    | domain :: _ -> domain
                  in
                  List.iter
@@ -95,23 +115,29 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
                      if not (Domain_name.is_subdomain ~subdomain ~domain) then
                        raise
                          (Invalid_argument
-                            (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp subdomain Domain_name.pp domain)))
+                            (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp
+                               subdomain Domain_name.pp domain)))
                    domains;
                  let rec renew () =
                    let provision () =
                      Eio.Pool.use acme_pool @@ fun () ->
                      let cert, account_key, private_key, _csr =
-                       provision_cert ?account_key:(load_account_key email) ?private_key:(load_private_key domain)
-                         ~email ~org domains
+                       provision_cert ?account_key:(load_account_key email)
+                         ?private_key:(load_private_key domain) ~email ~org
+                         domains
                      in
                      save_account_key email account_key;
                      save_private_key domain private_key;
                      save_cert domain cert;
                      (cert, private_key, true)
                    in
-                   let now = Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get in
+                   let now =
+                     Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
+                   in
                    let get_renew_date cert =
-                     let _from, until = X509.Certificate.validity (List.hd cert) in
+                     let _from, until =
+                       X509.Certificate.validity (List.hd cert)
+                     in
                      (* renew 30 days before expiry *)
                      Option.get (Ptime.sub_span until (Ptime.Span.v (30, 0L)))
                    in
@@ -119,28 +145,38 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
                      match (load_cert domain, load_private_key domain) with
                      (* check if cert out of date*)
                      | Some cert, Some private_key -> (
-                         match Ptime.is_later now ~than:(get_renew_date cert) with
+                         match
+                           Ptime.is_later now ~than:(get_renew_date cert)
+                         with
                          | false ->
-                             Eio.traceln "Cert renew date is %a, reading from disk" Ptime.pp (get_renew_date cert);
+                             Eio.traceln
+                               "Cert renew date is %a, reading from disk"
+                               Ptime.pp (get_renew_date cert);
                              (cert, private_key, false)
                          | true ->
-                             Eio.traceln "Cert renew date is %a, provisioning one" Ptime.pp (get_renew_date cert);
+                             Eio.traceln
+                               "Cert renew date is %a, provisioning one"
+                               Ptime.pp (get_renew_date cert);
                              provision ())
                      (* if we don't have them cached, provision them *)
                      | _ ->
-                         Eio.traceln "No cert found for %a, provisioning one" Domain_name.pp domain;
+                         Eio.traceln "No cert found for %a, provisioning one"
+                           Domain_name.pp domain;
                          provision ()
                    in
                    let renew_date = get_renew_date cert in
                    Eio.Fiber.fork ~sw (fun () ->
                        Eio.traceln "Renewing at %a" Ptime.pp renew_date;
-                       Eio.Time.sleep_until env#clock (Ptime.to_float_s renew_date);
+                       Eio.Time.sleep_until env#clock
+                         (Ptime.to_float_s renew_date);
                        ignore @@ renew ());
-                   Cert_callback.register callback true "" (Some cert) (Some private_key) renewed
+                   Cert_callback.register callback true "" (Some cert)
+                     (Some private_key) renewed
                  in
                  renew ()
                with
-               | Tls_le.Le_error msg -> Cert_callback.register callback false msg None None false
+               | Tls_le.Le_error msg ->
+                   Cert_callback.register callback false msg None None false
                | e ->
                    let msg = Printexc.to_string e in
                    Cert_callback.register callback false msg None None false
@@ -165,7 +201,9 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
              match persist_new ~name with
              | Error e -> Service.error (`Exception e)
              | Ok logger ->
-                 let response, results = Service.Response.create Results.init_pointer in
+                 let response, results =
+                   Service.Response.create Results.init_pointer
+                 in
                  Results.domain_set results (Some logger);
                  Capability.dec_ref logger;
                  Service.return response)
@@ -180,20 +218,40 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
          let type_of_capnp typ =
            match Rr_map.of_string typ with
            | Ok rr -> rr
-           | Error _e -> raise (Invalid_argument (Printf.sprintf "Unknown RR type %s" typ))
+           | Error _e ->
+               raise
+                 (Invalid_argument (Printf.sprintf "Unknown RR type %s" typ))
          in
          let binding_of_capnp ?(ttl = 0l) typ value =
            match Rr_map.of_string typ with
            | Ok (K rr) -> (
                match rr with
-               | Cname -> Rr_map.B (Cname, (ttl, Domain_name.of_string_exn value))
-               | A -> Rr_map.B (A, (ttl, Ipaddr.V4.Set.singleton (Ipaddr.V4.of_string_exn value)))
-               | Aaaa -> Rr_map.B (Aaaa, (ttl, Ipaddr.V6.Set.singleton (Ipaddr.V6.of_string_exn value)))
-               | _ -> raise (Invalid_argument (Printf.sprintf "Unsupported RR type %s" typ)))
-           | Error _e -> raise (Invalid_argument (Printf.sprintf "Unknown RR type %s" typ))
+               | Cname ->
+                   Rr_map.B (Cname, (ttl, Domain_name.of_string_exn value))
+               | A ->
+                   Rr_map.B
+                     ( A,
+                       ( ttl,
+                         Ipaddr.V4.Set.singleton (Ipaddr.V4.of_string_exn value)
+                       ) )
+               | Aaaa ->
+                   Rr_map.B
+                     ( Aaaa,
+                       ( ttl,
+                         Ipaddr.V6.Set.singleton (Ipaddr.V6.of_string_exn value)
+                       ) )
+               | _ ->
+                   raise
+                     (Invalid_argument
+                        (Printf.sprintf "Unsupported RR type %s" typ)))
+           | Error _e ->
+               raise
+                 (Invalid_argument (Printf.sprintf "Unknown RR type %s" typ))
          in
          let add_to_list name a map =
-           let base = match Domain_name.Map.find name map with None -> [] | Some x -> x in
+           let base =
+             match Domain_name.Map.find name map with None -> [] | Some x -> x
+           in
            Domain_name.Map.add name (base @ [ a ]) map
          in
          let response, results = Service.Response.create Results.init_pointer in
@@ -205,20 +263,35 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
                   let name = Domain_name.of_string_exn (name_get prereq) in
                   if not (Domain_name.is_subdomain ~subdomain:name ~domain) then
                     raise
-                      (Invalid_argument (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp name Domain_name.pp domain));
+                      (Invalid_argument
+                         (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp
+                            name Domain_name.pp domain));
                   match get prereq with
                   | Exists exists ->
-                      add_to_list name (Dns.Packet.Update.Exists (type_of_capnp (Exists.type_get exists))) map
+                      add_to_list name
+                        (Dns.Packet.Update.Exists
+                           (type_of_capnp (Exists.type_get exists)))
+                        map
                   | ExistsData existsData ->
                       add_to_list name
                         (Dns.Packet.Update.Exists_data
-                           (binding_of_capnp (ExistsData.type_get existsData) (ExistsData.value_get existsData)))
+                           (binding_of_capnp
+                              (ExistsData.type_get existsData)
+                              (ExistsData.value_get existsData)))
                         map
                   | NotExists notExists ->
-                      add_to_list name (Dns.Packet.Update.Not_exists (type_of_capnp (NotExists.type_get notExists))) map
-                  | NameInUse -> add_to_list name Dns.Packet.Update.Name_inuse map
-                  | NotNameInUse -> add_to_list name Dns.Packet.Update.Not_name_inuse map
-                  | Undefined i -> raise (Invalid_argument (Printf.sprintf "Undefined prereq %d" i)))
+                      add_to_list name
+                        (Dns.Packet.Update.Not_exists
+                           (type_of_capnp (NotExists.type_get notExists)))
+                        map
+                  | NameInUse ->
+                      add_to_list name Dns.Packet.Update.Name_inuse map
+                  | NotNameInUse ->
+                      add_to_list name Dns.Packet.Update.Not_name_inuse map
+                  | Undefined i ->
+                      raise
+                        (Invalid_argument
+                           (Printf.sprintf "Undefined prereq %d" i)))
                 ~init:Domain_name.Map.empty prereqs
             in
             let updates =
@@ -228,37 +301,56 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir =
                   let name = Domain_name.of_string_exn (name_get update) in
                   if not (Domain_name.is_subdomain ~subdomain:name ~domain) then
                     raise
-                      (Invalid_argument (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp name Domain_name.pp domain));
+                      (Invalid_argument
+                         (Fmt.str "Invalid subdomain %a of %a" Domain_name.pp
+                            name Domain_name.pp domain));
                   match Update.get update with
                   | Update.Add add ->
                       add_to_list name
                         (Dns.Packet.Update.Add
-                           (binding_of_capnp ~ttl:(Add.ttl_get add) (Add.type_get add) (Add.value_get add)))
+                           (binding_of_capnp ~ttl:(Add.ttl_get add)
+                              (Add.type_get add) (Add.value_get add)))
                         map
                   | Update.Remove remove ->
-                      add_to_list name (Dns.Packet.Update.Remove (type_of_capnp (Remove.type_get remove))) map
-                  | Update.RemoveAll -> add_to_list name Dns.Packet.Update.Remove_all map
+                      add_to_list name
+                        (Dns.Packet.Update.Remove
+                           (type_of_capnp (Remove.type_get remove)))
+                        map
+                  | Update.RemoveAll ->
+                      add_to_list name Dns.Packet.Update.Remove_all map
                   | Update.RemoveSingle removeSingle ->
                       add_to_list name
                         (Dns.Packet.Update.Remove_single
-                           (binding_of_capnp (RemoveSingle.type_get removeSingle) (RemoveSingle.value_get removeSingle)))
+                           (binding_of_capnp
+                              (RemoveSingle.type_get removeSingle)
+                              (RemoveSingle.value_get removeSingle)))
                         map
-                  | Undefined i -> raise (Invalid_argument (Printf.sprintf "Undefined update %d" i)))
+                  | Undefined i ->
+                      raise
+                        (Invalid_argument
+                           (Printf.sprintf "Undefined update %d" i)))
                 ~init:Domain_name.Map.empty updates
             in
-            Eio.traceln "Domain.update(%a) domain=%s" Dns.Packet.Update.pp (prereqs, updates)
+            Eio.traceln "Domain.update(%a) domain=%s" Dns.Packet.Update.pp
+              (prereqs, updates)
               (Domain_name.to_string domain);
             (* TODO locking *)
             let trie = Dns_server.Primary.data !server_state in
             match Dns_server.update_data trie domain (prereqs, updates) with
             | Ok (trie, _) ->
                 let new_server_state, _notifications =
-                  let now = Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
-                  and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
+                  let now =
+                    Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
+                  and ts =
+                    Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock
+                  in
                   Dns_server.Primary.with_data !server_state now ts trie
                 in
                 server_state := new_server_state
-            | Error rcode -> raise (Invalid_argument (Fmt.str "Error updating trie %a" Dns.Rcode.pp rcode))
+            | Error rcode ->
+                raise
+                  (Invalid_argument
+                     (Fmt.str "Error updating trie %a" Dns.Rcode.pp rcode))
           with
          | exception Invalid_argument msg ->
              Results.success_set results false;
@@ -282,7 +374,8 @@ let cert t ~email ~org domains cert_callback =
   let open Api.Client.Domain.Cert in
   let request, params = Capability.Request.create Params.init_pointer in
   Params.email_set params email;
-  ignore @@ Params.domains_set_list params (List.map Domain_name.to_string domains);
+  ignore
+  @@ Params.domains_set_list params (List.map Domain_name.to_string domains);
   Params.org_set params (match org with None -> "" | Some o -> o);
   Params.cert_callback_set params (Some cert_callback);
   Capability.call_for_unit t method_id request

@@ -9,4 +9,9 @@ val send_query :
   Eio.Net.Sockaddr.datagram ->
   unit
 
-val listen : _ Eio.Net.datagram_socket -> Dns_log.formattedLog -> 'a dns_handler -> 'a -> unit
+val listen :
+  _ Eio.Net.datagram_socket ->
+  Dns_log.formattedLog ->
+  'a dns_handler ->
+  'a ->
+  unit
