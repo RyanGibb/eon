@@ -19,7 +19,7 @@ let decode subdomain name =
       ~amount:(Domain_name.count_labels name - i)
       name
   in
-  let root = Domain_name.drop_label_exn ~amount:i name in
+  let root = Domain_name.drop_label_exn ~amount:(i + 1) name in
   let data_array = Domain_name.to_array data_name in
   let data = String.concat "" (Array.to_list data_array) in
   (* if there is no data encoded, return an empty buffer *)

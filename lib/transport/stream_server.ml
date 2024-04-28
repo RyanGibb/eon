@@ -22,6 +22,7 @@ let run ~sw env proto ~subdomain ~authorative server_state log addresses =
         Eio.traceln "Ignoring query to domain %a" Domain_name.pp root;
         None)
     in
+    let domain = Domain_name.prepend_label_exn root subdomain in
 
     (* Only process CNAME queries *)
     let* _ =
@@ -72,9 +73,9 @@ let run ~sw env proto ~subdomain ~authorative server_state log addresses =
               packet.seq_no == !last_sent_seq_no then (
         (* send new data *)
         let readBuf =
-          let rootLen = String.length (Domain_name.to_string root) in
-          (* only read what can fit in a domain name encoding with root *)
-          Cstruct.create (Domain_name_data.max_encoded_len - rootLen)
+          let len = String.length (Domain_name.to_string domain) in
+          (* only read what can fit in a domain name encoding *)
+          Cstruct.create (Domain_name_data.max_encoded_len - len)
         in
         match Cstruct_stream.try_take out readBuf with
         | None -> Some (Packet.encode packet.seq_no Cstruct.empty)
@@ -95,7 +96,7 @@ let run ~sw env proto ~subdomain ~authorative server_state log addresses =
         None)
     in
 
-    let hostname = Domain_name_data.encode root reply in
+    let hostname = Domain_name_data.encode domain reply in
     let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
     let answer = Domain_name.Map.singleton name rr in
     let authority = Dns.Name_rr_map.empty in

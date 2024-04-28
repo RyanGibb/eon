@@ -130,6 +130,7 @@ let run ~sw env proto ~subdomain ~authorative server_state log addresses =
         Eio.traceln "Ignoring query to authority %a" Domain_name.pp root;
         None)
     in
+    let domain = Domain_name.prepend_label_exn root subdomain in
 
     (* Only process CNAME queries *)
     let* () =
@@ -163,7 +164,7 @@ let run ~sw env proto ~subdomain ~authorative server_state log addresses =
 
     (* Build and return the packet *)
     let packet =
-      let hostname = Domain_name_data.encode root (Frag_packet.encode reply) in
+      let hostname = Domain_name_data.encode domain (Frag_packet.encode reply) in
       let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
       let answer = Domain_name.Map.singleton name rr in
       let authority = Dns.Name_rr_map.empty in
