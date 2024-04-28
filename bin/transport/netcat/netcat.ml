@@ -5,8 +5,8 @@ let run log_level domain subdomain port nameserver mode timeout =
   match mode with
   | `Datagram ->
       let client =
-        Transport.Datagram_client.run ~sw env nameserver subdomain domain port
-          log timeout
+        Transport.Datagram_client.run ~sw env ~nameserver ~subdomain
+          ~authorative:domain port log timeout
       in
       Eio.Fiber.both
         (fun () ->
@@ -23,8 +23,8 @@ let run log_level domain subdomain port nameserver mode timeout =
           done)
   | `Stream ->
       let client =
-        Transport.Stream_client.run ~sw env nameserver subdomain domain port log
-          timeout
+        Transport.Stream_client.run ~sw env ~nameserver ~subdomain
+          ~authorative:domain port log timeout
       in
       Eio.Fiber.both
         (fun () -> Eio.Flow.copy env#stdin client)

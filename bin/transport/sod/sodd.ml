@@ -28,14 +28,24 @@ let run_shell ~stdout ~stdin pty =
       ]
   with Sigchld -> ()
 
-let run zonefiles log_level addressStrings subdomain port proto =
+let run zonefiles log_level addressStrings subdomain authorative port proto =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
   let server =
     let addresses = Server_args.parse_addresses port addressStrings in
     let server_state =
-      let trie, keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+      let trie', keys, parsedAuthorative =
+        Zonefile.parse_zonefiles ~fs:env#fs zonefiles
+      in
+      let trie =
+        match List.find_opt (fun a -> a == authorative) parsedAuthorative with
+        | Some _ -> trie'
+        | None ->
+            Dns_trie.insert Domain_name.root Dns.Rr_map.Soa
+              (Dns.Soa.create authorative)
+              trie'
+      in
       let rng ?_g length =
         let buf = Cstruct.create length in
         Eio.Flow.read_exact env#secure_random buf;
@@ -45,8 +55,9 @@ let run zonefiles log_level addressStrings subdomain port proto =
       @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
            ~tsig_sign:Dns_tsig.sign trie
     in
-    Transport.Stream_server.run ~sw env proto subdomain server_state log
-      addresses
+    let authorative = Domain_name.to_string authorative in
+    Transport.Stream_server.run ~sw env proto ~subdomain ~authorative
+      server_state log addresses
   in
   while true do
     (* TODO support parallel with transport support) *)
@@ -85,10 +96,17 @@ let () =
         value & opt string "rpc"
         & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
     in
+    let authorative =
+      let doc = "Domain for which the server is authorative." in
+      Arg.(
+        required
+        & opt (some (conv (Domain_name.of_string, Domain_name.pp))) None
+        & info [ "a"; "authorative" ] ~docv:"AUTHORATIVE" ~doc)
+    in
     let term =
       Term.(
         const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ subdomain
-        $ port $ proto)
+        $ authorative $ port $ proto)
     in
     let info = Cmd.info "sodd" ~man in
     Cmd.v info term

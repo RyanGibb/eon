@@ -8,11 +8,11 @@ let max_encoded_len =
   (* as base64 encodes 6 bits in a byte, this gives us 3/4 of the `max_name_len` rounded up  *)
   1 + ((max_name_non_label_len - 1) / 4 * 3)
 
-let decode sudbomain name =
+let decode subdomain name =
   let ( let* ) = Option.bind in
   let* i =
     Domain_name.find_label name (fun s ->
-        String.equal sudbomain (String.lowercase_ascii s))
+        String.equal subdomain (String.lowercase_ascii s))
   in
   let data_name =
     Domain_name.drop_label_exn ~rev:true

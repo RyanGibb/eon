@@ -1,4 +1,4 @@
-let run zonefiles log_level addressStrings domain subdomain port proto =
+let run zonefiles log_level addressStrings subdomain authorative port proto =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
@@ -9,15 +9,25 @@ let run zonefiles log_level addressStrings domain subdomain port proto =
     buf
   in
   let server_state =
-    let trie, keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+    let trie', keys, parsedAuthorative =
+      Zonefile.parse_zonefiles ~fs:env#fs zonefiles
+    in
+    let trie =
+      match List.find_opt (fun a -> a == authorative) parsedAuthorative with
+      | Some _ -> trie'
+      | None ->
+          Dns_trie.insert Domain_name.root Dns.Rr_map.Soa
+            (Dns.Soa.create authorative)
+            trie'
+    in
     ref
     @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
          ~tsig_sign:Dns_tsig.sign trie
   in
-
+  let authorative = Domain_name.to_string authorative in
   let server =
-    Transport.Datagram_server.run ~sw env proto subdomain domain server_state
-      log addresses
+    Transport.Datagram_server.run ~sw env proto ~subdomain ~authorative
+      server_state log addresses
   in
 
   let resolver_state =
@@ -58,12 +68,6 @@ let () =
   let open Cmdliner in
   let open Server_args in
   let cmd =
-    let domain =
-      let doc = "Domain that the NAMESERVER is authorative for." in
-      Arg.(
-        value & opt string "example.org"
-        & info [ "d"; "domain" ] ~docv:"DOMAIN" ~doc)
-    in
     let subdomain =
       let doc =
         "Sudomain to use custom processing on. This will be combined with the \
@@ -75,10 +79,20 @@ let () =
         value & opt string "rpc"
         & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
     in
+    let authorative =
+      let doc =
+        "Domain for which the server is authorative and that we will use to \
+         tunnel data at the SUBDOMAIN."
+      in
+      Arg.(
+        required
+        & opt (some (conv (Domain_name.of_string, Domain_name.pp))) None
+        & info [ "a"; "authorative" ] ~docv:"AUTHORATIVE" ~doc)
+    in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ domain
-        $ subdomain $ port $ proto)
+        const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ subdomain
+        $ authorative $ port $ proto)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcatd" ~man ~doc in

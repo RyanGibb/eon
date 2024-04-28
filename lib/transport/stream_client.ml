@@ -1,4 +1,4 @@
-let run ~sw env nameserver data_subdomain authority port log timeout =
+let run ~sw env ~nameserver ~subdomain ~authorative port log timeout =
   let inc = Cstruct_stream.create () and out = Cstruct_stream.create () in
 
   (* TODO support different queries, or probing access *)
@@ -56,7 +56,7 @@ let run ~sw env nameserver data_subdomain authority port log timeout =
           exit 1
     in
     let* _ttl, cname = Dns.Rr_map.find record_type map in
-    match Domain_name_data.decode data_subdomain cname with
+    match Domain_name_data.decode subdomain cname with
     | None -> exit 1
     | Some (recv_buf, _root) ->
         let packet = Packet.decode recv_buf in
@@ -89,7 +89,7 @@ let run ~sw env nameserver data_subdomain authority port log timeout =
   in
   let root =
     Domain_name.of_strings_exn
-      (data_subdomain :: String.split_on_char '.' authority)
+      (subdomain :: String.split_on_char '.' authorative)
   in
   let get_id () =
     Cstruct.LE.get_uint16
@@ -100,10 +100,8 @@ let run ~sw env nameserver data_subdomain authority port log timeout =
   in
   let send_data_fiber () =
     let buf =
-      (* String.length (data_subdomain ^ "." ^ authority) *)
-      let rootLen =
-        String.length data_subdomain + 1 + String.length authority
-      in
+      (* String.length (subdomain ^ "." ^ authorative) *)
+      let rootLen = String.length subdomain + 1 + String.length authorative in
       (* TODO figure out why our mtu calc is wrong *)
       Cstruct.create (Domain_name_data.max_encoded_len - rootLen - 20)
     in

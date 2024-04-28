@@ -1,30 +1,36 @@
-let run zonefiles log_level addressStrings subdomain port proto authorative mode
+let run zonefiles log_level addressStrings subdomain authorative port proto mode
     =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port addressStrings in
-  let rng ?_g length =
-    let buf = Cstruct.create length in
-    Eio.Flow.read_exact env#secure_random buf;
-    buf
-  in
   let server_state =
-    let trie', keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
+    let trie', keys, parsedAuthorative =
+      Zonefile.parse_zonefiles ~fs:env#fs zonefiles
+    in
     let trie =
-      Dns_trie.insert Domain_name.root Dns.Rr_map.Soa
-        (Dns.Soa.create authorative)
-        trie'
+      match List.find_opt (fun a -> a == authorative) parsedAuthorative with
+      | Some _ -> trie'
+      | None ->
+          Dns_trie.insert Domain_name.root Dns.Rr_map.Soa
+            (Dns.Soa.create authorative)
+            trie'
+    in
+    let rng ?_g length =
+      let buf = Cstruct.create length in
+      Eio.Flow.read_exact env#secure_random buf;
+      buf
     in
     ref
     @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
          ~tsig_sign:Dns_tsig.sign trie
   in
+  let authorative = Domain_name.to_string authorative in
   match mode with
   | `Datagram ->
       let server =
         (* TODO remember why datagram needs and authority, but not stream, and then remove the hardcoded value *)
-        Transport.Datagram_server.run ~sw env proto subdomain "rpc.example.org"
+        Transport.Datagram_server.run ~sw env proto ~subdomain ~authorative
           server_state log addresses
       in
       let buf = Cstruct.create 1000 in
@@ -34,8 +40,8 @@ let run zonefiles log_level addressStrings subdomain port proto authorative mode
       done
   | `Stream ->
       let server =
-        Transport.Stream_server.run ~sw env proto subdomain server_state log
-          addresses
+        Transport.Stream_server.run ~sw env proto ~subdomain ~authorative
+          server_state log addresses
       in
       Eio.Flow.copy server server
 
@@ -55,7 +61,10 @@ let () =
         & info [ "sd"; "subdomain" ] ~docv:"SUBDOMAIN" ~doc)
     in
     let authorative =
-      let doc = "" in
+      let doc =
+        "Domain for which the server is authorative and that we will use to \
+         tunnel data at the SUBDOMAIN."
+      in
       Arg.(
         required
         & opt (some (conv (Domain_name.of_string, Domain_name.pp))) None
@@ -72,7 +81,7 @@ let () =
     let term =
       Term.(
         const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ subdomain
-        $ port $ proto $ authorative $ mode)
+        $ authorative $ port $ proto $ mode)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcatd" ~man ~doc in

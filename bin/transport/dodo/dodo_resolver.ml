@@ -12,8 +12,8 @@ let run log_level addressStrings port port2 proto domain subdomain nameserver
 
   let client =
     (* todo use open resolver... *)
-    Transport.Datagram_client.run ~sw env nameserver subdomain domain port2 log
-      timeout
+    Transport.Datagram_client.run ~sw env ~nameserver ~subdomain
+      ~authorative:domain port2 log timeout
   in
 
   let handle_dns _proto (addr : Eio.Net.Sockaddr.t) buf =

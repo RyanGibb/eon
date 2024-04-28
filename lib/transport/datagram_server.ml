@@ -96,7 +96,7 @@ module Server_state = struct
 end
 
 (* TODO refactor and deduplicate these behemoths *)
-let run ~sw env proto data_subdomain authority server_state log addresses =
+let run ~sw env proto ~subdomain ~authorative server_state log addresses =
   let inc = Cstruct_stream.create () in
   let out = Cstruct_stream.create () in
 
@@ -105,9 +105,10 @@ let run ~sw env proto data_subdomain authority server_state log addresses =
     ref None
   in
   let sending_state_ref = ref None in
+  (* we need a consistent MTU for fragmentation *)
   let mtu =
-    (* String.length (data_subdomain ^ "." ^ authority) *)
-    let rootLen = String.length data_subdomain + 1 + String.length authority in
+    (* String.length (subdomain ^ "." ^ authorative) *)
+    let rootLen = String.length subdomain + 1 + String.length authorative in
     (* TODO figure out why our mtu calc is wrong *)
     Domain_name_data.max_encoded_len - rootLen - 20
   in
@@ -120,9 +121,15 @@ let run ~sw env proto data_subdomain authority server_state log addresses =
     let* name, qtype =
       match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
     in
-    let* recv_buf, root = Domain_name_data.decode data_subdomain name in
+    let* recv_buf, root = Domain_name_data.decode subdomain name in
 
-    (* assert (String.lowercase_ascii (Domain_name.to_string root) = authority); *)
+    let* () =
+      if String.lowercase_ascii (Domain_name.to_string root) = authorative then
+        Some ()
+      else (
+        Eio.traceln "Ignoring query to authority %a" Domain_name.pp root;
+        None)
+    in
 
     (* Only process CNAME queries *)
     let* () =

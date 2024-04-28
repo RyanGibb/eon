@@ -1,4 +1,4 @@
-let run ~sw env proto data_subdomain server_state log addresses =
+let run ~sw env proto ~subdomain ~authorative server_state log addresses =
   let inc = Cstruct_stream.create () and out = Cstruct_stream.create () in
 
   (* TODO mutex *)
@@ -13,7 +13,15 @@ let run ~sw env proto data_subdomain server_state log addresses =
     let* name, qtype =
       match p.Dns.Packet.data with `Query -> Some p.question | _ -> None
     in
-    let* recv_buf, root = Domain_name_data.decode data_subdomain name in
+    let* recv_buf, root = Domain_name_data.decode subdomain name in
+
+    let* () =
+      if String.lowercase_ascii (Domain_name.to_string root) = authorative then
+        Some ()
+      else (
+        Eio.traceln "Ignoring query to domain %a" Domain_name.pp root;
+        None)
+    in
 
     (* Only process CNAME queries *)
     let* _ =

@@ -6,11 +6,8 @@ module Datagram_server : sig
     ; mono_clock : _ Eio.Time.Mono.t
     ; .. > ->
     [ `Tcp | `Udp ] list ->
-    (* TODO add names *)
-    string ->
-    (* subdomain *)
-    string ->
-    (* authority *)
+    subdomain:string ->
+    authorative:string ->
     Dns_server.Primary.s ref ->
     Dns_log.formattedLog ->
     (Eio.Net.Ipaddr.v4v6 * int) list ->
@@ -24,9 +21,9 @@ module Datagram_client : sig
     ; clock : _ Eio.Time.clock
     ; secure_random : _ Eio.Flow.source
     ; .. > ->
-    string ->
-    string ->
-    string ->
+    nameserver:string ->
+    subdomain:string ->
+    authorative:string ->
     int ->
     Dns_log.formattedLog ->
     float ->
@@ -41,7 +38,8 @@ module Stream_server : sig
     ; mono_clock : _ Eio.Time.Mono.t
     ; .. > ->
     [ `Tcp | `Udp ] list ->
-    string ->
+    subdomain:string ->
+    authorative:string ->
     Dns_server.Primary.s ref ->
     Dns_log.formattedLog ->
     (Eio.Net.Ipaddr.v4v6 * int) list ->
@@ -55,9 +53,9 @@ module Stream_client : sig
     ; clock : _ Eio.Time.clock
     ; secure_random : _ Eio.Flow.source
     ; .. > ->
-    string ->
-    string ->
-    string ->
+    nameserver:string ->
+    subdomain:string ->
+    authorative:string ->
     int ->
     Dns_log.formattedLog ->
     float ->

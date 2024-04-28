@@ -3,8 +3,8 @@ let run log_level domain subdomain port nameserver netmask tunnel_ip timeout =
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
   let client =
-    Transport.Datagram_client.run ~sw env nameserver subdomain domain port log
-      timeout
+    Transport.Datagram_client.run ~sw env ~nameserver ~subdomain
+      ~authorative:domain port log timeout
   in
   let tun_fd, tun_name = Tuntap.opentun ~devname:"tun-dns" () in
   let tun = Eio_unix.Net.import_socket_stream ~sw ~close_unix:false tun_fd in
