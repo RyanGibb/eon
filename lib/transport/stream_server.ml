@@ -50,6 +50,7 @@ let run ~sw env proto ~subdomain ~authorative server_state log addresses =
       (* allow resetting stream *)
       (* TODO sessions *)
       (* TODO think about this a bit *)
+      (* TODO this duplicates packets if multiple are sent before a reply is recieved *)
       if packet.seq_no == 0 && Cstruct.length packet.data == 0 then (
         last_sent_seq_no := 0;
         seq_no := 0);
