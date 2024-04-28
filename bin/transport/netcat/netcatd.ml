@@ -10,16 +10,14 @@ let run zonefiles log_level addressStrings subdomain port proto authorative mode
   in
   let server_state =
     let trie', keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in
-    let trie =
-      Dns_trie.insert Domain_name.root Dns.Rr_map.Soa (Dns.Soa.create authorative) trie'
-    in
+    let trie = Dns_trie.insert Domain_name.root Dns.Rr_map.Soa (Dns.Soa.create authorative) trie' in
     ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
   in
   match mode with
   | `Datagram ->
       let server =
         (* TODO remember why datagram needs and authority, but not stream, and then remove the hardcoded value *)
-        Transport.dns_server_datagram ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain
+        Transport.Datagram_server.run ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain
           "rpc.example.org" server_state log addresses
       in
       let buf = Cstruct.create 1000 in
@@ -29,7 +27,7 @@ let run zonefiles log_level addressStrings subdomain port proto authorative mode
       done
   | `Stream ->
       let server =
-        Transport.dns_server_stream ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain
+        Transport.Stream_server.run ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain
           server_state log addresses
       in
       Eio.Flow.copy server server
@@ -58,7 +56,10 @@ let () =
       let modes = [ ("datagram", `Datagram); ("stream", `Stream) ] in
       Arg.(value & opt (enum modes) `Datagram & info [ "m"; "mode" ] ~docv:"MODES" ~doc)
     in
-    let term = Term.(const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ subdomain $ port $ proto $ authorative $ mode) in
+    let term =
+      Term.(
+        const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ subdomain $ port $ proto $ authorative $ mode)
+    in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcatd" ~man ~doc in
     Cmd.v info term

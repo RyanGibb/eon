@@ -13,7 +13,7 @@ let run zonefiles log_level addressStrings domain subdomain port proto netmask t
     ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
   in
   let server =
-    Transport.dns_server_datagram ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain domain
+    Transport.Datagram_server.run ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain domain
       server_state log addresses
   in
   let tun_fd, tun_name = Tuntap.opentun ~devname:"tun-dnsd" () in

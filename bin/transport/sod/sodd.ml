@@ -39,7 +39,7 @@ let run zonefiles log_level addressStrings subdomain port proto =
       in
       ref @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify ~tsig_sign:Dns_tsig.sign trie
     in
-    Transport.dns_server_stream ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain
+    Transport.Stream_server.run ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain
       server_state log addresses
   in
   while true do

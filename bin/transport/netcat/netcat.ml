@@ -5,7 +5,7 @@ let run log_level domain subdomain port nameserver mode =
   match mode with
   | `Datagram ->
       let client =
-        Transport.dns_client_datagram ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
+        Transport.Datagram_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
           domain port log
       in
       Eio.Fiber.both
@@ -23,7 +23,7 @@ let run log_level domain subdomain port nameserver mode =
           done)
   | `Stream ->
       let client =
-        Transport.dns_client_stream ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
+        Transport.Stream_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
           domain port log
       in
       Eio.Fiber.both (fun () -> Eio.Flow.copy env#stdin client) (fun () -> Eio.Flow.copy client env#stdout)

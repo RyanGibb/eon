@@ -14,7 +14,7 @@ let run zonefiles log_level addressStrings domain subdomain port proto =
   in
 
   let server =
-    Transport.dns_server_datagram ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain domain
+    Transport.Datagram_server.run ~sw ~net:env#net ~clock:env#clock ~mono_clock:env#mono_clock ~proto subdomain domain
       server_state log addresses
   in
 

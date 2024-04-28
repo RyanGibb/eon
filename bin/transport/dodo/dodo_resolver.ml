@@ -11,7 +11,7 @@ let run log_level addressStrings port port2 proto domain subdomain nameserver =
 
   let client =
     (* todo use open resolver... *)
-    Transport.dns_client_datagram ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
+    Transport.Datagram_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
       domain port2 log
   in
 

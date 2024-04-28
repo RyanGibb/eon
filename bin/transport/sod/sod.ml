@@ -3,7 +3,7 @@ let run log_level domain subdomain port nameserver =
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
   let client =
-    Transport.dns_client_stream ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain domain
+    Transport.Stream_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain domain
       port log
   in
 
