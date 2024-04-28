@@ -27,6 +27,7 @@ module Datagram_client : sig
     string ->
     int ->
     Dns_log.formattedLog ->
+    float ->
     Datagram.t
 end
 
@@ -55,5 +56,6 @@ module Stream_client : sig
     string ->
     int ->
     Dns_log.formattedLog ->
+    float ->
     Eio.Flow.two_way_ty Eio.Resource.t
 end

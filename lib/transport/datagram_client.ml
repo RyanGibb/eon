@@ -31,7 +31,7 @@ module Client_state = struct
             None
 end
 
-let run ~sw ~net ~clock ~random nameserver data_subdomain authority port log =
+let run ~sw ~net ~clock ~random nameserver data_subdomain authority port log timeout =
   let inc = Cstruct_stream.create () in
 
   (* TODO support different queries, or probing access *)
@@ -113,7 +113,7 @@ let run ~sw ~net ~clock ~random nameserver data_subdomain authority port log =
 
           Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
           ignore
-          @@ Eio.Time.with_timeout clock 2. (fun () ->
+          @@ Eio.Time.with_timeout clock timeout (fun () ->
                  Eio.Condition.await inc.cond inc.mut;
                  Ok ()));
       Eio.Fiber.yield ()

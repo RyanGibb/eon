@@ -1,4 +1,4 @@
-let run log_level addressStrings port port2 proto domain subdomain nameserver =
+let run log_level addressStrings port port2 proto domain subdomain nameserver timeout =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
@@ -12,7 +12,7 @@ let run log_level addressStrings port port2 proto domain subdomain nameserver =
   let client =
     (* todo use open resolver... *)
     Transport.Datagram_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
-      domain port2 log
+      domain port2 log timeout
   in
 
   let handle_dns _proto (addr : Eio.Net.Sockaddr.t) buf =
@@ -56,8 +56,14 @@ let () =
       let doc = "Port to bind on. By default 53 is used. See the BINDING section." in
       Arg.(value & opt int 53 & info [ ""; "port2" ] ~docv:"PORT" ~doc)
     in
+    let timeout =
+      let doc = "Seconds to wait in between sending DNS queries." in
+      Arg.(value & opt float 1. & info [ "t"; "timeout" ] ~docv:"TIMEOUT" ~doc)
+    in
     let term =
-      Term.(const run $ log_level Dns_log.Level0 $ addresses $ port $ port2 $ proto $ domain $ subdomain $ nameserver)
+      Term.(
+        const run $ log_level Dns_log.Level0 $ addresses $ port $ port2 $ proto $ domain $ subdomain $ nameserver
+        $ timeout)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcat" ~man ~doc in

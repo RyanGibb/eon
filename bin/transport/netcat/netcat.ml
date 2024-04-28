@@ -1,4 +1,4 @@
-let run log_level domain subdomain port nameserver mode =
+let run log_level domain subdomain port nameserver mode timeout =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
@@ -6,7 +6,7 @@ let run log_level domain subdomain port nameserver mode =
   | `Datagram ->
       let client =
         Transport.Datagram_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
-          domain port log
+          domain port log timeout
       in
       Eio.Fiber.both
         (fun () ->
@@ -24,7 +24,7 @@ let run log_level domain subdomain port nameserver mode =
   | `Stream ->
       let client =
         Transport.Stream_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
-          domain port log
+          domain port log timeout
       in
       Eio.Fiber.both (fun () -> Eio.Flow.copy env#stdin client) (fun () -> Eio.Flow.copy client env#stdout)
 
@@ -57,7 +57,11 @@ let () =
       let modes = [ ("datagram", `Datagram); ("stream", `Stream) ] in
       Arg.(value & opt (enum modes) `Datagram & info [ "m"; "mode" ] ~docv:"MODES" ~doc)
     in
-    let term = Term.(const run $ log_level Dns_log.Level0 $ domain $ subdomain $ port $ nameserver $ mode) in
+    let timeout =
+      let doc = "Seconds to wait in between sending DNS queries." in
+      Arg.(value & opt float 1. & info [ "t"; "timeout" ] ~docv:"TIMEOUT" ~doc)
+    in
+    let term = Term.(const run $ log_level Dns_log.Level0 $ domain $ subdomain $ port $ nameserver $ mode $ timeout) in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "netcat" ~man ~doc in
     Cmd.v info term

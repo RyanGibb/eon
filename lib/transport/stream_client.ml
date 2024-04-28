@@ -1,4 +1,4 @@
-let run ~sw ~net ~clock ~random nameserver data_subdomain authority port log =
+let run ~sw ~net ~clock ~random nameserver data_subdomain authority port log timeout =
   let inc = Cstruct_stream.create () and out = Cstruct_stream.create () in
 
   (* TODO support different queries, or probing access *)
@@ -109,7 +109,7 @@ let run ~sw ~net ~clock ~random nameserver data_subdomain authority port log =
           while !last_acked_seq_no != sent_seq_no do
             Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
             ignore
-            @@ Eio.Time.with_timeout clock 1. (fun () ->
+            @@ Eio.Time.with_timeout clock timeout (fun () ->
                    Eio.Condition.await acked acked_mut;
                    Ok ())
           done)
@@ -125,7 +125,7 @@ let run ~sw ~net ~clock ~random nameserver data_subdomain authority port log =
 
           Dns_client_eio.send_query log (get_id ()) record_type hostname sock addr;
           ignore
-          @@ Eio.Time.with_timeout clock 1. (fun () ->
+          @@ Eio.Time.with_timeout clock timeout (fun () ->
                  Eio.Condition.await recv_data recv_data_mut;
                  Ok ()))
     done

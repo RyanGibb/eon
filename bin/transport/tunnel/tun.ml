@@ -1,10 +1,10 @@
-let run log_level domain subdomain port nameserver netmask tunnel_ip =
+let run log_level domain subdomain port nameserver netmask tunnel_ip timeout =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
   let client =
     Transport.Datagram_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain
-      domain port log
+      domain port log timeout
   in
   let tun_fd, tun_name = Tuntap.opentun ~devname:"tun-dns" () in
   let tun = Eio_unix.Net.import_socket_stream ~sw ~close_unix:false tun_fd in
@@ -52,8 +52,13 @@ let () =
     in
     let netmask = Arg.(value & opt string "10.0.0.0/24" & info [ "m"; "netmask" ] ~docv:"NETMASK") in
     let tunnel_ip = Arg.(value & opt string "10.0.0.2" & info [ "i"; "tunnel_ip" ] ~docv:"TUNNEL_IP") in
+    let timeout =
+      let doc = "Seconds to wait in between sending DNS queries." in
+      Arg.(value & opt float 1. & info [ "t"; "timeout" ] ~docv:"TIMEOUT" ~doc)
+    in
     let term =
-      Term.(const run $ log_level Dns_log.Level0 $ domain $ subdomain $ port $ nameserver $ netmask $ tunnel_ip)
+      Term.(
+        const run $ log_level Dns_log.Level0 $ domain $ subdomain $ port $ nameserver $ netmask $ tunnel_ip $ timeout)
     in
     let doc = "An authorative nameserver using OCaml 5 effects-based IO" in
     let info = Cmd.info "tun" ~man ~doc in

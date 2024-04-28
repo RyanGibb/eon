@@ -1,10 +1,10 @@
-let run log_level domain subdomain port nameserver =
+let run log_level domain subdomain port nameserver timeout =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
   let client =
     Transport.Stream_client.run ~sw ~net:env#net ~clock:env#clock ~random:env#secure_random nameserver subdomain domain
-      port log
+      port log timeout
   in
 
   let savedTio = Unix.tcgetattr Unix.stdin in
@@ -83,7 +83,11 @@ let () =
       in
       Arg.(value & opt string "127.0.0.1" & info [ "n"; "nameserver" ] ~docv:"NAMESERVER" ~doc)
     in
-    let term = Term.(const run $ log_level Dns_log.Level0 $ domain $ subdomain $ port $ nameserver) in
+    let timeout =
+      let doc = "Seconds to wait in between sending DNS queries." in
+      Arg.(value & opt float 1. & info [ "t"; "timeout" ] ~docv:"TIMEOUT" ~doc)
+    in
+    let term = Term.(const run $ log_level Dns_log.Level0 $ domain $ subdomain $ port $ nameserver $ timeout) in
     let info = Cmd.info "sod" ~man in
     Cmd.v info term
   in
