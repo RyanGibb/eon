@@ -8,6 +8,7 @@
   server_args
   dns_log
   dns_acme
+  cans
   dns
   eio_main
   cap

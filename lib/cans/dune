@@ -1,0 +1,4 @@
+(library
+ (name cans)
+ (public_name eon.cans)
+ (libraries dns dns-server))

@@ -80,9 +80,11 @@ let run zonefiles log_level address_strings port proto prod endpoint authorative
     @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
          ~tsig_sign:Dns_tsig.sign trie
   in
+  let packet_callback = Cans.get_packet_callback server_state in
   Eio.Switch.run @@ fun sw ->
   Eio.Fiber.fork ~sw (fun () ->
-      Dns_server_eio.primary env proto server_state log addresses);
+      Dns_server_eio.primary ~packet_callback env proto server_state log
+        addresses);
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 Eio.Path.(env#fs / state_dir);
   capnp_serve env authorative vat_config prod endpoint server_state state_dir
 

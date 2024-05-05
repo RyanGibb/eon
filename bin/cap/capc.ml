@@ -137,17 +137,17 @@ let update copts_env prereqs updates =
     let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
     Capnp_rpc_unix.Vat.import_exn client_vat cap_uri
   in
-  let run_client cap =
-    match Cap.Domain.update cap prereqs updates with
-    | Error (`Capnp e) ->
-        Format.eprintf "Capnp error: %a" Capnp_rpc.Error.pp e;
-        Unix._exit 1
-    | Error (`Remote e) ->
-        Format.eprintf "Remote error: %s" e;
-        Unix._exit 1
-    | Ok () -> Unix._exit 0
+  let update_cap =
+    Capnp_rpc_unix.with_cap_exn sturdy_ref Cap.Domain.get_update_cap
   in
-  Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
+  match Cap.Update_cap.update update_cap prereqs updates with
+  | Error (`Capnp e) ->
+      Format.eprintf "Capnp error: %a" Capnp_rpc.Error.pp e;
+      Unix._exit 1
+  | Error (`Remote e) ->
+      Format.eprintf "Remote error: %s" e;
+      Unix._exit 1
+  | Ok () -> Unix._exit 0
 
 let help _copts man_format cmds topic =
   match topic with
@@ -275,7 +275,7 @@ let update_cmd =
     | Error (`Msg e) -> raise (Invalid_argument e)
   in
   let prereq_of_string str =
-    let open Cap.Domain.Update in
+    let open Cap.Update_cap in
     try
       match String.split_on_char ':' str with
       | [ "exists"; domain; typ ] ->
@@ -299,7 +299,7 @@ let update_cmd =
     | _ -> Error (`Msg "Error parsing prerequisite")
   in
   let prereq_to_string fmt =
-    let open Cap.Domain.Update in
+    let open Cap.Update_cap in
     function
     | domain, Exists typ ->
         Format.fprintf fmt "exists:%s:%a"
@@ -330,7 +330,7 @@ let update_cmd =
       & info [ "p"; "prerequisite" ] ~docv:"PREREQUISITE" ~doc)
   in
   let update_of_string str =
-    let open Cap.Domain.Update in
+    let open Cap.Update_cap in
     try
       match String.split_on_char ':' str with
       | [ "remove"; domain; typ ] ->
@@ -351,7 +351,7 @@ let update_cmd =
     | Failure _ -> Error (`Msg "TTL must be a valid integer")
   in
   let update_to_string fmt =
-    let open Cap.Domain.Update in
+    let open Cap.Update_cap in
     function
     | domain, Remove typ ->
         Format.fprintf fmt "remove:%s:%a"

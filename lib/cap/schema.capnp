@@ -37,6 +37,11 @@ struct Update {
   }
 }
 
+interface UpdateCap {
+  update @0 (prereqs :List(Prereq), updates :List(Update)) -> (success :Bool, error :Text);
+  # DNS update
+}
+
 struct CertReq {
   # Used to request a certificate for a service
   union {
@@ -45,9 +50,28 @@ struct CertReq {
   }
 }
 
-interface Zone {
-  # Capability to initalize a Zone for which the nameserver is authorative
-  init @0 (name :Text) -> (domain :Domain);
+interface CertCallback {
+  # Callback to support renewal
+  register @0 (success :Bool, error :Text, cert :Data, key :Text, renewed: Bool) -> ();
+}
+
+struct HostStatus {
+  load @0 :Float64;
+  carbonIntensity @1 :Float64;
+  location :group {
+    lat @2 :Float64;
+    long @3 :Float64;
+  }
+}
+
+interface Host {
+  getFqdn @0 () -> (fqdn :Text);
+  # Get the fully qualified domain name for the host
+
+  getUpdateCap @1 () -> (updateCap: UpdateCap);
+  # DNS update capability
+
+  status @2 (status :HostStatus) -> ();
 }
 
 interface Domain {
@@ -59,15 +83,18 @@ interface Domain {
   delegate @1 (subdomain :Text) -> (domain :Domain);
   # Create a capability for a subdomain
 
-  update @2 (prereqs :List(Prereq), updates :List(Update)) -> (success :Bool, error :Text);
-  # DNS update
+  getUpdateCap @2 () -> (updateCap :UpdateCap);
+  # DNS update capability
 
   cert @3 (email: Text, domains :List(Text), org :Text, certCallback :CertCallback) -> ();
   # Request a certificate for a domain ("") / wildcard domain "*"
+
+  host @4 (name :Text) -> (host :Host);
+  # Create a capability for a host
 }
 
-interface CertCallback {
-  # Callback to support renewal
-  register @0 (success :Bool, error :Text, cert :Data, key :Text, renewed: Bool) -> ();
+interface Zone {
+  # Capability to initalize a Zone for which the nameserver is authorative
+  init @0 (name :Text) -> (domain :Domain);
 }
 
