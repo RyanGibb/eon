@@ -1,15 +1,16 @@
-{ pkgs, config, lib, ... }:
-
-with lib;
+{ config, lib, ... }:
 
 let cfg = config.services.eon;
 in {
   options.services.eon = {
     enable =
-      mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
+      lib.mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
+    package = lib.mkOption {
+      type = lib.types.package;
+    };
     # todo multiple zones, primary and secondary servers
     zoneFiles =
-      mkOption { type = types.listOf (types.either types.str types.path); };
+      lib.mkOption { type = lib.types.listOf (lib.types.either lib.types.str lib.types.path); };
     port = lib.mkOption {
       type = lib.types.int;
       default = 53;
@@ -27,31 +28,31 @@ in {
       default = 1;
     };
     application = lib.mkOption {
-      type = types.enum [ "eon" "resolved" "netcatd" "tund" "cap" ];
+      type = lib.types.enum [ "eon" "resolved" "netcatd" "tund" "cap" ];
       default = "eon";
     };
     openFirewall = lib.mkOption {
-      type = types.bool;
+      type = lib.types.bool;
       default = true;
     };
     capnpAddress = lib.mkOption {
-      type = types.string;
+      type = lib.types.string;
       default = "0.0.0.0";
     };
     capnpPort = lib.mkOption {
-      type = types.int;
+      type = lib.types.int;
       default = 7000;
     };
     capnpSecretKeyFile = lib.mkOption {
-      type = types.nullOr types.path;
+      type = lib.types.nullOr lib.types.path;
       default = null;
     };
     prod = lib.mkOption {
-      type = types.bool;
+      type = lib.types.bool;
       default = true;
     };
-    acmeServer = mkOption {
-      type = types.nullOr types.str;
+    acmeServer = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
       default = null;
       description = lib.mdDoc ''
         ACME Directory Resource URI.
@@ -59,15 +60,15 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     systemd.services.eon = {
       description = "eon";
       after = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        ExecStart = "${pkgs.eon.out}/bin/${cfg.application} "
-          + (strings.concatMapStrings (zonefile: "-z ${zonefile} ")
+        ExecStart = "${cfg.package.out}/bin/${cfg.application} "
+          + (lib.strings.concatMapStrings (zonefile: "-z ${zonefile} ")
             cfg.zoneFiles) + "-p ${builtins.toString cfg.port} "
           + "-l ${builtins.toString cfg.logLevel} "
           + (if cfg.application == "cap" then

@@ -15,7 +15,7 @@
     # deduplicate flakes
     opam-nix.inputs.flake-utils.follows = "flake-utils";
   };
-  outputs = { self, nixpkgs, flake-utils, opam-nix, ... }@inputs:
+  outputs = { nixpkgs, flake-utils, opam-nix, ... }@inputs:
     # create outputs for each default system
     flake-utils.lib.eachDefaultSystem (system:
       let

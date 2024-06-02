@@ -97,6 +97,10 @@ let
   };
 in {
   options.security.acme-eon = {
+    package = lib.mkOption {
+      type = lib.types.package;
+    };
+
     acceptTerms = mkOption {
       type = types.bool;
       default = false;
@@ -153,7 +157,7 @@ in {
 
       wantedBy = optionals (!config.boot.isContainer) [ "multi-user.target" ];
 
-      path = with pkgs; [ eon ];
+      path = with pkgs; [ cfg.package ];
 
       wants = [ "network-online.target" "eon.service" ];
       after = [ "network-online.target" "eon.service" ];
@@ -165,7 +169,7 @@ in {
         StateDirectoryMode = "750";
         StateDirectory = [ "acme-eon/${cert.domain}" ];
         ExecStart = ''
-          ${pkgs.eon}/bin/capc cert \
+          ${cfg.package}/bin/capc cert \
           ${cert.capFile} \
           ${cert.email} \
           -d ${cert.domain} \
