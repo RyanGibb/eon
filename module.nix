@@ -1,4 +1,4 @@
-{ pkgs, config, lib, ... }:
+eon: { pkgs, config, lib, ... }:
 
 with lib;
 
@@ -7,6 +7,10 @@ in {
   options.services.eon = {
     enable =
       mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
+    package = lib.mkOption {
+      type = types.package;
+      default = eon.${config.nixpkgs.hostPlatform.system};
+    };
     # todo multiple zones, primary and secondary servers
     zoneFiles =
       mkOption { type = types.listOf (types.either types.str types.path); };
@@ -66,7 +70,7 @@ in {
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        ExecStart = "${pkgs.eon.out}/bin/${cfg.application} "
+        ExecStart = "${cfg.package.out}/bin/${cfg.application} "
           + (strings.concatMapStrings (zonefile: "-z ${zonefile} ")
             cfg.zoneFiles) + "-p ${builtins.toString cfg.port} "
           + "-l ${builtins.toString cfg.logLevel} "

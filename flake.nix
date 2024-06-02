@@ -43,8 +43,8 @@
         };
       }) // {
         nixosModules = {
-          default.imports = [ ./module.nix ];
-          acme.imports = [ ./acme.nix ];
+          default.imports = [ (import ./module.nix self.defaultPackage) ];
+          acme.imports = [ (import ./acme.nix self.defaultPackage) ];
         };
       };
 }

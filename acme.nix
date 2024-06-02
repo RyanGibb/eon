@@ -1,4 +1,4 @@
-{ pkgs, config, lib, ... }:
+eon: { pkgs, config, lib, ... }:
 
 with lib;
 let
@@ -97,6 +97,11 @@ let
   };
 in {
   options.security.acme-eon = {
+    package = lib.mkOption {
+      type = lib.types.package;
+      default = eon.${config.nixpkgs.hostPlatform.system};
+    };
+
     acceptTerms = mkOption {
       type = types.bool;
       default = false;
@@ -165,7 +170,7 @@ in {
         StateDirectoryMode = "750";
         StateDirectory = [ "acme-eon/${cert.domain}" ];
         ExecStart = ''
-          ${pkgs.eon}/bin/capc cert \
+          ${cfg.eon}/bin/capc cert \
           ${cert.capFile} \
           ${cert.email} \
           -d ${cert.domain} \
