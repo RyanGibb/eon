@@ -46,7 +46,7 @@ struct CertReq {
 }
 
 interface Zone {
-  # Capability to initalize a Zone for which the nameserver is authorative
+  # Capability to initialize a Zone for which the nameserver is authoritative
   init @0 (name :Text) -> (domain :Domain);
 }
 
