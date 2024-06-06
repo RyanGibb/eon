@@ -71,7 +71,7 @@ let parse_zonefiles ~fs zonefiles =
                       | B (Soa, _soa) -> domain :: authorative
                       | _ -> authorative)
                     rrmap authorative)
-                rrs []
+                rrs prev_authorative
             in
             (trie, keys, authorative))
       (Dns_trie.empty, Domain_name.Map.empty, [])
