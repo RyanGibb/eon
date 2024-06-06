@@ -92,7 +92,6 @@ in {
         RestartSec = "1s";
         User = cfg.user;
         Group = cfg.group;
-        WorkingDirectory = "/var/lib/eon";
         AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ] ++
           # for TUNSETIFF
           (if cfg.application == "tund" then [ "CAP_NET_ADMIN" ] else [ ]);
