@@ -1,4 +1,4 @@
-{ config, lib, ... }:
+packages: { config, lib, ... }:
 
 let cfg = config.services.eon;
 in {
@@ -7,6 +7,7 @@ in {
       lib.mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
     package = lib.mkOption {
       type = lib.types.package;
+      default = packages.${config.nixpkgs.hostPlatform.system}.default;
     };
     # todo multiple zones, primary and secondary servers
     zoneFiles =

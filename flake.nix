@@ -15,7 +15,7 @@
     # deduplicate flakes
     opam-nix.inputs.flake-utils.follows = "flake-utils";
   };
-  outputs = { nixpkgs, flake-utils, opam-nix, ... }@inputs:
+  outputs = { self, nixpkgs, flake-utils, opam-nix, ... }@inputs:
     # create outputs for each default system
     flake-utils.lib.eachDefaultSystem (system:
       let
@@ -31,7 +31,7 @@
         scope =
           opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery);
       in {
-        packages = scope;
+        packages.default = scope.${package};
         defaultPackage = scope.${package};
 
         devShells.default = let
@@ -43,8 +43,8 @@
         };
       }) // {
         nixosModules = {
-          default.imports = [ ./module.nix ];
-          acme.imports = [ ./acme.nix ];
+          default.imports = [ (import ./module.nix self.packages) ];
+          acme.imports = [ (import ./acme.nix self.packages) ];
         };
       };
 }

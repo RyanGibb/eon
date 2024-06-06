@@ -1,4 +1,4 @@
-{ pkgs, config, lib, ... }:
+packages: { pkgs, config, lib, ... }:
 
 with lib;
 let
@@ -99,6 +99,7 @@ in {
   options.security.acme-eon = {
     package = lib.mkOption {
       type = lib.types.package;
+      default = packages.${config.nixpkgs.hostPlatform.system}.default;
     };
 
     acceptTerms = mkOption {
