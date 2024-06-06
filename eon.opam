@@ -64,8 +64,9 @@ pin-depends: [
   ["cohttp-lwt.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
   ["cohttp-lwt-unix.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
   # unmerged Eio port https://github.com/mirage/capnp-rpc/pull/256
-  ["capnp-rpc.dev" "git+https://github.com/talex5/capnp-rpc.git#dfd4651b39596d53e8073464a90ed10ed36c70fa"]
-  ["capnp-rpc-lwt.dev" "git+https://github.com/talex5/capnp-rpc.git#dfd4651b39596d53e8073464a90ed10ed36c70fa"]
-  ["capnp-rpc-net.dev" "git+https://github.com/talex5/capnp-rpc.git#dfd4651b39596d53e8073464a90ed10ed36c70fa"]
-  ["capnp-rpc-unix.dev" "git+https://github.com/talex5/capnp-rpc.git#dfd4651b39596d53e8073464a90ed10ed36c70fa"]
+  # https://github.com/mirage/capnp-rpc/pull/256#discussion_r1629543323
+  ["capnp-rpc.dev" "git+https://github.com/ryangibb/capnp-rpc.git#417be75201a4762ce662206b662fe06904df91e2"]
+  ["capnp-rpc-lwt.dev" "git+https://github.com/ryangibb/capnp-rpc.git#417be75201a4762ce662206b662fe06904df91e2"]
+  ["capnp-rpc-net.dev" "git+https://github.com/ryangibb/capnp-rpc.git#417be75201a4762ce662206b662fe06904df91e2"]
+  ["capnp-rpc-unix.dev" "git+https://github.com/ryangibb/capnp-rpc.git#417be75201a4762ce662206b662fe06904df91e2"]
 ]
