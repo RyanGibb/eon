@@ -169,6 +169,10 @@ in {
         UMask = "0022";
         StateDirectoryMode = "750";
         StateDirectory = [ "acme-eon/${cert.domain}" ];
+        # Run as root (Prefixed with +)
+        ExecStartPre = "+" + (pkgs.writeShellScript "acme-prerun" ''
+          chgrp ${cert.group} ${cert.capFile}
+        '');
         ExecStart = ''
           ${cfg.package}/bin/capc cert \
           ${cert.capFile} \
