@@ -1,9 +1,9 @@
 open Raw
 open Capnp_rpc_lwt
 
-let local env domain server_state =
+let local sr env domain server_state =
   let module Secondary = Api.Service.Secondary in
-  Secondary.local
+  Persistence.with_sturdy_ref sr Secondary.local
   @@ object
        inherit Secondary.service
 
@@ -64,13 +64,3 @@ let update t prereqs updates =
           let error = Results.error_get results in
           Error (`Remote error))
   | Error e -> Error e
-
-let update_secondaries secondaries prereqs updates =
-  List.iter
-    (fun secondary ->
-      match update secondary prereqs updates with
-      | Error (`Capnp e) ->
-          Eio.traceln "Error calling Secondary.update %a" Capnp_rpc.Error.pp e
-      | Error (`Remote e) -> Eio.traceln "Remote error: %s" e
-      | Ok () -> ())
-    secondaries

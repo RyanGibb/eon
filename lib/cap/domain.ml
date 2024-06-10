@@ -1,8 +1,8 @@
 open Raw
 open Capnp_rpc_lwt
 
-let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir
-    secondaries =
+let local ~sw ~persist_new_domain sr env domain prod endpoint server_state
+    state_dir primary =
   let module Domain = Api.Service.Domain in
   Persistence.with_sturdy_ref sr Domain.local
   @@ object
@@ -41,14 +41,16 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir
              Service.fail "Error parsing domain"
          | Ok subdomain -> (
              let name = Domain_name.append_exn subdomain domain in
-             match persist_new ~name with
+             (* we create a new capabilty for every request, not every domain,
+                so they can be revoked per-client *)
+             match persist_new_domain ~name primary with
              | Error e -> Service.error (`Exception e)
-             | Ok logger ->
+             | Ok delegated ->
                  let response, results =
                    Service.Response.create Results.init_pointer
                  in
-                 Results.domain_set results (Some logger);
-                 Capability.dec_ref logger;
+                 Results.domain_set results (Some delegated);
+                 Capability.dec_ref delegated;
                  Service.return response)
 
        method update_impl params release_param_caps =
@@ -65,17 +67,25 @@ let local ~sw ~persist_new sr env domain prod endpoint server_state state_dir
              let msg = Printexc.to_string e in
              Results.success_set results false;
              Results.error_set results msg
-         | _ ->
-             let prereqs = Update.decode_prereqs domain prereqs in
-             let updates = Update.decode_updates domain updates in
-             Secondary.update_secondaries !secondaries prereqs updates;
-             Results.success_set results true);
+         | prereqs, updates -> (
+             match Primary.update_secondaries primary prereqs updates with
+             | Error (`Capnp e) ->
+                 Eio.traceln "Error calling Primary.update_secondaries: %a"
+                   Capnp_rpc.Error.pp e;
+                 Results.error_set results
+                   (Fmt.str "Error calling Primary.update_secondaries: %a"
+                      Capnp_rpc.Error.pp e)
+             | Error (`Remote e) ->
+                 Eio.traceln "Error calling Primary.update_secondaries: %s" e;
+                 Results.error_set results
+                   ("Error calling Primary.update_secondaries: " ^ e)
+             | Ok () -> Results.success_set results true));
          Service.return response
      end
 
 let get_name t =
   let open Api.Client.Domain.GetName in
-  let request, _params = Capability.Request.create Params.init_pointer in
+  let request = Capability.Request.create_no_args () in
   match Capability.call_for_value t method_id request with
   | Ok results -> Ok (Results.name_get results)
   | Error e -> Error e

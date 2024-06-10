@@ -158,7 +158,8 @@ let update_trie env server_state domain prereqs updates =
         and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
         Dns_server.Primary.with_data !server_state now ts trie
       in
-      server_state := new_server_state
+      server_state := new_server_state;
+      prereqs, updates
   | Error rcode ->
       raise
         (Invalid_argument (Fmt.str "Error updating trie %a" Dns.Rcode.pp rcode))

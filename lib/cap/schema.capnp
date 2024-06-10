@@ -45,11 +45,6 @@ struct CertReq {
   }
 }
 
-interface Zone {
-  # Capability to initialize a Zone for which the nameserver is authoritative
-  init @0 (name :Text) -> (domain :Domain, primary :Primary);
-}
-
 interface Domain {
   # Capability for a domain
 
@@ -75,6 +70,9 @@ interface Primary {
   registerSeconday @1 (secondary :Secondary) -> ();
   # register a secondary server with this primary
   # as an optimisation we could add a serial number here
+
+  updateSecondaries @2 (prereqs :List(Prereq), updates :List(Update)) -> (success :Bool, error :Text);
+  # update secondary nameservers for this primary
 }
 
 interface Secondary {

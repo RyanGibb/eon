@@ -2,9 +2,17 @@
 
 struct SavedDomain {
   name @0 :Text;
+  primary @1 :Text;
+}
+
+struct SavedSecondary {
+  name @0 :Text;
 }
 
 struct SavedService {
-  domain @0 :SavedDomain;
+  union {
+    domain @0 :SavedDomain;
+    secondary @1 :SavedSecondary;
+  }
 }
 
