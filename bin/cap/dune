@@ -1,7 +1,7 @@
 (executable
- (name cap)
- (modules cap)
- (public_name cap)
+ (name capd)
+ (modules capd)
+ (public_name capd)
  (package eon)
  (libraries
   dns_server_eio

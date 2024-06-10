@@ -29,7 +29,7 @@ in {
       default = 1;
     };
     application = lib.mkOption {
-      type = lib.types.enum [ "eon" "resolved" "netcatd" "tund" "cap" ];
+      type = lib.types.enum [ "eon" "resolved" "netcatd" "tund" "capd" ];
       default = "eon";
     };
     openFirewall = lib.mkOption {
@@ -72,7 +72,7 @@ in {
           + (lib.strings.concatMapStrings (zonefile: "-z ${zonefile} ")
             cfg.zoneFiles) + "-p ${builtins.toString cfg.port} "
           + "-l ${builtins.toString cfg.logLevel} "
-          + (if cfg.application == "cap" then
+          + (if cfg.application == "capd" then
             "--capnp-secret-key-file ${
               if cfg.capnpSecretKeyFile != null then
                 cfg.capnpSecretKeyFile
@@ -111,7 +111,7 @@ in {
 
     networking.firewall = lib.mkIf cfg.openFirewall {
       allowedTCPPorts = [ cfg.port ]
-        ++ (if cfg.application == "cap" then [ cfg.capnpPort ] else [ ]);
+        ++ (if cfg.application == "capd" then [ cfg.capnpPort ] else [ ]);
       allowedUDPPorts = [ cfg.port ];
     };
   };
