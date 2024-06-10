@@ -1,35 +1,53 @@
-let register_secondary env ~sw server_state primary_uri_files =
-  List.iteri
-    (fun i primary_uri_file ->
-      Format.eprintf "%d%!" i;
-      let sturdy_ref =
+let register_secondary env ~sw server_state primary_uri_files retry_wait =
+  let initial_primaries =
+    List.map
+      (fun primary_uri_file ->
         let primary_uri =
           Uri.of_string
             (Eio.Path.load Eio.Path.(Eio.Stdenv.fs env / primary_uri_file))
         in
         let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
-        Capnp_rpc_unix.Vat.import_exn client_vat primary_uri
-      in
-      match
-        let ( let* ) = Result.bind in
-        let* domain =
-          Capnp_rpc_unix.with_cap_exn sturdy_ref Cap.Primary.get_name
-        in
-        let secondary =
-          Cap.Secondary.local env
-            (Domain_name.of_string_exn domain)
-            server_state
-        in
-        let register = Cap.Primary.register_secondary ~secondary in
-        Capnp_rpc_unix.with_cap_exn sturdy_ref register
-      with
-      | Error (`Capnp e) ->
-          Format.eprintf "Capnp Error registering to primary %d: %a%!" i
-            Capnp_rpc.Error.pp e
-      | Error (`Remote e) ->
-          Format.eprintf "Remote Error registering to primary %d: %s%!" i e
-      | Ok () -> ())
-    primary_uri_files
+        Capnp_rpc_unix.Vat.import_exn client_vat primary_uri)
+      primary_uri_files
+  in
+  let rec register primaries =
+    match
+      List.fold_left
+        (fun retry primary ->
+          match
+            let ( let* ) = Result.bind in
+            let* domain =
+              Capnp_rpc_unix.with_cap_exn primary Cap.Primary.get_name
+            in
+            let secondary =
+              Cap.Secondary.local env
+                (Domain_name.of_string_exn domain)
+                server_state
+            in
+            let register = Cap.Primary.register_secondary ~secondary in
+            ignore @@ Capnp_rpc_unix.with_cap_exn primary register;
+            Ok ()
+          with
+          | exception Failure e ->
+              Eio.traceln "Failed to connnect to primary: %s" e;
+              Eio.traceln "Retrying in %f" retry_wait;
+              primary :: retry
+          | Error (`Capnp e) ->
+              Eio.traceln "Failed to connnect to primary: %a%!"
+                Capnp_rpc.Error.pp e;
+              retry
+          | Error (`Remote e) ->
+              Eio.traceln "Remote Error registering to primary: %s%!" e;
+              retry
+          | Ok () -> retry)
+        [] primaries
+    with
+    | [] -> ()
+    | retry ->
+        Eio.Time.sleep env#clock retry_wait;
+        register retry
+  in
+  Eio.Fiber.fork ~sw (fun () -> register initial_primaries)
 
 let capnp_serve env authorative vat_config prod endpoint server_state state_dir
     =
@@ -97,7 +115,7 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
     authorative
 
 let run zonefiles log_level address_strings port proto prod endpoint authorative
-    state_dir primary_uri_files vat_config =
+    state_dir primary_uri_files primary_retry_wait vat_config =
   Eio_main.run @@ fun env ->
   let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port address_strings in
@@ -128,7 +146,7 @@ let run zonefiles log_level address_strings port proto prod endpoint authorative
       Dns_server_eio.primary env proto server_state log addresses);
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 Eio.Path.(env#fs / state_dir);
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
-  register_secondary env ~sw server_state primary_uri_files;
+  register_secondary env ~sw server_state primary_uri_files primary_retry_wait;
   capnp_serve env authorative vat_config prod endpoint server_state state_dir;
   Eio.Fiber.await_cancel ()
 
@@ -193,11 +211,19 @@ let () =
       Arg.(
         value & opt_all string [] & info [ "secondary" ] ~docv:"SECONDARY" ~doc)
     in
+    let primary_retry_wait =
+      let doc =
+        "Seconds to wait between retrying connecting to a primary upon failure."
+      in
+      Arg.(
+        value & opt float 60.
+        & info [ "primary-retry-wait" ] ~docv:"PRIMAR_RETRY_WAIT" ~doc)
+    in
     let term =
       Term.(
         const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ port
         $ proto $ prod $ endpoint $ authorative $ state_dir $ primary_uri_files
-        $ Capnp_rpc_unix.Vat_config.cmd)
+        $ primary_retry_wait $ Capnp_rpc_unix.Vat_config.cmd)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "cap" ~doc ~man in
