@@ -2573,6 +2573,80 @@ module Rr_map = struct
           rr names (encode data) off ttl, succ count)
         datas ((names, off), 0)
 
+  let encode_single : type a. a key -> a -> Cstruct.t =
+    fun k v ->
+    let buf = Cstruct.create 4096 in
+    let names = Domain_name.Map.empty in
+    let off = 0 in
+    (match k, v with
+    | Soa, soa -> ignore @@ Soa.encode soa names buf off;
+    | Ns, (ttl, ns) ->
+      Domain_name.Host_set.iter (fun name ->
+        ignore (Ns.encode name names buf off)
+      ) ns
+    | Mx, (ttl, mx) ->
+      Mx_set.iter (fun mx ->
+        ignore (Mx.encode mx names buf off)
+      ) mx
+    | Cname, (ttl, alias) -> ignore @@ Cname.encode alias names buf off
+    | A, (ttl, addresses) ->
+      Ipaddr.V4.Set.iter (fun address ->
+        ignore (A.encode address names buf off)
+      ) addresses
+    | Aaaa, (ttl, aaaas) ->
+      Ipaddr.V6.Set.iter (fun address ->
+        ignore (Aaaa.encode address names buf off)
+      ) aaaas
+    | Ptr, (ttl, rev) -> ignore (Ptr.encode rev names buf off)
+    | Srv, (ttl, srvs) ->
+      Srv_set.iter (fun srv ->
+        ignore (Srv.encode srv names buf off)
+      ) srvs
+    | Dnskey, (ttl, dnskeys) ->
+      Dnskey_set.iter (fun dnskey ->
+        ignore (Dnskey.encode dnskey names buf off)
+      ) dnskeys
+    | Caa, (ttl, caas) ->
+      Caa_set.iter (fun caa ->
+        ignore (Caa.encode caa names buf off)
+      ) caas
+    | Tlsa, (ttl, tlsas) ->
+      Tlsa_set.iter (fun tlsa ->
+        ignore (Tlsa.encode tlsa names buf off)
+      ) tlsas
+    | Sshfp, (ttl, sshfps) ->
+      Sshfp_set.iter (fun sshfp ->
+        ignore (Sshfp.encode sshfp names buf off)
+      ) sshfps
+    | Txt, (ttl, txts) ->
+      Txt_set.iter (fun txt ->
+        ignore (Txt.encode txt names buf off)
+      ) txts
+    | Ds, (ttl, ds) ->
+      Ds_set.iter (fun ds ->
+        ignore (Ds.encode ds names buf off)
+      ) ds
+    | Rrsig, (ttl, rrs) ->
+      Rrsig_set.iter (fun rrsig ->
+        ignore (Rrsig.encode rrsig names buf off)
+      ) rrs
+    | Nsec, (ttl, nsec) -> ignore (Nsec.encode nsec names buf off)
+    | Nsec3, (ttl, nsec) -> ignore (Nsec3.encode nsec names buf off)
+    | Loc, (ttl, locs) ->
+      Loc_set.iter (fun loc ->
+        ignore (Loc.encode loc names buf off)
+      ) locs
+    | Unknown _, (ttl, datas) ->
+      let encode data names buf off =
+        let l = String.length data in
+        Cstruct.blit_from_string data off buf off l;
+        names, off + l
+      in
+      Txt_set.iter (fun data ->
+          ignore (encode data names buf off))
+        datas);
+  buf
+
   let encode_dnssec : type a. ttl:int32 -> ?clas:Class.t -> [ `raw ] Domain_name.t -> a key -> a ->
     (int * Cstruct.t) list = fun ~ttl ?(clas = Class.IN) name k v ->
     let clas = Class.to_int clas in
@@ -3258,6 +3332,75 @@ module Rr_map = struct
       guard (len = rdata_end - rdata_start) (`Leftover (rdata_end, "rdata"))
     in
     Ok (b, names, rdata_end)
+
+  let decode_single buf ttl (K typ) =
+    let names = Name.Int_map.empty in
+    let len = Cstruct.length buf in
+    let off = 0 in
+    match (
+      try (match typ with
+        | Soa ->
+          let* soa, names, off = Soa.decode_exn names buf ~off ~len in
+          Ok (B (Soa, soa))
+        | Ns ->
+          let* ns, names, off = Ns.decode names buf ~off ~len in
+          Ok (B (Ns, (ttl, Domain_name.Host_set.singleton ns)))
+        | Mx ->
+          let* mx, names, off = Mx.decode_exn names buf ~off ~len in
+          Ok (B (Mx, (ttl, Mx_set.singleton mx)))
+        | Cname ->
+          let* alias, names, off = Cname.decode names buf ~off ~len in
+          Ok (B (Cname, (ttl, alias)))
+        | A ->
+          let* address, names, off = A.decode_exn names buf ~off ~len in
+          Ok (B (A, (ttl, Ipaddr.V4.Set.singleton address)))
+        | Aaaa ->
+          let* address, names, off = Aaaa.decode_exn names buf ~off ~len in
+          Ok (B (Aaaa, (ttl, Ipaddr.V6.Set.singleton address)))
+        | Ptr ->
+          let* rev, names, off = Ptr.decode names buf ~off ~len in
+          Ok (B (Ptr, (ttl, rev)))
+        | Srv ->
+          let* srv, names, off = Srv.decode_exn names buf ~off ~len in
+          Ok (B (Srv, (ttl, Srv_set.singleton srv)))
+        | Dnskey ->
+          let* dnskey, names, off = Dnskey.decode_exn names buf ~off ~len in
+          Ok (B (Dnskey, (ttl, Dnskey_set.singleton dnskey)))
+        | Caa ->
+          let* caa, names, off = Caa.decode_exn names buf ~off ~len in
+          Ok (B (Caa, (ttl, Caa_set.singleton caa)))
+        | Tlsa ->
+          let* tlsa, names, off = Tlsa.decode_exn names buf ~off ~len in
+          Ok (B (Tlsa, (ttl, Tlsa_set.singleton tlsa)))
+        | Sshfp ->
+          let* sshfp, names, off = Sshfp.decode_exn names buf ~off ~len in
+          Ok (B (Sshfp, (ttl, Sshfp_set.singleton sshfp)))
+        | Txt ->
+          let* txt, names, off = Txt.decode_exn names buf ~off ~len in
+          Ok (B (Txt, (ttl, Txt_set.singleton txt)))
+        | Ds ->
+          let* ds, names, off = Ds.decode_exn names buf ~off ~len in
+          Ok (B (Ds, (ttl, Ds_set.singleton ds)))
+        | Rrsig ->
+          let* rrs, names, off = Rrsig.decode_exn names buf ~off ~len in
+          Ok (B (Rrsig, (ttl, Rrsig_set.singleton rrs)))
+        | Nsec ->
+          let* rr, names, off = Nsec.decode_exn names buf ~off ~len in
+          Ok (B (Nsec, (ttl, rr)))
+        | Nsec3 ->
+          let* rr, names, off = Nsec3.decode_exn names buf ~off ~len in
+          Ok (B (Nsec3, (ttl, rr)))
+        | Loc ->
+          let* loc, names, off = Loc.decode_exn names buf ~off ~len in
+          Ok (B (Loc, (ttl, Loc_set.singleton loc)))
+        | Unknown x ->
+          let data = Cstruct.sub buf off len in
+          Ok (B (Unknown x, (ttl, Txt_set.singleton (Cstruct.to_string data))))
+      ) with
+      | Invalid_argument _ -> Error `Partial)
+    with
+    | Error _ -> Error "Error decoding"
+    | Ok b ->  Ok b
 
   let text_b ?origin ?default_ttl name (B (key, v)) =
     text ?origin ?default_ttl name key v

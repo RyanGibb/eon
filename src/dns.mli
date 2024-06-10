@@ -958,6 +958,10 @@ module Rr_map : sig
 
   val canonical_encoded_name : [`raw] Domain_name.t -> Cstruct.t
 
+  val encode_single : 'a. 'a key -> 'a -> Cstruct.t
+
+  val decode_single : Cstruct.t -> int32 -> k -> (b, string) result
+
 end
 
 (** Name resource record map
