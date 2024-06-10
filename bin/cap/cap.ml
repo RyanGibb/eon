@@ -1,13 +1,46 @@
+let register_secondary env ~sw server_state primary_uri_files =
+  List.iteri
+    (fun i primary_uri_file ->
+      Format.eprintf "%d%!" i;
+      let sturdy_ref =
+        let primary_uri =
+          Uri.of_string
+            (Eio.Path.load Eio.Path.(Eio.Stdenv.fs env / primary_uri_file))
+        in
+        let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
+        Capnp_rpc_unix.Vat.import_exn client_vat primary_uri
+      in
+      match
+        let ( let* ) = Result.bind in
+        let* domain =
+          Capnp_rpc_unix.with_cap_exn sturdy_ref Cap.Primary.get_name
+        in
+        let secondary =
+          Cap.Secondary.local env
+            (Domain_name.of_string_exn domain)
+            server_state
+        in
+        let register = Cap.Primary.register_secondary ~secondary in
+        Capnp_rpc_unix.with_cap_exn sturdy_ref register
+      with
+      | Error (`Capnp e) ->
+          Format.eprintf "Capnp Error registering to primary %d: %a%!" i
+            Capnp_rpc.Error.pp e
+      | Error (`Remote e) ->
+          Format.eprintf "Remote Error registering to primary %d: %s%!" i e
+      | Ok () -> ())
+    primary_uri_files
+
 let capnp_serve env authorative vat_config prod endpoint server_state state_dir
     =
   Eio.Switch.run @@ fun sw ->
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let cap_dir = Eio.Path.(env#fs / state_dir / "caps") in
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 cap_dir;
 
   let make_sturdy = Capnp_rpc_unix.Vat_config.sturdy_uri vat_config in
   let store_dir = Eio.Path.(env#fs / state_dir / "store") in
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 store_dir;
+
   let db, set_loader = Cap.Db.create ~make_sturdy store_dir in
   let services =
     Capnp_rpc_net.Restorer.Table.of_loader ~sw (module Cap.Db) db
@@ -17,10 +50,12 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
     let id = Cap.Db.save_new db ~name in
     Capnp_rpc_net.Restorer.restore restore id
   in
+  (* TODO restore secondaries *)
   Eio.Std.Promise.resolve set_loader (fun sr ~name ->
       Capnp_rpc_net.Restorer.grant
       @@ Cap.Domain.local ~sw ~persist_new sr env name prod endpoint
-           server_state state_dir);
+           server_state state_dir (ref []));
+
   let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore vat_config in
 
   let zone_cap =
@@ -41,20 +76,28 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
   List.iter
     (fun domain ->
       let name = Domain_name.to_string domain in
-      let id = Capnp_rpc_unix.Vat_config.derived_id vat_config name in
-      let cap = Cap.Zone.init zone_cap domain in
-      Capnp_rpc_net.Restorer.Table.add services id cap;
-      let _, file = Eio.Path.(cap_dir / (name ^ ".cap")) in
-      (match Capnp_rpc_unix.Cap_file.save_service vat id file with
+      let domain_id = Capnp_rpc_unix.Vat_config.derived_id vat_config name in
+      let primary_id =
+        Capnp_rpc_unix.Vat_config.derived_id vat_config (name ^ "-primary")
+      in
+      let domain_cap, primary_cap = Cap.Zone.init zone_cap domain in
+      Capnp_rpc_net.Restorer.Table.add services domain_id domain_cap;
+      Capnp_rpc_net.Restorer.Table.add services primary_id primary_cap;
+      let _, domain_file = Eio.Path.(cap_dir / (name ^ ".cap")) in
+      (match Capnp_rpc_unix.Cap_file.save_service vat domain_id domain_file with
       | Error (`Msg m) -> failwith m
       | Ok () -> ());
-      Printf.printf "[server] saved %S\n" file)
-    authorative;
-
-  Eio.Fiber.await_cancel ()
+      let _, primary_file = Eio.Path.(cap_dir / (name ^ "-primary.cap")) in
+      (match
+         Capnp_rpc_unix.Cap_file.save_service vat primary_id primary_file
+       with
+      | Error (`Msg m) -> failwith m
+      | Ok () -> ());
+      Printf.printf "[server] saved %S\n" name)
+    authorative
 
 let run zonefiles log_level address_strings port proto prod endpoint authorative
-    state_dir vat_config =
+    state_dir primary_uri_files vat_config =
   Eio_main.run @@ fun env ->
   let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port address_strings in
@@ -84,7 +127,10 @@ let run zonefiles log_level address_strings port proto prod endpoint authorative
   Eio.Fiber.fork ~sw (fun () ->
       Dns_server_eio.primary env proto server_state log addresses);
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 Eio.Path.(env#fs / state_dir);
-  capnp_serve env authorative vat_config prod endpoint server_state state_dir
+  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
+  register_secondary env ~sw server_state primary_uri_files;
+  capnp_serve env authorative vat_config prod endpoint server_state state_dir;
+  Eio.Fiber.await_cancel ()
 
 let () =
   Logs.set_level (Some Logs.Info);
@@ -138,10 +184,19 @@ let () =
       in
       Arg.(value & opt string "state" & info [ "state-dir" ] ~doc)
     in
+    let primary_uri_files =
+      let doc =
+        "File paths containing primary capability URIs of the format \
+         capnp://sha-256:<hash>@address:port/<service-ID> that this nameserver \
+         will register as secondary of."
+      in
+      Arg.(
+        value & opt_all string [] & info [ "secondary" ] ~docv:"SECONDARY" ~doc)
+    in
     let term =
       Term.(
         const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ port
-        $ proto $ prod $ endpoint $ authorative $ state_dir
+        $ proto $ prod $ endpoint $ authorative $ state_dir $ primary_uri_files
         $ Capnp_rpc_unix.Vat_config.cmd)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in

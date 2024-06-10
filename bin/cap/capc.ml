@@ -269,13 +269,31 @@ let delegate_cmd =
   Cmd.v info Term.(const delegate $ copts_t $ subdomain $ cap_root)
 
 let update_cmd =
+  let open Dns in
   let type_of_string_exn typ =
-    match Dns.Rr_map.of_string typ with
+    match Rr_map.of_string typ with
     | Ok t -> t
     | Error (`Msg e) -> raise (Invalid_argument e)
   in
+  let parse_record ?(ttl = 0l) k v =
+    (* TODO support more RRs *)
+    match type_of_string_exn k with
+    | K (Cname) -> Rr_map.B (Cname, (ttl, Domain_name.of_string_exn ""))
+    | K (A) -> Rr_map.B (A, (ttl, Ipaddr.V4.Set.singleton @@ Ipaddr.V4.of_string_exn v))
+    | K (Aaaa) -> Rr_map.B (Aaaa, (ttl, Ipaddr.V6.Set.singleton @@ Ipaddr.V6.of_string_exn v))
+    | k -> raise (Invalid_argument (Fmt.str "Can't parse %a" Dns.Rr_map.ppk k))
+  in
+  let print_record : type a. a Rr_map.key -> a -> int32 * string =
+    fun k v ->
+    (* TODO support more RRs *)
+    match k, v with
+    | Cname, (ttl, cname) -> ttl, Domain_name.to_string cname
+    | A, (ttl, a) -> ttl, Ipaddr.V4.to_string (Ipaddr.V4.Set.choose a)
+    | Aaaa, (ttl, aaaa) -> ttl, Ipaddr.V6.to_string (Ipaddr.V6.Set.choose aaaa)
+    | k, _ -> raise (Invalid_argument (Fmt.str "Can't print %a" Dns.Rr_map.ppk (K k)))
+  in
   let prereq_of_string str =
-    let open Cap.Domain.Update in
+    let open Dns.Packet.Update in
     try
       match String.split_on_char ':' str with
       | [ "exists"; domain; typ ] ->
@@ -283,7 +301,7 @@ let update_cmd =
       | [ "exists"; domain; typ; value ] ->
           Ok
             ( Domain_name.of_string_exn domain,
-              Exists_data (type_of_string_exn typ, value) )
+              Exists_data (parse_record typ value) )
       | [ "not-exists"; domain; typ ] ->
           Ok
             ( Domain_name.of_string_exn domain,
@@ -299,16 +317,17 @@ let update_cmd =
     | _ -> Error (`Msg "Error parsing prerequisite")
   in
   let prereq_to_string fmt =
-    let open Cap.Domain.Update in
+    let open Dns.Packet.Update in
     function
     | domain, Exists typ ->
         Format.fprintf fmt "exists:%s:%a"
           (Domain_name.to_string domain)
           Dns.Rr_map.ppk typ
-    | domain, Exists_data (typ, value) ->
+    | domain, Exists_data (Dns.Rr_map.B (typ, v)) ->
+        let _ttl, value = print_record typ v in
         Format.fprintf fmt "exists:%s:%a:%s"
           (Domain_name.to_string domain)
-          Dns.Rr_map.ppk typ value
+          Dns.Rr_map.ppk (K typ) value
     | domain, Not_exists typ ->
         Format.fprintf fmt "not-exists:%s:%a"
           (Domain_name.to_string domain)
@@ -330,7 +349,7 @@ let update_cmd =
       & info [ "p"; "prerequisite" ] ~docv:"PREREQUISITE" ~doc)
   in
   let update_of_string str =
-    let open Cap.Domain.Update in
+    let open Dns.Packet.Update in
     try
       match String.split_on_char ':' str with
       | [ "remove"; domain; typ ] ->
@@ -339,11 +358,12 @@ let update_cmd =
       | [ "remove"; domain; typ; value ] ->
           Ok
             ( Domain_name.of_string_exn domain,
-              Remove_single (type_of_string_exn typ, value) )
+              Remove_single (parse_record typ value) )
       | [ "add"; domain; typ; value; ttl_str ] ->
+          let ttl = Int32.of_string ttl_str in
           Ok
             ( Domain_name.of_string_exn domain,
-              Add (type_of_string_exn typ, value, Int32.of_string ttl_str) )
+              Add (parse_record ~ttl typ value) )
       | _ -> Error (`Msg "Invalid update format")
     with
     | Invalid_argument e ->
@@ -351,7 +371,7 @@ let update_cmd =
     | Failure _ -> Error (`Msg "TTL must be a valid integer")
   in
   let update_to_string fmt =
-    let open Cap.Domain.Update in
+    let open Dns.Packet.Update in
     function
     | domain, Remove typ ->
         Format.fprintf fmt "remove:%s:%a"
@@ -359,14 +379,16 @@ let update_cmd =
           Dns.Rr_map.ppk typ
     | domain, Remove_all ->
         Format.fprintf fmt "remove:%s" (Domain_name.to_string domain)
-    | domain, Remove_single (typ, value) ->
+    | domain, Remove_single (Dns.Rr_map.B (typ, v)) ->
+        let _ttl, value = print_record typ v in
         Format.fprintf fmt "remove:%s:%a:%s"
           (Domain_name.to_string domain)
-          Dns.Rr_map.ppk typ value
-    | domain, Add (typ, value, ttl) ->
+          Dns.Rr_map.ppk (K typ) value
+    | domain, Add (Dns.Rr_map.B (typ, v)) ->
+        let ttl, value = print_record typ v in
         Format.fprintf fmt "add:%s:%a:%s:%ld"
           (Domain_name.to_string domain)
-          Dns.Rr_map.ppk typ value ttl
+          Dns.Rr_map.ppk (K typ) value ttl
   in
   let updates =
     let doc =

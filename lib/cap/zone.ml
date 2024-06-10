@@ -24,10 +24,13 @@ let local ~sw ~persist_new vat_config services env prod endpoint server_state
                in
                Capnp_rpc_net.Restorer.Table.sturdy_ref services id
              in
+             let secondaries = ref [] in
+             let primary = Primary.local sr domain server_state secondaries in
              Results.domain_set results
                (Some
                   (Domain.local ~sw ~persist_new sr env domain prod endpoint
-                     server_state state_dir)));
+                     server_state state_dir secondaries));
+             Results.primary_set results (Some primary));
          Service.return response
      end
 
@@ -35,4 +38,6 @@ let init t domain =
   let open Api.Client.Zone.Init in
   let request, params = Capability.Request.create Params.init_pointer in
   Params.name_set params (Domain_name.to_string domain);
-  Capability.call_for_caps t method_id request Results.domain_get_pipelined
+  Capability.call_for_caps t method_id request (fun results ->
+      ( Results.domain_get_pipelined results,
+        Results.primary_get_pipelined results ))
