@@ -171,11 +171,12 @@ in {
         StateDirectory = [ "acme-eon/${cert.domain}" ];
         # Run as root (Prefixed with +)
         ExecStartPre = "+" + (pkgs.writeShellScript "acme-prerun" ''
-          chgrp ${cert.group} ${cert.capFile}
+          cp ${cert.capFile} domain.cap
+          chown acme-eon domain.cap
         '');
         ExecStart = ''
           ${cfg.package}/bin/capc cert \
-          ${cert.capFile} \
+          domain.cap \
           ${cert.email} \
           -d ${cert.domain} \
           ${
