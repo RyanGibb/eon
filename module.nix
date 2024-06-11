@@ -59,6 +59,10 @@ in {
         ACME Directory Resource URI.
       '';
     };
+    primaries = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -86,6 +90,10 @@ in {
               "--endpint ${cfg.acmeServer}"
             else
               ""}"
+            + "${
+               let args = builtins.map (primary: " --primary ${primary}") cfg.primaries; in
+               builtins.concatStringsSep "" args
+             }"
           else
             "");
         Restart = "always";

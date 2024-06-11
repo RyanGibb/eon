@@ -255,7 +255,7 @@ let () =
          will register as secondary of."
       in
       Arg.(
-        value & opt_all string [] & info [ "secondary" ] ~docv:"SECONDARY" ~doc)
+        value & opt_all string [] & info [ "primary" ] ~docv:"SECONDARY" ~doc)
     in
     let primary_retry_wait =
       let doc =
