@@ -28,8 +28,8 @@ let write_pem filepath pem =
 
 let acme_pool = Eio.Pool.create 1 (fun () -> ())
 
-let cert ~sw env prod endpoint server_state state_dir callback email org domains
-    =
+let cert ~sw env prod endpoint server_state update state_dir callback email org
+    domains =
   let account_dir = Eio.Path.(env#fs / state_dir / "accounts") in
   let load_account_key email =
     read_pem
@@ -71,7 +71,9 @@ let cert ~sw env prod endpoint server_state state_dir callback email org domains
     write_pem filepath (X509.Certificate.encode_pem_multiple key)
   in
 
-  let provision_cert = Dns_acme.provision_cert prod endpoint server_state env in
+  let provision_cert =
+    Dns_acme.provision_cert prod endpoint server_state update env
+  in
   match callback with
   | None -> Service.fail "No callback parameter."
   | Some callback -> (

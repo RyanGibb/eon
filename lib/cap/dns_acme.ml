@@ -14,8 +14,8 @@ let protect ~f ~(finally : unit -> unit) =
       finally ();
       raise e
 
-let provision_cert prod endpoint server_state env ?account_key ?private_key
-    ~email ?(org = None) domains =
+let provision_cert prod endpoint server_state update env ?account_key
+    ?private_key ~email ?(org = None) domains =
   List.iter
     (fun domain ->
       (* check if there's any issues with the domain *)
@@ -56,24 +56,17 @@ let provision_cert prod endpoint server_state env ?account_key ?private_key
           | true -> Ok ()
         in
         let* _ = verify_name name in
-
-        (* get the nameserver trie *)
-        let trie = Dns_server.Primary.data !server_state in
+        acmeName := Some name;
 
         (* check if there's any issues adding a record for this name *)
-        let* trie =
+        let* () =
+          (* get the nameserver trie *)
+          let trie = Dns_server.Primary.data !server_state in
           match Dns_trie.lookup name Dns.Rr_map.Txt trie with
           (* if there is no record, all is well *)
-          | Error (`NotFound _) -> Ok trie
-          (* if there is a record, let's remove it to be prudent *)
-          | Ok (ttl, records) ->
-              let trie = Dns_trie.remove_ty name Dns.Rr_map.Txt trie in
-              Dns.Rr_map.Txt_set.iter
-                (fun record ->
-                  Eio.traceln "Clear '%a %ld IN TXT \"%s\"'" Domain_name.pp name
-                    ttl record)
-                records;
-              Ok trie
+          | Error (`NotFound _) -> Ok ()
+          (* if there is a record, we'll remove it *)
+          | Ok (_ttl, _records) -> Ok ()
           (* if there's any other issues, like the server is not authorative for this zone, or the zone has been delegated *)
           | Error e ->
               Eio.traceln "Error with ACME CSR name '%a': %a" Domain_name.pp
@@ -83,22 +76,37 @@ let provision_cert prod endpoint server_state env ?account_key ?private_key
         in
 
         (* 1 hour is a sensible TTL *)
-        let ttl = 3600l in
-        let rr = (ttl, Dns.Rr_map.Txt_set.singleton record) in
-        let trie = Dns_trie.insert name Dns.Rr_map.Txt rr trie in
-        (* TODO send out notifications for secondary nameservers *)
-        let new_server_state, _notifications =
-          let now = Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
-          and ts = Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock in
-          Dns_server.Primary.with_data !server_state now ts trie
+        let record_ttl = 3600l in
+        let* () =
+          match
+            update Domain_name.Map.empty
+              (Domain_name.Map.singleton name
+                 [
+                   Dns.(Packet.Update.Remove (Rr_map.K Txt));
+                   Dns.(
+                     Packet.Update.Add
+                       Rr_map.(B (Txt, (record_ttl, Txt_set.singleton record))));
+                 ])
+          with
+          | exception Invalid_argument msg -> Error (`Msg msg)
+          | exception e ->
+              let msg = Printexc.to_string e in
+              Error (`Msg msg)
+          | Error (`Capnp e) ->
+              Eio.traceln "Error calling Primary.update_secondaries: %a"
+                Capnp_rpc.Error.pp e;
+              (* we assume secondaries are down *)
+              Ok ()
+          | Error (`Remote e) ->
+              Eio.traceln "Error calling Primary.update_secondaries: %s" e;
+              (* we assume secondaries are down *)
+              Ok ()
+          | Ok () -> Ok ()
         in
-        server_state := new_server_state;
-        acmeName := Some name;
-        Eio.traceln "Create '%a %ld IN TXT \"%s\"'" Domain_name.pp name ttl
-          record;
-        (* we could wait for dns propigation here...
-           but we hope that a new un-cached record is created
-           and if not, the server should retry (RFC 8555 S8.2) *)
+        Eio.traceln "Create '%a %ld IN TXT \"%s\"'" Domain_name.pp name
+          record_ttl record;
+        (* a new, un-cached, record will most likely be created,
+           and if not, the ACME server should retry (RFC 8555 S8.2) *)
         Ok ()
     in
     Letsencrypt_dns.dns_solver add_record
@@ -124,27 +132,27 @@ let provision_cert prod endpoint server_state env ?account_key ?private_key
       (* once cert provisioned, remove the record *)
       match !acmeName with
       | None -> ()
-      | Some name -> (
-          let trie = Dns_server.Primary.data !server_state in
-          match Dns_trie.lookup name Dns.Rr_map.Txt trie with
-          | Error e ->
-              Eio.traceln "Error removing %a from trie: %a" Domain_name.pp name
-                Dns_trie.pp_e e
-          | Ok (ttl, records) ->
-              let data = Dns_trie.remove_ty name Dns.Rr_map.Txt trie in
-              (* TODO send out notifications *)
-              let new_server_state, _notifications =
-                let now =
-                  Ptime.of_float_s @@ Eio.Time.now env#clock |> Option.get
-                and ts =
-                  Mtime.to_uint64_ns @@ Eio.Time.Mono.now env#mono_clock
-                in
-                Dns_server.Primary.with_data !server_state now ts data
-              in
-              server_state := new_server_state;
-              Dns.Rr_map.Txt_set.iter
-                (fun record ->
-                  Eio.traceln "Remove '%a %ld IN TXT \"%s\"'" Domain_name.pp
-                    name ttl record)
-                records;
-              ()))
+      | Some name ->
+          (match
+             update Domain_name.Map.empty
+               (Domain_name.Map.singleton name
+                  [ Dns.(Packet.Update.Remove (Rr_map.K Txt)) ])
+           with
+          | exception Invalid_argument msg ->
+              Eio.traceln "Error removing ACME record: %s" msg
+          | exception e ->
+              let msg = Printexc.to_string e in
+              Eio.traceln "Error removing ACME record: %s" msg
+          | Error (`Capnp e) ->
+              Eio.traceln
+                "Error removing ACME record calling \
+                 Primary.update_secondaries: %a"
+                Capnp_rpc.Error.pp e
+          | Error (`Remote e) ->
+              Eio.traceln
+                "Error removing ACME record calling \
+                 Primary.update_secondaries: %s"
+                e
+          | Ok () -> ());
+          Eio.traceln "Remove '%a TXT" Domain_name.pp name;
+          ())

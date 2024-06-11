@@ -1,9 +1,27 @@
 (library
  (name cap)
  (package eon)
+ (modules
+  cert
+  cert_callback
+  db
+  domain
+  primary
+  raw
+  secondary
+  update
+  schema
+  store
+  )
  (libraries dns_acme eio_main capnp-rpc-lwt capnp-rpc-unix)
  (flags
   (:standard -w -53-55)))
+
+(library
+ (name dns_acme)
+ (modules dns_acme)
+ (public_name eon.dns-acme)
+ (libraries tls_le dns_server_eio letsencrypt-dns mirage-crypto-rng-eio capnp-rpc-lwt))
 
 (rule
  (targets schema.ml schema.mli)

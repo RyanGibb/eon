@@ -144,8 +144,6 @@ let decode_updates domain updates =
     ~init:Domain_name.Map.empty updates
 
 let update_trie env server_state domain prereqs updates =
-  let prereqs = decode_prereqs domain prereqs in
-  let updates = decode_updates domain updates in
   Eio.traceln "Domain.update(%a) domain=%s" Dns.Packet.Update.pp
     (prereqs, updates)
     (Domain_name.to_string domain);

@@ -1,10 +1,4 @@
 (library
- (name dns_acme)
- (modules dns_acme)
- (public_name eon.dns-acme)
- (libraries tls_le dns_server_eio letsencrypt-dns mirage-crypto-rng-eio))
-
-(library
  (name tls_le)
  (modules tls_le)
  (public_name eon.tls-le)

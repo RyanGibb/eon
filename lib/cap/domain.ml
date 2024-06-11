@@ -3,6 +3,12 @@ open Capnp_rpc_lwt
 
 let local ~sw ~persist_new_domain sr env domain prod endpoint server_state
     state_dir primary =
+  let propigate_update prereqs updates =
+    let prereqs, updates =
+      Update.update_trie env server_state domain prereqs updates
+    in
+    Primary.update_secondaries primary prereqs updates
+  in
   let module Domain = Api.Service.Domain in
   Persistence.with_sturdy_ref sr Domain.local
   @@ object
@@ -27,8 +33,8 @@ let local ~sw ~persist_new_domain sr env domain prod endpoint server_state
          Eio.traceln "Domain.cert(email=%s, org=%a, domains=[%a]) in domain=%a"
            email (Fmt.option Fmt.string) org (Fmt.list Fmt.string) domains
            Domain_name.pp domain;
-         Cert.cert ~sw env prod endpoint server_state state_dir callback email
-           org domains
+         Cert.cert ~sw env prod endpoint server_state propigate_update state_dir
+           callback email org domains
 
        method delegate_impl params release_param_caps =
          let open Domain.Delegate in
@@ -59,7 +65,9 @@ let local ~sw ~persist_new_domain sr env domain prod endpoint server_state
          let updates = Params.updates_get params in
          release_param_caps ();
          let response, results = Service.Response.create Results.init_pointer in
-         (match Update.update_trie env server_state domain prereqs updates with
+         let prereqs = Update.decode_prereqs domain prereqs in
+         let updates = Update.decode_updates domain updates in
+         (match propigate_update prereqs updates with
          | exception Invalid_argument msg ->
              Results.success_set results false;
              Results.error_set results msg
@@ -67,19 +75,17 @@ let local ~sw ~persist_new_domain sr env domain prod endpoint server_state
              let msg = Printexc.to_string e in
              Results.success_set results false;
              Results.error_set results msg
-         | prereqs, updates -> (
-             match Primary.update_secondaries primary prereqs updates with
-             | Error (`Capnp e) ->
-                 Eio.traceln "Error calling Primary.update_secondaries: %a"
-                   Capnp_rpc.Error.pp e;
-                 Results.error_set results
-                   (Fmt.str "Error calling Primary.update_secondaries: %a"
-                      Capnp_rpc.Error.pp e)
-             | Error (`Remote e) ->
-                 Eio.traceln "Error calling Primary.update_secondaries: %s" e;
-                 Results.error_set results
-                   ("Error calling Primary.update_secondaries: " ^ e)
-             | Ok () -> Results.success_set results true));
+         | Error (`Capnp e) ->
+             Eio.traceln "Error calling Primary.update_secondaries: %a"
+               Capnp_rpc.Error.pp e;
+             Results.error_set results
+               (Fmt.str "Error calling Primary.update_secondaries: %a"
+                  Capnp_rpc.Error.pp e)
+         | Error (`Remote e) ->
+             Eio.traceln "Error calling Primary.update_secondaries: %s" e;
+             Results.error_set results
+               ("Error calling Primary.update_secondaries: " ^ e)
+         | Ok () -> Results.success_set results true);
          Service.return response
      end
 

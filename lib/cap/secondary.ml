@@ -20,6 +20,8 @@ let local sr env domain server_state =
          let updates = Params.updates_get params in
          release_param_caps ();
          let response, results = Service.Response.create Results.init_pointer in
+         let prereqs = Update.decode_prereqs domain prereqs in
+         let updates = Update.decode_updates domain updates in
          (match Update.update_trie env server_state domain prereqs updates with
          | exception Invalid_argument msg ->
              Results.success_set results false;
