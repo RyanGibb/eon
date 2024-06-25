@@ -171,7 +171,7 @@ let run zonefiles log_level address_strings port proto prod endpoint authorative
     Eio.Flow.read_exact env#secure_random buf;
     buf
   in
-  let trie', keys, parsedAuthorative =
+  let trie', _keys, parsedAuthorative =
     Zonefile.parse_zonefiles ~fs:env#fs zonefiles
   in
   let trie =
@@ -185,7 +185,7 @@ let run zonefiles log_level address_strings port proto prod endpoint authorative
   let authorative = parsedAuthorative @ authorative in
   let server_state =
     ref
-    @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify
+    @@ Dns_server.Primary.create ~keys:[] ~rng ~tsig_verify:Dns_tsig.verify
          ~tsig_sign:Dns_tsig.sign trie
   in
   Eio.Switch.run @@ fun sw ->
