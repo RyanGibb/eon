@@ -28,8 +28,9 @@ let local sr domain server_state initial_secondaries secondary_dir =
              (* save capability to file *)
              let uri = Persistence.save_exn secondary in
              (match
+                (* NB only supports one secondary on a URI *)
                 let _, file =
-                  Eio.Path.(secondary_dir / Domain_name.to_string domain)
+                  Eio.Path.(secondary_dir / ((Uri.host uri |> Option.value ~default:"no-uri") ^ ".cap"))
                 in
                 Capnp_rpc_unix.Cap_file.save_uri uri file
               with
