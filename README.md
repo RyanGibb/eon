@@ -33,8 +33,7 @@ Note that this is using [Nix flakes](https://nixos.org/manual/nix/stable/command
 
 Alternatively, opam and dune tooling can be used:
 ```
-$ opam create switch .
-$ opam install
+$ opam switch create . --deps-only
 $ dune build
 ```
 
