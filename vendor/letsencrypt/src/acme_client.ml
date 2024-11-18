@@ -61,7 +61,7 @@ let alpn_solver ?(key_type = `RSA) ?(bits = 2048) writef =
   let solve_challenge ~token:_ ~key_authorization domain =
     let open X509 in
     let priv = Private_key.generate ~bits key_type in
-    let solution = Primitives.sha256 key_authorization |> Cstruct.of_string in
+    let solution = Primitives.sha256 key_authorization in
     let name = Domain_name.to_string domain in
     let cn = Distinguished_name.CN name in
     let dn = [ Distinguished_name.Relative_distinguished_name.singleton cn ] in
@@ -87,8 +87,8 @@ let print_alpn =
   let solve domain ~alpn priv cert =
     Log.warn (fun f -> f "Setup a TLS server for %a (ALPN %s) to use key %s and certificate %s. Press enter to continue"
                  Domain_name.pp domain alpn
-                 (Cstruct.to_string (X509.Private_key.encode_pem priv))
-                 (Cstruct.to_string (X509.Certificate.encode_pem cert)));
+                 (X509.Private_key.encode_pem priv)
+                 (X509.Certificate.encode_pem cert));
     ignore (read_line ());
     Ok ()
   in
@@ -112,7 +112,7 @@ let http_get ?(headers=headers) env url =
   let null ?ip:_ ~host:_ _certs = Ok None in
   let https ~authenticator =
     let tls_config =
-      Tls.Config.client ~authenticator:null ()
+      Result.get_ok @@ Tls.Config.client ~authenticator:null ()
     in
     fun uri raw ->
       let host =
@@ -138,7 +138,7 @@ let http_head ?(headers=headers) env url =
     let null ?ip:_ ~host:_ _certs = Ok None in
     let https ~authenticator =
       let tls_config =
-        Tls.Config.client ~authenticator:null ()
+        Result.get_ok @@ Tls.Config.client ~authenticator:null ()
       in
       fun uri raw ->
         let host =
@@ -164,7 +164,7 @@ let http_post ?(headers=headers) ~body env url =
   let null ?ip:_ ~host:_ _certs = Ok None in
   let https ~authenticator =
     let tls_config =
-      Tls.Config.client ~authenticator:null ()
+      Result.get_ok @@ Tls.Config.client ~authenticator:null ()
     in
     fun uri raw ->
       let host =
@@ -401,7 +401,7 @@ let process_authorization env solver cli sleep url =
 let finalize env cli csr url =
   let body =
     let csr_as_b64 =
-      X509.Signing_request.encode_der csr |> Cstruct.to_string |> B64u.urlencode
+      X509.Signing_request.encode_der csr |> B64u.urlencode
     in
     `Assoc [ "csr", `String csr_as_b64 ]
   in
@@ -419,7 +419,7 @@ let dl_certificate env cli url =
   | Ok (`OK, _headers, body) ->
     (* body is a certificate chain (no comments), with end-entity certificate being the first *)
     (* TODO: check order? figure out chain? *)
-    X509.Certificate.decode_pem_multiple (Cstruct.of_string body)
+    X509.Certificate.decode_pem_multiple body
   | Ok (status, _header, body) -> error_in "certificate" status body
 
 let get_order env cli url =
@@ -505,7 +505,7 @@ let rec process_order env solver cli sleep csr order_url headers order =
       | Ok certs ->
         Log.info (fun m -> m "retrieved %d certificates" (List.length certs));
         List.iter (fun c ->
-            Log.info (fun m -> m "%s" (Cstruct.to_string (X509.Certificate.encode_pem c))))
+            Log.info (fun m -> m "%s" (X509.Certificate.encode_pem c)))
           certs;
         Ok certs
 

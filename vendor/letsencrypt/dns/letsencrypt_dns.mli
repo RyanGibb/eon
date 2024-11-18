@@ -19,7 +19,7 @@ val print_dns : Letsencrypt.Client.solver
     query section of the update packet. If signing, sending, or receiving
     fails, the error is reported. *)
 val nsupdate : ?proto:Dns.proto -> int -> (unit -> Ptime.t) ->
-  (Cstruct.t -> (unit, [ `Msg of string ]) result) ->
-  ?recv:(unit -> (Cstruct.t, [ `Msg of string ]) result) ->
+  (string -> (unit, [ `Msg of string ]) result) ->
+  ?recv:(unit -> (string, [ `Msg of string ]) result) ->
   zone:[ `host ] Domain_name.t ->
   keyname:'a Domain_name.t -> Dns.Dnskey.t -> Letsencrypt.Client.solver
