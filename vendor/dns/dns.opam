@@ -9,17 +9,17 @@ license: "BSD-2-Clause"
 
 depends: [
   "dune" {>= "2.0.0"}
-  "ocaml" {>= "4.08.0"}
+  "ocaml" {>= "4.13.0"}
   "logs" "ptime"
   "fmt" {>= "0.8.8"}
   "domain-name" {>= "0.4.0"}
   "gmap" {>= "0.3.0"}
-  "cstruct" {>= "6.0.0"}
   "ipaddr" {>= "5.2.0"}
   "alcotest" {with-test}
   "lru" {>= "0.3.0"}
   "duration" {>= "0.1.2"}
   "metrics"
+  "ohex" {>= "0.2.0"}
   "base64" {>= "3.3.0"}
 ]
 conflicts: [ "result" {< "1.5"} ]
@@ -41,6 +41,6 @@ handled via TCP connections.  The only resource class supported is `IN` (the
 Internet).  Truncated hmac in `TSIG` are not supported (always the full length
 of the hash algorithm is used).
 
-Please read [the blog article](https://hannes.nqsb.io/Posts/DNS) for a more
+Please read [the blog article](https://hannes.robur.coop/Posts/DNS) for a more
 detailed overview.
 """

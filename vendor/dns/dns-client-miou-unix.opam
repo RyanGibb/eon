@@ -1,6 +1,6 @@
 opam-version: "2.0"
 maintainer: "team AT robur dot coop"
-authors: ["Joe Hill"]
+authors: ["Robur <team@robur.coop>"]
 homepage: "https://github.com/mirage/ocaml-dns"
 bug-reports: "https://github.com/mirage/ocaml-dns/issues"
 dev-repo: "git+https://github.com/mirage/ocaml-dns.git"
@@ -14,22 +14,16 @@ build: [
 
 depends: [
   "dune" {>="2.0.0"}
-  "ocaml" {>= "4.13.0"}
+  "ocaml" {>= "5.0.0"}
   "dns-client" {= version}
   "domain-name" {>= "0.4.0"}
   "ipaddr" {>= "5.3.0"}
-  "lwt" {>= "4.2.1"}
-  "tcpip" {>= "8.2.0"}
-  "mirage-time" {>= "2.0.0"}
-  "mirage-clock" {>= "3.0.0"}
-  "happy-eyeballs-mirage" {>= "1.1.0"}
-  "happy-eyeballs" {>= "1.0.0"}
-  "tls-mirage" {>= "1.0.0"}
-  "x509" {>= "1.0.0"}
-  "ca-certs-nss" {>= "3.101-1"}
-  "mirage-crypto-rng-mirage" {>= "1.0.0"}
+  "miou" {>= "0.1.0"}
+  "tls-miou-unix"
+  "happy-eyeballs" {>= "0.6.0"}
+  "happy-eyeballs-miou-unix"
 ]
-synopsis: "DNS client API for MirageOS"
+synopsis: "DNS client API for Miou"
 description: """
-A client implementation using uDNS using MirageOS.
+A client implementation using uDNS using Miou.
 """
