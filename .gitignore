@@ -1,3 +1,11 @@
-_*
-result
+_build/
+*.install
+.merlin
 
+*pcap
+*out
+coverage/
+*req
+*key
+*private
+*pem

@@ -1,4 +1,0 @@
-(library
- (name transport)
- (public_name eon.transport)
- (libraries dns_server_eio dns_client_eio))

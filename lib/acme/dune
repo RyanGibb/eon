@@ -1,5 +1,0 @@
-(library
- (name tls_le)
- (modules tls_le)
- (public_name eon.tls-le)
- (libraries eio letsencrypt))

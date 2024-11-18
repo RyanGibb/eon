@@ -1,6 +1,0 @@
-(executable
- (name eon)
- (modules eon)
- (public_name eon)
- (package eon)
- (libraries dns_server_eio dns_resolver_eio server_args dns_log))
