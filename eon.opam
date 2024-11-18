@@ -1,6 +1,6 @@
 opam-version: "2.0"
-synopsis: ""
-description: ""
+synopsis: "Effects-based OCaml Nameserver"
+description: "Effects-based OCaml Nameserver"
 maintainer: ["Ryan Gibb"]
 authors: ["Ryan Gibb"]
 license: "MIT"
