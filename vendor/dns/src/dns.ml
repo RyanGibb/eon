@@ -2609,9 +2609,9 @@ module Rr_map = struct
           rr names (encode data) off ttl, succ count)
         datas ((names, off), 0)
 
-  let encode_single : type a. a key -> a -> Cstruct.t =
+  let encode_single : type a. a key -> a -> bytes =
     fun k v ->
-    let buf = Cstruct.create 4096 in
+    let buf = Bytes.create 4096 in
     let names = Domain_name.Map.empty in
     let off = 0 in
     (match k, v with
@@ -2672,10 +2672,14 @@ module Rr_map = struct
       Loc_set.iter (fun loc ->
         ignore (Loc.encode loc names buf off)
       ) locs
+    | Null, (ttl, nulls) ->
+      Null_set.iter (fun null ->
+          ignore (Null.encode null names buf off)
+      ) nulls
     | Unknown _, (ttl, datas) ->
       let encode data names buf off =
         let l = String.length data in
-        Cstruct.blit_from_string data off buf off l;
+        Bytes.blit_string data 0 buf off l;
         names, off + l
       in
       Txt_set.iter (fun data ->
@@ -3392,7 +3396,7 @@ module Rr_map = struct
 
   let decode_single buf ttl (K typ) =
     let names = Name.Int_map.empty in
-    let len = Cstruct.length buf in
+    let len = String.length buf in
     let off = 0 in
     match (
       try (match typ with
@@ -3450,9 +3454,12 @@ module Rr_map = struct
         | Loc ->
           let* loc, names, off = Loc.decode_exn names buf ~off ~len in
           Ok (B (Loc, (ttl, Loc_set.singleton loc)))
+        | Null ->
+          let* null, names, off = Null.decode names buf ~off ~len in
+          Ok (B (Null, (ttl, Null_set.singleton null)))
         | Unknown x ->
-          let data = Cstruct.sub buf off len in
-          Ok (B (Unknown x, (ttl, Txt_set.singleton (Cstruct.to_string data))))
+          let data = String.sub buf off len in
+          Ok (B (Unknown x, (ttl, Txt_set.singleton data)))
       ) with
       | Invalid_argument _ -> Error `Partial)
     with
