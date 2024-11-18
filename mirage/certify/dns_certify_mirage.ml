@@ -5,7 +5,7 @@ open Lwt.Infix
 let src = Logs.Src.create "dns_certify_mirage" ~doc:"effectful DNS certify"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-module Make (R : Mirage_random.S) (P : Mirage_clock.PCLOCK) (TIME : Mirage_time.S) (S : Tcpip.Stack.V4V6) = struct
+module Make (R : Mirage_crypto_rng_mirage.S) (P : Mirage_clock.PCLOCK) (TIME : Mirage_time.S) (S : Tcpip.Stack.V4V6) = struct
 
   module D = Dns_mirage.Make(S)
 
@@ -16,11 +16,11 @@ module Make (R : Mirage_random.S) (P : Mirage_clock.PCLOCK) (TIME : Mirage_time.
     with
     | Error s -> Lwt.return (Error s)
     | Ok (out, cb) ->
-      D.send_tcp (D.flow flow) out >>= function
+      D.send_tcp (D.flow flow) (Cstruct.of_string out) >>= function
       | Error () -> Lwt.return (Error (`Msg "tcp sending error"))
       | Ok () -> D.read_tcp flow >|= function
         | Error () -> Error (`Msg "tcp receive err")
-        | Ok data -> match cb data with
+        | Ok data -> match cb (Cstruct.to_string data) with
           | Error e -> Error (`Msg (Fmt.str "nsupdate reply error %a" Dns_certify.pp_u_err e))
           | Ok () -> Ok ()
 
@@ -28,12 +28,12 @@ module Make (R : Mirage_random.S) (P : Mirage_clock.PCLOCK) (TIME : Mirage_time.
     match Dns_certify.query R.generate (Ptime.v (P.now_d_ps ())) name csr with
     | Error e -> Lwt.return (Error e)
     | Ok (out, cb) ->
-      D.send_tcp (D.flow flow) out >>= function
+      D.send_tcp (D.flow flow) (Cstruct.of_string out) >>= function
       | Error () -> Lwt.return (Error (`Msg "couldn't send tcp"))
       | Ok () ->
         D.read_tcp flow >|= function
         | Error () -> Error (`Msg "error while reading answer")
-        | Ok data -> match cb data with
+        | Ok data -> match cb (Cstruct.to_string data) with
           | Error e -> Error e
           | Ok cert -> Ok cert
 
@@ -73,14 +73,8 @@ module Make (R : Mirage_random.S) (P : Mirage_clock.PCLOCK) (TIME : Mirage_time.
         in
         wait_for_cert ()
 
-  let retrieve_certificate stack ~dns_key ~hostname ?(additional_hostnames = []) ?(key_type = `RSA) ?key_data ?key_seed ?bits dns port =
-    let keyname, zone, dnskey =
-      match Dns.Dnskey.name_key_of_string dns_key with
-      | Ok (name, key) ->
-        let zone = Domain_name.(host_exn (drop_label_exn ~amount:2 name)) in
-        (name, zone, key)
-      | Error (`Msg m) -> invalid_arg ("failed to parse dnskey: " ^ m)
-    in
+  let retrieve_certificate stack ~dns_key_name dns_key ~hostname ?(additional_hostnames = []) ?(key_type = `RSA) ?key_data ?key_seed ?bits dns port =
+    let zone = Domain_name.(host_exn (drop_label_exn ~amount:2 dns_key_name)) in
     let not_sub subdomain = not (Domain_name.is_subdomain ~subdomain ~domain:zone) in
     if not_sub hostname then
       invalid_arg "hostname not a subdomain of zone provided by dns_key"
@@ -109,7 +103,7 @@ module Make (R : Mirage_random.S) (P : Mirage_clock.PCLOCK) (TIME : Mirage_time.
           Lwt.return (Error (`Msg "couldn't connect to name server"))
         | Ok flow ->
           let flow = D.of_flow flow in
-          query_certificate_or_csr flow hostname keyname zone dnskey csr >>= fun certificate ->
+          query_certificate_or_csr flow hostname dns_key_name zone dns_key csr >>= fun certificate ->
           S.TCP.close (D.flow flow) >|= fun () ->
           match certificate with
           | Error e -> Error e

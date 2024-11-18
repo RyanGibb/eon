@@ -1,3 +1,21 @@
+### v9.1.0 (2024-10-22)
+
+* Dns.Dnskey: provide to_string and name_key_to_string (@hannesm, @dinosaure,
+  #356 - fixes #355)
+* BREAKING: Dns.Dnskey remove pp_name_key (unused, irritating, #356)
+* BREAKING Dns_certify_mirage.retrieve_certificate use separate dns_key_name
+  and dns_key arguments, avoid string decoding in that function (#356)
+
+### v9.0.1 (2024-09-27)
+
+* dns-client-miou: use String.get_uint16_be instead of String.get_int16_be
+  (#354 @dinosaure)
+
+### v9.0.0 (2024-08-26)
+
+* Remove `Cstruct.t` and use `string`/`bytes` (@hannesm, @dinosaure, @palainp, #351)
+* Add a Miou implementation of `ocaml-dns` (@dinosaure, @hannesm, #352)
+
 ### v8.0.0 (2024-05-29)
 
 * dns-client (lwt, mirage): depend on happy-eyeballs-{lwt,mirage} instead of
