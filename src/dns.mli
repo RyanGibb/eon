@@ -978,9 +978,9 @@ module Rr_map : sig
 
   val canonical_encoded_name : [`raw] Domain_name.t -> string
 
-  val encode_single : 'a. 'a key -> 'a -> Cstruct.t
+  val encode_single : 'a. 'a key -> 'a -> bytes
 
-  val decode_single : Cstruct.t -> int32 -> k -> (b, string) result
+  val decode_single : string -> int32 -> k -> (b, string) result
 
 end
 
