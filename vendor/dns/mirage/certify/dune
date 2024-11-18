@@ -1,5 +1,0 @@
-(library
- (name dns_certify_mirage)
- (public_name dns-certify.mirage)
- (wrapped false)
- (libraries dns dns-mirage dns-certify mirage-crypto-rng mirage-crypto-pk lwt duration mirage-random mirage-time mirage-clock tcpip))

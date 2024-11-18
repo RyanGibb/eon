@@ -1,5 +1,0 @@
-(library
- (name dns_stub_mirage)
- (public_name dns-stub.mirage)
- (wrapped false)
- (libraries dns dns-server dns-tsig metrics dns-resolver dns-mirage dns-client-mirage lwt mirage-time mirage-clock tcpip mirage-random))

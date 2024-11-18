@@ -1,5 +1,0 @@
-(library
- (name dns_server_mirage)
- (public_name dns-server.mirage)
- (wrapped false)
- (libraries dns dns-server dns-mirage lwt duration randomconv mirage-time mirage-clock tcpip metrics))
