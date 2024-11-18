@@ -63,10 +63,8 @@ pin-depends: [
   ["cohttp-eio.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
   ["cohttp-lwt.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
   ["cohttp-lwt-unix.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
-  # unmerged Eio port https://github.com/mirage/capnp-rpc/pull/256
-  # https://github.com/mirage/capnp-rpc/pull/256#discussion_r1629543323
-  ["capnp-rpc.dev" "git+https://github.com/ryangibb/capnp-rpc.git#417be75201a4762ce662206b662fe06904df91e2"]
-  ["capnp-rpc-lwt.dev" "git+https://github.com/ryangibb/capnp-rpc.git#417be75201a4762ce662206b662fe06904df91e2"]
-  ["capnp-rpc-net.dev" "git+https://github.com/ryangibb/capnp-rpc.git#417be75201a4762ce662206b662fe06904df91e2"]
-  ["capnp-rpc-unix.dev" "git+https://github.com/ryangibb/capnp-rpc.git#417be75201a4762ce662206b662fe06904df91e2"]
+  # Eio port https://github.com/mirage/capnp-rpc/
+  ["capnp-rpc.dev" "git+https://github.com/mirage/capnp-rpc.git#c95f619d48754f141eb1df1d5786e349a1e2b039"]
+  ["capnp-rpc-net.dev" "git+https://github.com/mirage/capnp-rpc.git#c95f619d48754f141eb1df1d5786e349a1e2b039"]
+  ["capnp-rpc-unix.dev" "git+https://github.com/mirage/capnp-rpc.git#c95f619d48754f141eb1df1d5786e349a1e2b039"]
 ]
