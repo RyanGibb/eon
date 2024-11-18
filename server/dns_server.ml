@@ -90,7 +90,25 @@ module Authentication = struct
 
   let secondaries t zone = find_ns `S t zone
 
-  let primaries t zone = find_ns `P t zone
+  let primaries t zone =
+    let is_zone z zone = Domain_name.(equal z zone) in
+    let find_zone_ips zone name =
+        match find_zone_ips name with
+          | Some (z, prim, _) when is_zone z zone -> Some (name, prim)
+          | _ -> None
+    in
+    match
+      Dns_trie.fold Rr_map.Dnskey t (fun name _ acc ->
+          match find_zone_ips zone name with
+          | None -> acc
+          | Some sec -> Some sec) None
+    with
+    | None ->
+      Dns_trie.fold Rr_map.Dnskey t (fun name _ acc ->
+          match find_zone_ips Domain_name.root name with
+          | None -> acc
+          | Some sec -> Some sec) None
+    | Some x -> Some x
 
   let zone_and_operation name =
     let is_op lbl =
@@ -389,7 +407,7 @@ let safe_decode buf =
     rx_metrics v.Packet.data;
     Ok v
 
-type packet_callback = Packet.t -> Packet.t option
+type packet_callback = Packet.Question.t -> Packet.reply option
 
 let handle_question t (name, typ) =
   (* TODO allow/disallowlist of allowed qtypes? what about ANY and UDP? *)
@@ -971,7 +989,7 @@ module Primary = struct
       end
     | _ -> Error ()
 
-  let handle_packet (t, m, l, ns) now ts proto ip _port p key =
+  let handle_packet ?(packet_callback = fun _q -> None) (t, m, l, ns) now ts proto ip _port p key =
     let key = match key with
       | None -> None
       | Some k -> Some (Domain_name.raw k)
@@ -1007,10 +1025,14 @@ module Primary = struct
         | _ -> l, ns, [], None
       in
       let answer =
-        let flags, data, additional = match handle_question t p.question with
-          | Ok (flags, data, additional) -> flags, `Answer data, additional
-          | Error (rcode, data) ->
-            err_flags rcode, `Rcode_error (rcode, Opcode.Query, data), None
+        let flags, data, additional =
+          match packet_callback p.question with
+          | Some reply -> Packet.Flags.singleton `Authoritative, (reply :> Packet.data), None
+          | None ->
+            match handle_question t p.question with
+            | Ok (flags, data, additional) -> flags, `Answer data, additional
+            | Error (rcode, data) ->
+              err_flags rcode, `Rcode_error (rcode, Opcode.Query, data), None
         in
         Packet.create ?additional (fst p.header, flags) p.question data
       in
@@ -1093,9 +1115,7 @@ module Primary = struct
     | Ok p ->
       let handle_inner tsig_size keyname =
         let t, answer, out, notify =
-          match packet_callback p with
-          | None -> handle_packet t now ts proto ip port p keyname
-          | answer -> t, answer, [], None
+          handle_packet ~packet_callback t now ts proto ip port p keyname
         in
         let answer = match answer with
           | Some answer ->
@@ -1206,7 +1226,7 @@ module Secondary = struct
           zones
         | Ok zone ->
           match Authentication.primaries auth name with
-          | [] -> begin match primary with
+          | None -> begin match primary with
               | None ->
                 Log.warn (fun m -> m "no nameserver found for %a"
                              Domain_name.pp name);
@@ -1230,13 +1250,11 @@ module Secondary = struct
                       zones
                     end) zones keylist
             end
-          | primaries ->
-            List.fold_left (fun zones (keyname, ip) ->
-                Log.app (fun m -> m "adding transfer key %a for zone %a"
-                            Domain_name.pp keyname Domain_name.pp name);
-                let v = Requested_soa (0L, 0, 0, Cstruct.empty), ip, keyname in
-                Domain_name.Host_map.add zone v zones)
-              zones primaries
+          | Some (keyname, ip) ->
+            Log.app (fun m -> m "adding transfer key %a for zone %a (ip %a)"
+                        Domain_name.pp keyname Domain_name.pp name Ipaddr.pp ip);
+            let v = Requested_soa (0L, 0, 0, Cstruct.empty), ip, keyname in
+            Domain_name.Host_map.add zone v zones
       in
       Dns_trie.fold Rr_map.Soa auth f Domain_name.Host_map.empty
     in
@@ -1649,17 +1667,21 @@ module Secondary = struct
                    Packet.Question.pp (Domain_name.raw zone, typ));
       Error Rcode.Refused
 
-  let handle_packet (t, zones) now ts ip p keyname =
+  let handle_packet ?(packet_callback = fun _q -> None) (t, zones) now ts ip p keyname =
     let keyname = match keyname with
       | None -> None
       | Some k -> Some (Domain_name.raw k)
     in
     match p.Packet.data with
     | `Query ->
-      let flags, data, additional = match handle_question t p.question with
-        | Ok (flags, data, additional) -> flags, `Answer data, additional
-        | Error (rcode, data) ->
-          err_flags rcode, `Rcode_error (rcode, Opcode.Query, data), None
+      let flags, data, additional =
+        match packet_callback p.question with
+        | Some reply -> Packet.Flags.singleton `Authoritative, (reply :> Packet.data), None
+        | None ->
+          match handle_question t p.question with
+          | Ok (flags, data, additional) -> flags, `Answer data, additional
+          | Error (rcode, data) ->
+            err_flags rcode, `Rcode_error (rcode, Opcode.Query, data), None
       in
       let answer =
         Packet.create ?additional (fst p.header, flags) p.question data
@@ -1850,11 +1872,7 @@ module Secondary = struct
       t, Packet.raw_error buf rcode, None
     | Ok p ->
       let handle_inner keyname =
-        let t, answer, out =
-          match packet_callback p with
-          | None -> handle_packet t now ts ip p keyname
-          | answer -> t, answer, None
-        in
+        let t, answer, out = handle_packet ~packet_callback t now ts ip p keyname in
         let answer = match answer with
           | Some answer ->
             let max_size, edns = Edns.reply p.edns in

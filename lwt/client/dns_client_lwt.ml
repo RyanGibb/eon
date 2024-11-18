@@ -8,11 +8,11 @@ module Log = (val Logs.src_log src : Logs.LOG)
 module Transport : Dns_client.S
  with type io_addr = [ `Plaintext of Ipaddr.t * int | `Tls of Tls.Config.client * Ipaddr.t * int ]
  and type +'a io = 'a Lwt.t
- and type stack = unit
+ and type stack = Happy_eyeballs_lwt.t
 = struct
   type io_addr = [ `Plaintext of Ipaddr.t * int | `Tls of Tls.Config.client * Ipaddr.t * int ]
   type +'a io = 'a Lwt.t
-  type stack = unit
+  type stack = Happy_eyeballs_lwt.t
   type nameservers =
     | Static of io_addr list
     | Resolv_conf of {
@@ -24,12 +24,9 @@ module Transport : Dns_client.S
     timeout_ns : int64 ;
     (* TODO: avoid race, use a mvar instead of condition *)
     mutable fd : [ `Plain of Lwt_unix.file_descr | `Tls of Tls_lwt.Unix.t ] option ;
-    mutable connected_condition : unit Lwt_condition.t option ;
+    mutable connected_condition : (unit, [ `Msg of string ]) result Lwt_condition.t option ;
     mutable requests : (Cstruct.t * (Cstruct.t, [ `Msg of string ]) result Lwt_condition.t) IM.t ;
-    mutable he : Happy_eyeballs.t ;
-    mutable cancel_connecting : unit Lwt.u Happy_eyeballs.Waiter_map.t;
-    mutable waiters : ((Ipaddr.t * int) * Lwt_unix.file_descr, [ `Msg of string ]) result Lwt.u Happy_eyeballs.Waiter_map.t ;
-    timer_condition : unit Lwt_condition.t ;
+    he : Happy_eyeballs_lwt.t ;
   }
   type context = t
 
@@ -51,94 +48,8 @@ module Transport : Dns_client.S
 
   let clock = Mtime_clock.elapsed_ns
 
-  let he_timer_interval = Duration.of_ms 500
-
   let close_socket fd =
     Lwt.catch (fun () -> Lwt_unix.close fd) (fun _ -> Lwt.return_unit)
-
-  let handle_one_action t = function
-    | Happy_eyeballs.Connect (host, id, (ip, port)) ->
-      let cancelled, cancel = Lwt.task () in
-      t.cancel_connecting <- Happy_eyeballs.Waiter_map.add id cancel t.cancel_connecting;
-      Lwt_unix.(getprotobyname "tcp" >|= fun x -> x.p_proto) >>= fun proto_number ->
-      let fam =
-        Ipaddr.(Lwt_unix.(match ip with V4 _ -> PF_INET | V6 _ -> PF_INET6))
-      in
-      let socket = Lwt_unix.socket fam Lwt_unix.SOCK_STREAM proto_number in
-      let addr = Lwt_unix.ADDR_INET (Ipaddr_unix.to_inet_addr ip, port) in
-      Lwt.pick [
-        Lwt.try_bind
-          (fun () -> Lwt_unix.connect socket addr)
-          Lwt.return_ok
-          (fun e ->
-             let err =
-               Fmt.str "error %s connecting to nameserver %a:%d"
-                 (Printexc.to_string e) Ipaddr.pp ip port
-             in
-             Lwt.return (Error (`Msg err)));
-        (cancelled >|= fun () -> Error (`Msg "cancelled"));
-      ] >>= fun r ->
-      t.cancel_connecting <- Happy_eyeballs.Waiter_map.remove id t.cancel_connecting;
-      begin match r with
-        | Ok () ->
-          let waiters, r = Happy_eyeballs.Waiter_map.find_and_remove id t.waiters in
-          t.waiters <- waiters;
-          begin match r with
-            | Some waiter ->
-              Lwt.wakeup_later waiter (Ok ((ip, port), socket));
-              Lwt.return_unit
-            | None -> close_socket socket
-          end >|= fun () ->
-          Some (Happy_eyeballs.Connected (host, id, (ip, port)))
-        | Error `Msg err ->
-          close_socket socket >|= fun () ->
-          Some (Happy_eyeballs.Connection_failed (host, id, (ip, port), err))
-      end
-    | Connect_failed (host, id, reason) ->
-      let waiters, r = Happy_eyeballs.Waiter_map.find_and_remove id t.waiters in
-      t.waiters <- waiters;
-      begin match r with
-        | Some waiter ->
-          let err =
-            Fmt.str "connection to %a failed: %s" Domain_name.pp host reason
-          in
-          Lwt.wakeup_later waiter (Error (`Msg err))
-        | None -> ()
-      end;
-      Lwt.return None
-    | Connect_cancelled (_host, id) ->
-      (match Happy_eyeballs.Waiter_map.find_opt id t.cancel_connecting with
-       | None -> Lwt.return_none
-       | Some cancel -> Lwt.wakeup cancel (); Lwt.return_none)
-    | Resolve_a _ | Resolve_aaaa _ as a ->
-      Log.warn (fun m -> m "ignoring action %a" Happy_eyeballs.pp_action a);
-      Lwt.return None
-
-  let rec handle_action t action =
-    handle_one_action t action  >>= function
-    | None -> Lwt.return_unit
-    | Some event ->
-      let he, actions = Happy_eyeballs.event t.he (clock ()) event in
-      t.he <- he;
-      Lwt_list.iter_p (handle_action t) actions
-
-  let handle_timer_actions t actions =
-    Lwt.async (fun () -> Lwt_list.iter_p (fun a -> handle_action t a) actions)
-
-  let rec he_timer t =
-    let open Lwt.Infix in
-    let rec loop () =
-      let he, cont, actions = Happy_eyeballs.timer t.he (clock ()) in
-      t.he <- he ;
-      handle_timer_actions t actions ;
-      match cont with
-      | `Suspend -> he_timer t
-      | `Act ->
-        Lwt_unix.sleep (Duration.to_f he_timer_interval) >>= fun () ->
-        loop ()
-    in
-    Lwt_condition.wait t.timer_condition >>= fun () ->
-    loop ()
 
   let authenticator =
     let authenticator_ref = ref None in
@@ -218,7 +129,7 @@ module Transport : Dns_client.S
           resolv_conf.digest <- None;
           resolv_conf.nameservers <- default_resolver ()
 
-  let create ?nameservers ~timeout () =
+  let create ?nameservers ~timeout happy_eyeballs =
     let nameservers =
       match nameservers with
       | Some (`Udp, _) -> invalid_arg "UDP is not supported"
@@ -228,19 +139,14 @@ module Transport : Dns_client.S
         | Error _ -> Resolv_conf { nameservers = default_resolver (); digest = None }
         | Ok (ips, digest) -> Resolv_conf { nameservers = ips; digest = Some digest }
     in
-    let t = {
+    {
       nameservers ;
       timeout_ns = timeout ;
       fd = None ;
       connected_condition = None ;
       requests = IM.empty ;
-      he = Happy_eyeballs.create (clock ()) ;
-      cancel_connecting = Happy_eyeballs.Waiter_map.empty ;
-      waiters = Happy_eyeballs.Waiter_map.empty ;
-      timer_condition = Lwt_condition.create () ;
-    } in
-    Lwt.async (fun () -> he_timer t);
-    t
+      he = happy_eyeballs ;
+    }
 
   let nameservers { nameservers; _ } = `Tcp, nameserver_ips nameservers
 
@@ -353,22 +259,24 @@ module Transport : Dns_client.S
       ns
 
   let rec connect_to_ns_list (t : t) connected_condition nameservers =
-    let waiter, notify = Lwt.task () in
-    let waiters, id = Happy_eyeballs.Waiter_map.register notify t.waiters in
-    t.waiters <- waiters;
     let ns = to_pairs nameservers in
-    let he, actions = Happy_eyeballs.connect_ip t.he (clock ()) ~id ns in
-    t.he <- he;
-    Lwt_condition.signal t.timer_condition ();
-    Lwt.async (fun () -> Lwt_list.iter_p (handle_action t) actions);
-    waiter >>= function
+    (* The connect_timeout given here is a bit too much, since it should
+       be (a) connect to the remote NS (b) send query, receive answer.
+
+       At the moment, how this is done, is that we use the connect_timeout
+       for (a) and another separate one for (b). Since we do connection
+       pooling, it is slightly tricky to use only a single connect_timeout. *)
+    Happy_eyeballs_lwt.connect_ip ~connect_timeout:t.timeout_ns t.he ns >>= function
     | Error `Msg msg ->
-      Lwt_condition.broadcast connected_condition ();
+      let err =
+        Error (`Msg (Fmt.str "error %s connecting to resolver %a"
+                       msg
+                       Fmt.(list ~sep:(any ", ") (pair ~sep:(any ":") Ipaddr.pp int))
+                       (to_pairs (nameserver_ips t.nameservers))))
+      in
+      Lwt_condition.broadcast connected_condition err;
       t.connected_condition <- None;
-      Lwt.return
-        (Error (`Msg (Fmt.str "error %s connecting to resolver %a"
-                        msg Fmt.(list ~sep:(any ",") (pair ~sep:(any ":") Ipaddr.pp int))
-                        (to_pairs (nameserver_ips t.nameservers)))))
+      Lwt.return err
     | Ok (addr, socket) ->
       let continue socket =
         t.fd <- Some socket;
@@ -381,7 +289,7 @@ module Transport : Dns_client.S
               | Error (`Msg msg) ->
                 Log.err (fun m -> m "error while connecting to resolver: %s"  msg)
               | Ok () -> ());
-        Lwt_condition.broadcast connected_condition ();
+        Lwt_condition.broadcast connected_condition (Ok ());
         t.connected_condition <- None;
         req_all socket t
       in
@@ -404,18 +312,17 @@ module Transport : Dns_client.S
                  nameservers
              in
              if ns' = [] then begin
-               Lwt_condition.broadcast connected_condition ();
+               let err = Error (`Msg "no further nameservers configured") in
+               Lwt_condition.broadcast connected_condition err;
                t.connected_condition <- None;
-               Lwt.return (Error (`Msg "no further nameservers configured"))
+               Lwt.return err
              end else
                connect_to_ns_list t connected_condition ns')
 
   and connect_via_tcp_to_ns (t : t) =
     match t.fd, t.connected_condition with
     | Some _, _ -> Lwt.return (Ok ())
-    | None, Some w ->
-      Lwt_condition.wait w >>= fun () ->
-      connect_via_tcp_to_ns t
+    | None, Some w -> Lwt_condition.wait w
     | None, None ->
       let connected_condition = Lwt_condition.create () in
       t.connected_condition <- Some connected_condition ;
@@ -431,6 +338,23 @@ end
 (* Now that we have our {!Transport} implementation we can include the logic
    that goes on top of it: *)
 include Dns_client.Make(Transport)
+
+let create ?cache_size ?edns ?nameservers ?timeout happy_eyeballs =
+  let dns = create ?cache_size ?edns ?nameservers ?timeout happy_eyeballs in
+  let getaddrinfo record domain_name =
+    let open Lwt_result.Infix in
+    match record with
+    | `A ->
+      getaddrinfo dns Dns.Rr_map.A domain_name >|= fun (_ttl, set) ->
+      Ipaddr.V4.Set.fold (fun ipv4 -> Ipaddr.Set.add (Ipaddr.V4 ipv4))
+        set Ipaddr.Set.empty
+    | `AAAA ->
+      getaddrinfo dns Dns.Rr_map.Aaaa domain_name >|= fun (_ttl, set) ->
+      Ipaddr.V6.Set.fold (fun ipv6 -> Ipaddr.Set.add (Ipaddr.V6 ipv6))
+        set Ipaddr.Set.empty
+  in
+  Happy_eyeballs_lwt.inject happy_eyeballs getaddrinfo;
+  dns
 
 (* initialize the RNG *)
 let () = Mirage_crypto_rng_lwt.initialize (module Mirage_crypto_rng.Fortuna)

@@ -1,5 +1,5 @@
 opam-version: "2.0"
-maintainer: "team AT robur dot io"
+maintainer: "team AT robur dot coop"
 authors: ["Joe Hill"]
 homepage: "https://github.com/mirage/ocaml-dns"
 bug-reports: "https://github.com/mirage/ocaml-dns/issues"
@@ -15,13 +15,14 @@ build: [
 depends: [
   "dune" {>="2.0.0"}
   "ocaml" {>= "4.08.0"}
-  "dns-client" {>= version}
+  "dns-client" {= version}
   "dns" {= version}
   "ipaddr" {>= "5.3.0"}
   "lwt" {>= "4.2.1"}
   "mtime" {>= "1.2.0"}
   "mirage-crypto-rng-lwt" {>= "0.11.0"}
-  "happy-eyeballs" {>= "0.4.0"}
+  "happy-eyeballs-lwt" {>= "1.1.0"}
+  "happy-eyeballs" {>= "1.0.0"}
   "tls-lwt" {>= "0.16.0"}
   "ca-certs"
 ]
