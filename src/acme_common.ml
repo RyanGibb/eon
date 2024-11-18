@@ -117,31 +117,31 @@ module Jwk = struct
         "n", `String (B64u.urlencodez n);
       ]
     | `P256 key ->
-      let cs = Mirage_crypto_ec.P256.Dsa.pub_to_cstruct key in
-      let x, y = Cstruct.split cs ~start:1 32 in
+      let cs = Mirage_crypto_ec.P256.Dsa.pub_to_octets key in
+      let x, y = String.sub cs 1 32, String.sub cs 33 32 in
       `Assoc [
         "crv", `String "P-256";
         "kty", `String "EC";
-        "x", `String (B64u.urlencode (Cstruct.to_string x));
-        "y", `String (B64u.urlencode (Cstruct.to_string y));
+        "x", `String (B64u.urlencode x);
+        "y", `String (B64u.urlencode y);
       ]
     | `P384 key ->
-      let cs = Mirage_crypto_ec.P384.Dsa.pub_to_cstruct key in
-      let x, y = Cstruct.split cs ~start:1 48 in
+      let cs = Mirage_crypto_ec.P384.Dsa.pub_to_octets key in
+      let x, y = String.sub cs 1 48, String.sub cs 49 48 in
       `Assoc [
         "crv", `String "P-384";
         "kty", `String "EC";
-        "x", `String (B64u.urlencode (Cstruct.to_string x));
-        "y", `String (B64u.urlencode (Cstruct.to_string y));
+        "x", `String (B64u.urlencode x);
+        "y", `String (B64u.urlencode y);
       ]
     | `P521 key ->
-      let cs = Mirage_crypto_ec.P521.Dsa.pub_to_cstruct key in
-      let x, y = Cstruct.split cs ~start:1 66 in
+      let cs = Mirage_crypto_ec.P521.Dsa.pub_to_octets key in
+      let x, y = String.sub cs 1 66, String.sub cs 67 66 in
       `Assoc [
         "crv", `String "P-521";
         "kty", `String "EC";
-        "x", `String (B64u.urlencode (Cstruct.to_string x));
-        "y", `String (B64u.urlencode (Cstruct.to_string y));
+        "x", `String (B64u.urlencode x);
+        "y", `String (B64u.urlencode y);
       ]
     | _ -> assert false
 
@@ -154,34 +154,33 @@ module Jwk = struct
       let* pub = Primitives.pub_of_z ~e ~n in
       Ok (`RSA pub)
     | "EC" ->
-      let four = Cstruct.create 1 in
-      Cstruct.set_uint8 four 0 0x04;
-      let* x = Result.map Cstruct.of_string (b64_string_val "x" json) in
-      let* y = Result.map Cstruct.of_string (b64_string_val "y" json) in
+      let four = String.make 1 '\004' in
+      let* x = b64_string_val "x" json in
+      let* y = b64_string_val "y" json in
       let* crv = string_val "crv" json in
       begin match crv with
         | "P-256" ->
           let* pub =
             Result.map_error
               (fun e -> `Msg (Fmt.to_to_string Mirage_crypto_ec.pp_error e))
-              (Mirage_crypto_ec.P256.Dsa.pub_of_cstruct
-                 (Cstruct.concat [ four ; x ; y ]))
+              (Mirage_crypto_ec.P256.Dsa.pub_of_octets
+                 (String.concat "" [ four ; x ; y ]))
           in
           Ok (`P256 pub)
         | "P-384" ->
           let* pub =
             Result.map_error
               (fun e -> `Msg (Fmt.to_to_string Mirage_crypto_ec.pp_error e))
-              (Mirage_crypto_ec.P384.Dsa.pub_of_cstruct
-                 (Cstruct.concat [ four ; x ; y ]))
+              (Mirage_crypto_ec.P384.Dsa.pub_of_octets
+                 (String.concat "" [ four ; x ; y ]))
           in
           Ok (`P384 pub)
         | "P-521" ->
           let* pub =
             Result.map_error
               (fun e -> `Msg (Fmt.to_to_string Mirage_crypto_ec.pp_error e))
-              (Mirage_crypto_ec.P521.Dsa.pub_of_cstruct
-                 (Cstruct.concat [ four ; x ; y ]))
+              (Mirage_crypto_ec.P521.Dsa.pub_of_octets
+                 (String.concat "" [ four ; x ; y ]))
           in
           Ok (`P521 pub)
         | x -> Error (`Msg (Fmt.str "unknown EC curve %s" x))

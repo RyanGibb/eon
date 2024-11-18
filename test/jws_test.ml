@@ -58,7 +58,7 @@ let expected_signature =
   "9IPLr8qZ7usYBKhEGwX3yq_eicAwBw"
 
 let rsa_key () =
-  match X509.Private_key.decode_pem (Cstruct.of_string testkey_pem) with
+  match X509.Private_key.decode_pem testkey_pem with
   | Ok `RSA skey -> `RSA skey
   | Ok _ -> assert_failure "unsupported key type"
   | Error `Msg e -> assert_failure e
@@ -183,21 +183,21 @@ let rfc7520_4_3_es512_sign _ctx =
         ("AAhRON2r9cqXX1hg-RoI6R1tX5p2rUAYdmpHZoC1XNM56KtscrX6zb" ^
          "KipQrCW9CGZH3T4ubpnoTKLDYJ_fF3_rJt")
       with
-      | Ok d -> Cstruct.of_string d
+      | Ok d -> d
       | Error _ -> assert false
     in
-    match Mirage_crypto_ec.P521.Dsa.priv_of_cstruct d with
+    match Mirage_crypto_ec.P521.Dsa.priv_of_octets d with
     | Ok k -> k
     | Error _ -> assert false
   in
   let pub = Mirage_crypto_ec.P521.Dsa.pub_of_priv key in
-  let cs = Mirage_crypto_ec.P521.Dsa.pub_to_cstruct pub in
-  let x, y = Cstruct.split cs ~start:1 66 in
+  let cs = Mirage_crypto_ec.P521.Dsa.pub_to_octets pub in
+  let x, y = String.sub cs 1 66, String.sub cs 67 66 in
   let rfc_x = "AHKZLLOsCOzz5cY97ewNUajB957y-C-U88c3v13nmGZx6sYl_oJXu9A5RkTKqjqvjyekWF-7ytDyRXYgCF5cj0Kt"
   and rfc_y = "AdymlHvOiLxXkEhayXQnNCvDX4h9htZaCJN34kfmC6pV5OhQHiraVySsUdaQkAgDPrwQrJmbnX9cwlGfP-HqHZR1"
   in
-  assert_equal rfc_x (Letsencrypt__B64u.urlencode (Cstruct.to_string x));
-  assert_equal rfc_y (Letsencrypt__B64u.urlencode (Cstruct.to_string y));
+  assert_equal rfc_x (Letsencrypt__B64u.urlencode x);
+  assert_equal rfc_y (Letsencrypt__B64u.urlencode y);
   let rfc_signature =
     "AE_R_YZCChjn4791jSQCrdPZCNYqHXCTZH0-JZGYNl" ^
     "aAjP2kqaluUIIUnC9qvbu9Plon7KRTzoNEuT4Va2cmL1eJAQy3mt" ^

@@ -1,12 +1,11 @@
 
 (*
-let dns_out ip cs =
+let dns_out ip buf =
   let out = Lwt_unix.(socket PF_INET SOCK_DGRAM 0) in
   let server = Lwt_unix.ADDR_INET (ip, 53) in
-  let bl = Cstruct.length cs in
-  Lwt_unix.sendto out (Cstruct.to_bytes cs) 0 bl [] server >>= fun n ->
+  Lwt_unix.sendto out (Bytes.unsafe_of_string buf) 0 (String.length buf) [] server >>= fun n ->
   (* TODO should listen for a reply from NS, report potential errors and retransmit if UDP frame got lost *)
-  if n = bl then Lwt.return_ok () else Lwt.return_error (`Msg "couldn't send nsupdate")
+  if n = String.length buf then Lwt.return_ok () else Lwt.return_error (`Msg "couldn't send nsupdate")
 *)
 
 let doit env email endpoint account_key solver sleep csr =
@@ -27,8 +26,8 @@ let main _ priv_pem csr_pem email solver acme_dir ip key endpoint cert zone =
     if f_exists then
       Error (`Msg (Fmt.str "output file %s already exists" cert))
     else
-      let* account_key = X509.Private_key.decode_pem (Cstruct.of_string priv_pem) in
-      let* request = X509.Signing_request.decode_pem (Cstruct.of_string csr_pem) in
+      let* account_key = X509.Private_key.decode_pem priv_pem in
+      let* request = X509.Signing_request.decode_pem csr_pem in
       let solver =
         match solver, acme_dir, ip, key with
         | _, Some path, None, None -> (* using http solver! *)
@@ -73,10 +72,8 @@ let main _ priv_pem csr_pem email solver acme_dir ip key endpoint cert zone =
         Ok ()
   in
   match r with
-  | Ok _ -> `Ok ()
-  | Error (`Msg e) ->
-    Logs.err (fun m -> m "Error %s" e) ;
-    `Error ()
+  | Ok _ -> Ok ()
+  | Error (`Msg e) -> Error (Fmt.str "Error %s" e)
 
 let setup_log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
@@ -147,11 +144,9 @@ let info =
       `S "DESCRIPTION"; `P "This is software is experimental. Don't use it.";
       `S "BUGS"; `P "Email bug reports to <maker@tumbolandia.net>";
     ] in
-  Term.info "oacmel" ~version:"%%VERSION%%" ~doc ~man
+  Cmd.info "oacmel" ~version:"%%VERSION%%" ~doc ~man
 
 let () =
   Printexc.record_backtrace true;
   let cli = Term.(const main $ setup_log $ priv_pem $ csr_pem $ email $ solver $ acme_dir $ ip $ key $ endpoint $ cert $ zone) in
-  match Term.eval (cli, info) with
-  | `Error _ -> exit 1
-  | _        -> exit 0
+  exit (Cmd.eval_result (Cmd.v info cli))

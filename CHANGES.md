@@ -1,3 +1,19 @@
+# v1.0.0 (2024-09-04)
+
+* update to mirage-crypto 1.0.0 and x509 1.0.0 API (#34 @hannesm)
+* package moved to the robur-coop organization
+
+# v0.5.1 (2023-03-13)
+
+* letsencrypt-mirage: allow alpn protocols to be specified (#33 @dinosaure)
+
+# v0.5.0 (2023-02-17)
+
+* adapt to mirage-crypto-rng 0.11.0 API changes (@hannesm)
+* upgrade bin/oacmel with cmdliner 1.1.0 (#30 @dinosaure)
+* add new letsencrypt-mirage package (#30 @dinosaure)
+* export HTTP_client module directly (#30 @dinosaure)
+
 # v0.4.1 (2021-10-27)
 
 * remove rresult dependency (#29 @hannesm)
