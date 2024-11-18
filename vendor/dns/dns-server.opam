@@ -1,5 +1,5 @@
 opam-version: "2.0"
-maintainer: "team AT robur dot io"
+maintainer: "team AT robur dot coop"
 authors: ["Hannes Mehnert <hannes@mehnert.org>"]
 homepage: "https://github.com/mirage/ocaml-dns"
 doc: "https://mirage.github.io/ocaml-dns/"
@@ -24,6 +24,7 @@ depends: [
   "dns-tsig" {with-test}
   "base64" {with-test & >= "3.0.0"}
   "metrics"
+  "logs" {>= "0.7.0"}
 ]
 
 build: [

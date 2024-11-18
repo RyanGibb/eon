@@ -1,3 +1,32 @@
+### v8.0.0 (2024-05-29)
+
+* dns-client (lwt, mirage): depend on happy-eyeballs-{lwt,mirage} instead of
+  duplicating the code. This requires happy-eyeballs 1.1.0, and now the same
+  Happy_eyeballs_{lwt,mirage}.t is used for DNS (connecting to the nameserver)
+  and for the application (connecting to a remote host)
+  (@dinosaure @hannesm #346)
+* server: improve API documentation (@hannesm
+  1a80bd4080e597687152cf351d035ef5f00c5946
+  000ae02dfc477d91c05891e3891a447328ae448a)
+* server: add a `packet_callback` to `handle_packet` and `handle_buf`
+  (@RyanGibb #349)
+* server: expose `update_data` (@RyanGibb #350)
+* resolver: b root name server IP change (@hannesm #348)
+* secondary server [mirage]: avoid infinite loop in connect (avoids SYN floods)
+  (@hannesm @reynir #347)
+* resolver, dns_zone: use consistently `Log` instead of `Logs` (@palainp #342)
+
+### v7.0.3 (2023-06-15)
+
+* dns-client-lwt, dns-client-mirage: adapt to happy-eyeballs 0.6 changes,
+  also avoid unnecessary recursion (#340 @hannesm, @reynir)
+
+### v7.0.2 (2023-06-13)
+
+* dns-server: for secondary servers use the right zone transfers and keys, fixed
+  in #339 by @hannesm
+* dns: add support for null record (arbitrary binary data) (#338 @RyanGibb)
+
 ### v7.0.1 (2023-02-27)
 
 * dns-server.zone: fix parsing of zone files that contain tokens such as
