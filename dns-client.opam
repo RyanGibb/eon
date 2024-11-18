@@ -1,5 +1,5 @@
 opam-version: "2.0"
-maintainer: "team AT robur dot io"
+maintainer: "team AT robur dot coop"
 authors: ["Joe Hill"]
 homepage: "https://github.com/mirage/ocaml-dns"
 bug-reports: "https://github.com/mirage/ocaml-dns/issues"
@@ -20,6 +20,8 @@ depends: [
   "domain-name" {>= "0.4.0"}
   "mtime" {>= "1.2.0"}
   "mirage-crypto-rng" {>= "0.11.0"}
+  "fmt" {>= "0.9.0"}
+  "ipaddr" {>= "5.5.0"}
   "alcotest" {with-test}
 ]
 synopsis: "DNS client API"
