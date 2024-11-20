@@ -3,6 +3,7 @@ type copts = { cap_uri : Uri.t }
 let get_name copts_env =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let copts = copts_env env in
   let cap_uri = copts.cap_uri in
   let sturdy_ref =
@@ -26,6 +27,7 @@ let get_name copts_env =
 let cert copts_env email domains org cert_dir exit_when_renewed =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let copts = copts_env env in
   let cap_uri = copts.cap_uri in
   let sturdy_ref =
@@ -39,7 +41,7 @@ let cert copts_env email domains org cert_dir exit_when_renewed =
   in
   let run_client cap =
     (* callback for provisioned cert *)
-    Capnp_rpc_lwt.Capability.with_ref
+    Capnp_rpc.Capability.with_ref
       (Cap.Cert_callback.local (fun result ->
            match result with
            | Error (`Capnp e) ->
@@ -49,10 +51,7 @@ let cert copts_env email domains org cert_dir exit_when_renewed =
                Printf.eprintf "Remote error: %s%!" msg;
                Unix._exit 1
            | Ok (fullchain, key, renewed) -> (
-               match
-                 Cstruct.of_string fullchain
-                 |> X509.Certificate.decode_pem_multiple
-               with
+               match X509.Certificate.decode_pem_multiple fullchain with
                | Error (`Msg msg) ->
                    Printf.eprintf "Failed to decode cert %s%!" msg;
                    Unix._exit 1
@@ -70,10 +69,9 @@ let cert copts_env email domains org cert_dir exit_when_renewed =
                    write_pem (cert_dir / "key.pem") key;
                    write_pem (cert_dir / "fullchain.pem") fullchain;
                    write_pem (cert_dir / "cert.pem")
-                     (X509.Certificate.encode_pem cert |> Cstruct.to_string);
+                     (X509.Certificate.encode_pem cert);
                    write_pem (cert_dir / "chain.pem")
-                     (X509.Certificate.encode_pem_multiple chain
-                     |> Cstruct.to_string);
+                     (X509.Certificate.encode_pem_multiple chain);
                    match renewed with
                    | false ->
                        Printf.printf "Updated certificate for %s\n%!"
@@ -97,6 +95,7 @@ let cert copts_env email domains org cert_dir exit_when_renewed =
 let delegate copts_env subdomain cap_root =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let copts = copts_env env in
   let cap_uri = copts.cap_uri in
   let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
@@ -114,7 +113,7 @@ let delegate copts_env subdomain cap_root =
   let domain = Capnp_rpc_unix.with_cap_exn sturdy_ref run_client in
   let run_client cap =
     let delegated_cap = Cap.Domain.delegate cap subdomain in
-    let delegated_cap_uri = Capnp_rpc_lwt.Persistence.save_exn delegated_cap in
+    let delegated_cap_uri = Capnp_rpc.Persistence.save_exn delegated_cap in
     let file =
       Eio.Path.(
         env#fs / cap_root
@@ -131,6 +130,7 @@ let delegate copts_env subdomain cap_root =
 let update copts_env prereqs updates =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
+  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let copts = copts_env env in
   let cap_uri = copts.cap_uri in
   let sturdy_ref =

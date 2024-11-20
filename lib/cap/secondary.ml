@@ -1,5 +1,5 @@
 open Raw
-open Capnp_rpc_lwt
+open Capnp_rpc
 
 let local sr env domain server_state =
   let module Secondary = Api.Service.Secondary in

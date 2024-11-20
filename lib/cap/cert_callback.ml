@@ -1,5 +1,5 @@
 open Raw
-open Capnp_rpc_lwt
+open Capnp_rpc
 
 let local callback =
   let module CertCallback = Api.Service.CertCallback in
@@ -32,10 +32,10 @@ let register t success error cert key renewed =
   Params.cert_set params
     (match cert with
     | None -> ""
-    | Some v -> v |> X509.Certificate.encode_pem_multiple |> Cstruct.to_string);
+    | Some v -> v |> X509.Certificate.encode_pem_multiple);
   Params.key_set params
     (match key with
     | None -> ""
-    | Some v -> v |> X509.Private_key.encode_pem |> Cstruct.to_string);
+    | Some v -> v |> X509.Private_key.encode_pem);
   Params.renewed_set params renewed;
   Capability.call_for_unit t method_id request

@@ -7,7 +7,7 @@ let run zonefiles log_level address_strings subdomain authorative port proto
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact env#secure_random buf;
-    buf
+    Cstruct.to_string buf
   in
   let server_state =
     let trie, keys, _ = Zonefile.parse_zonefiles ~fs:env#fs zonefiles in

@@ -1,5 +1,5 @@
 open Raw
-open Capnp_rpc_lwt
+open Capnp_rpc
 
 let local ~sw ~persist_new_domain sr env domain prod endpoint server_state
     state_dir primary =

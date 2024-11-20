@@ -19,7 +19,7 @@ let run zonefiles log_level address_strings subdomain authorative port proto mod
     let rng ?_g length =
       let buf = Cstruct.create length in
       Eio.Flow.read_exact env#secure_random buf;
-      buf
+      Cstruct.to_string buf
     in
     ref
     @@ Dns_server.Primary.create ~keys ~rng ~tsig_verify:Dns_tsig.verify

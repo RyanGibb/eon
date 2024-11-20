@@ -1,6 +1,6 @@
 type dir = Rx | Tx
-type log = Format.formatter -> dir -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
-type formattedLog = dir -> Eio.Net.Sockaddr.t -> Cstruct.t -> unit
+type log = Format.formatter -> dir -> Eio.Net.Sockaddr.t -> string -> unit
+type formattedLog = dir -> Eio.Net.Sockaddr.t -> string -> unit
 type level = Level0 | Level1 | Level2 | Level3
 
 let level_0 _fmt (_direction : dir) _addr _buf = ()
@@ -50,7 +50,7 @@ let level_3 fmt (direction : dir) addr buf =
   in
   log_transmssion direction addr;
   Format.print_flush ();
-  Cstruct.hexdump buf;
+  (Fmt.on_string (Fmt.hex ())) fmt buf;
   Format.print_space ();
   Format.print_flush ()
 

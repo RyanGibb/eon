@@ -119,7 +119,7 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
                 Eio.traceln "Couldn't connect to secondary at %s: %s" filepath m;
                 acc
             | Ok cap -> (
-                try Capnp_rpc_lwt.Sturdy_ref.connect_exn cap :: acc
+                try Capnp_rpc.Sturdy_ref.connect_exn cap :: acc
                 with Failure m ->
                   Eio.traceln "Couldn't connect to secondary at %s: %s" filepath
                     m;
@@ -169,7 +169,7 @@ let run zonefiles log_level address_strings port proto prod endpoint authorative
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact env#secure_random buf;
-    buf
+    Cstruct.to_string buf
   in
   let trie', _keys, parsedAuthorative =
     Zonefile.parse_zonefiles ~fs:env#fs zonefiles

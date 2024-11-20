@@ -6,7 +6,7 @@ let run zonefiles log_level address_strings subdomain authorative port proto =
   let rng ?_g length =
     let buf = Cstruct.create length in
     Eio.Flow.read_exact env#secure_random buf;
-    buf
+    Cstruct.to_string buf
   in
   let server_state =
     let trie', keys, parsedAuthorative =
@@ -46,10 +46,13 @@ let run zonefiles log_level address_strings subdomain authorative port proto =
     (fun () ->
       let buf = Cstruct.create 4096 in
       while true do
-        let got = server.recv buf in
-        let trimmedBuf = Cstruct.sub buf 0 got in
+        let recv =
+          let got = server.recv buf in
+          let trimmedBuf = Cstruct.sub buf 0 got in
+          Cstruct.to_string trimmedBuf
+        in
         Dns_log.level_1 Format.std_formatter Dns_log.Rx (`Unix "tunneled")
-          trimmedBuf;
+          recv;
         Eio.Net.send clientSock
           ~dst:(`Udp (Eio.Net.Ipaddr.V4.loopback, 5056))
           [ buf ]
@@ -58,9 +61,11 @@ let run zonefiles log_level address_strings subdomain authorative port proto =
       let buf = Cstruct.create 4096 in
       while true do
         let addr, size = Eio.Net.recv clientSock buf in
-        let trimmedBuf = Cstruct.sub buf 0 size in
+        let got = server.recv buf in
+        let trimmedBuf = Cstruct.sub buf 0 got in
+        let recv = Cstruct.to_string trimmedBuf in
         Dns_log.level_1 Format.std_formatter Dns_log.Tx (`Unix "tunneled")
-          trimmedBuf;
+          recv;
         server.send trimmedBuf
       done)
 

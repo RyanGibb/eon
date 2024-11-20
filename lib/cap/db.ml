@@ -1,5 +1,5 @@
 open Eio.Std
-open Capnp_rpc_lwt
+open Capnp_rpc
 open Capnp_rpc_net
 module File_store = Capnp_rpc_unix.File_store
 module Store = Store.Make (Capnp.BytesMessage)
@@ -53,14 +53,14 @@ let load t sr digest =
       | SavedService.Domain domain ->
           let name = Domain_name.of_string_exn (SavedDomain.name_get domain) in
           let primary = SavedDomain.primary_get domain in
-          let sr = Capnp_rpc_lwt.Sturdy_ref.cast sr in
+          let sr = Capnp_rpc.Sturdy_ref.cast sr in
           let loader = Promise.await t.domain_loader in
           loader sr ~name ~primary
       | SavedService.Secondary secondary ->
           let name =
             Domain_name.of_string_exn (SavedSecondary.name_get secondary)
           in
-          let sr = Capnp_rpc_lwt.Sturdy_ref.cast sr in
+          let sr = Capnp_rpc.Sturdy_ref.cast sr in
           let loader = Promise.await t.secondary_loader in
           loader sr ~name
       | SavedService.Undefined _ -> Restorer.unknown_service_id)

@@ -1,6 +1,6 @@
 {
   inputs = {
-    opam-nix.url = "github:RyanGibb/opam-nix/pin-depends-path";
+    opam-nix.url = "github:tweag/opam-nix";
     flake-utils.url = "github:numtide/flake-utils";
     # we pin opam-nix's nixpkgs to follow the flakes, avoiding using two different instances
     opam-nix.inputs.nixpkgs.follows = "nixpkgs";

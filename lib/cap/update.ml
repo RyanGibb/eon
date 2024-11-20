@@ -4,7 +4,7 @@ open Raw
 (* TODO come up with a better encoding *)
 let encode_data k v =
   let buf = Dns.Rr_map.encode_single k v in
-  Cstruct.to_string buf
+  Bytes.unsafe_to_string buf
 
 let type_of_int typ =
   match Rr_map.of_int typ with
@@ -12,8 +12,7 @@ let type_of_int typ =
   | Error _e ->
       raise (Invalid_argument (Printf.sprintf "Unknown RR type %d" typ))
 
-let decode_data ?(ttl = 0l) typ value =
-  let buf = Cstruct.of_string value in
+let decode_data ?(ttl = 0l) typ buf =
   match Dns.Rr_map.decode_single buf ttl (type_of_int typ) with
   | Ok b -> b
   | Error e -> raise (Invalid_argument (Printf.sprintf "%s" e))

@@ -13,13 +13,16 @@ let run log_level address_strings port port2 proto domain subdomain nameserver
 
   let handle_dns _proto (addr : Eio.Net.Sockaddr.t) buf =
     Dns_log.level_1 Format.std_formatter Dns_log.Tx addr buf;
-    client.send buf;
+    client.send (Cstruct.of_string buf);
     (* todo out of order delivery? *)
     (* https://github.com/mirage/ocaml-dns/issues/345 *)
-    let buf = Cstruct.create 4096 in
-    let got = client.recv buf in
-    let trimmedBuf = Cstruct.sub buf 0 got in
-    Dns_log.level_1 Format.std_formatter Dns_log.Rx (`Unix "test") trimmedBuf;
+    let addr, recv =
+      let buf = Cstruct.create 4096 in
+      let got = client.recv buf in
+      let trimmedBuf = Cstruct.sub buf 0 got in
+      addr, Cstruct.to_string trimmedBuf
+    in
+    Dns_log.level_1 Format.std_formatter Dns_log.Rx (`Unix "test") recv;
     [ buf ]
   in
   Dns_server_eio.with_handler env proto handle_dns log addresses

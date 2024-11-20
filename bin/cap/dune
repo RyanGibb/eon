@@ -11,7 +11,6 @@
   dns
   eio_main
   cap
-  capnp-rpc-lwt
   capnp-rpc-unix
   logs.fmt))
 
@@ -20,4 +19,4 @@
  (modules capc)
  (public_name capc)
  (package eon)
- (libraries cap eio_main capnp-rpc-lwt capnp-rpc-unix))
+ (libraries cap eio_main capnp-rpc-unix))

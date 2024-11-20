@@ -1,4 +1,4 @@
-type 'a dns_handler = Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> 'a -> 'a
+type 'a dns_handler = Dns.proto -> Eio.Net.Sockaddr.t -> string -> 'a -> 'a
 
 val send_query :
   Dns_log.formattedLog ->

@@ -1,12 +1,11 @@
-open Capnp_rpc_lwt
+open Capnp_rpc
 
 let read_pem filepath decode_pem =
   try
     match Eio.Path.is_file filepath with
     | true ->
         Some
-          (Eio.Path.load filepath |> Cstruct.of_string |> decode_pem
-         |> Tls_le.errcheck)
+          (Eio.Path.load filepath |> decode_pem |> Tls_le.errcheck)
     | false -> None
   with exn ->
     let _fd, path = filepath in
@@ -17,8 +16,7 @@ let read_pem filepath decode_pem =
 
 let write_pem filepath pem =
   try
-    Eio.Path.save ~create:(`Or_truncate 0o600) filepath
-      (pem |> Cstruct.to_string)
+    Eio.Path.save ~create:(`Or_truncate 0o600) filepath pem
   with exn ->
     let _fd, path = filepath in
     Format.fprintf Format.err_formatter "error saving %s %a\n" path Eio.Exn.pp

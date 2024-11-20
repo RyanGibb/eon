@@ -23,4 +23,4 @@ val tls_config :
   cert:X509.Certificate.t list ->
   private_key:X509.Private_key.t ->
   unit ->
-  Tls.Config.server
+  (Tls.Config.server, [> `Msg of string ]) result

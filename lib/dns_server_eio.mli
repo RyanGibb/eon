@@ -2,7 +2,7 @@
    Takes a `dns_handler` that returns a list of answers *)
 
 type dns_handler =
-  Dns.proto -> Eio.Net.Sockaddr.t -> Cstruct.t -> Cstruct.t list
+  Dns.proto -> Eio.Net.Sockaddr.t -> string -> string list
 
 val with_handler :
   < net : _ Eio.Net.t ; .. > ->

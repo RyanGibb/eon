@@ -1,10 +1,10 @@
 type dns_handler =
   Dns.proto ->
   Eio.Net.Sockaddr.t ->
-  Cstruct.t ->
+  string ->
   (* answers *)
-  (Dns.proto * Ipaddr.t * int * Cstruct.t) list (* queries *)
-  * (Dns.proto * Ipaddr.t * Cstruct.t) list
+  (Dns.proto * Ipaddr.t * int * string) list (* queries *)
+  * (Dns.proto * Ipaddr.t * string) list
 
 val resolver :
   < net : _ Eio.Net.t
