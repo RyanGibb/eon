@@ -48,7 +48,19 @@ let local sr domain server_state initial_secondaries secondary_dir =
                    Domain_name.Map.map
                      (fun rrmap ->
                        Dns.Rr_map.fold
-                         (fun b updates -> Dns.Packet.Update.Add b :: updates)
+                         (fun b updates ->
+                           match b with
+                           | B (Mx, (ttl, set)) -> (Dns.Rr_map.Mx_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Mx, (ttl, Dns.Rr_map.Mx_set.singleton e))) ] @ acc) set []) @ updates
+                           | B (Txt, (ttl, set)) -> (Dns.Rr_map.Txt_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Txt, (ttl, Dns.Rr_map.Txt_set.singleton e))) ] @ acc) set []) @ updates
+                           | B (Srv, (ttl, set)) -> (Dns.Rr_map.Srv_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Srv, (ttl, Dns.Rr_map.Srv_set.singleton e))) ] @ acc) set []) @ updates
+                           | B (Dnskey, (ttl, set)) -> (Dns.Rr_map.Dnskey_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Dnskey, (ttl, Dns.Rr_map.Dnskey_set.singleton e))) ] @ acc) set []) @ updates
+                           | B (Caa, (ttl, set)) -> (Dns.Rr_map.Caa_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Caa, (ttl, Dns.Rr_map.Caa_set.singleton e))) ] @ acc) set []) @ updates
+                           | B (Tlsa, (ttl, set)) -> (Dns.Rr_map.Tlsa_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Tlsa, (ttl, Dns.Rr_map.Tlsa_set.singleton e))) ] @ acc) set []) @ updates
+                           | B (Sshfp, (ttl, set)) -> (Dns.Rr_map.Sshfp_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Sshfp, (ttl, Dns.Rr_map.Sshfp_set.singleton e))) ] @ acc) set []) @ updates
+                           | B (Ds, (ttl, set)) -> (Dns.Rr_map.Ds_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Ds, (ttl, Dns.Rr_map.Ds_set.singleton e))) ] @ acc) set []) @ updates
+                           | B (Rrsig, (ttl, set)) -> (Dns.Rr_map.Rrsig_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Rrsig, (ttl, Dns.Rr_map.Rrsig_set.singleton e))) ] @ acc) set []) @ updates
+                           | B (Loc, (ttl, set)) -> (Dns.Rr_map.Loc_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Loc, (ttl, Dns.Rr_map.Loc_set.singleton e))) ] @ acc) set []) @ updates
+                           | _ -> Dns.Packet.Update.Add b :: updates)
                          rrmap [])
                      entries
                  in
