@@ -2614,68 +2614,83 @@ module Rr_map = struct
     let buf = Bytes.create 4096 in
     let names = Domain_name.Map.empty in
     let off = 0 in
-    (match k, v with
-    | Soa, soa -> ignore @@ Soa.encode soa names buf off;
+    match k, v with
+    | Soa, soa -> ignore @@ Soa.encode soa names buf off; buf
     | Ns, (ttl, ns) ->
       Domain_name.Host_set.iter (fun name ->
         ignore (Ns.encode name names buf off)
-      ) ns
+      ) ns;
+      buf
     | Mx, (ttl, mx) ->
       Mx_set.iter (fun mx ->
         ignore (Mx.encode mx names buf off)
-      ) mx
-    | Cname, (ttl, alias) -> ignore @@ Cname.encode alias names buf off
+      ) mx;
+      buf
+    | Cname, (ttl, alias) -> ignore @@ Cname.encode alias names buf off; buf
     | A, (ttl, addresses) ->
       Ipaddr.V4.Set.iter (fun address ->
         ignore (A.encode address names buf off)
-      ) addresses
+      ) addresses;
+      buf
     | Aaaa, (ttl, aaaas) ->
       Ipaddr.V6.Set.iter (fun address ->
         ignore (Aaaa.encode address names buf off)
-      ) aaaas
-    | Ptr, (ttl, rev) -> ignore (Ptr.encode rev names buf off)
+      ) aaaas;
+      buf
+    | Ptr, (ttl, rev) -> ignore (Ptr.encode rev names buf off); buf
     | Srv, (ttl, srvs) ->
       Srv_set.iter (fun srv ->
         ignore (Srv.encode srv names buf off)
-      ) srvs
+      ) srvs;
+      buf
     | Dnskey, (ttl, dnskeys) ->
       Dnskey_set.iter (fun dnskey ->
         ignore (Dnskey.encode dnskey names buf off)
-      ) dnskeys
+      ) dnskeys;
+      buf
     | Caa, (ttl, caas) ->
       Caa_set.iter (fun caa ->
         ignore (Caa.encode caa names buf off)
-      ) caas
+      ) caas;
+      buf
     | Tlsa, (ttl, tlsas) ->
       Tlsa_set.iter (fun tlsa ->
         ignore (Tlsa.encode tlsa names buf off)
-      ) tlsas
+      ) tlsas;
+      buf
     | Sshfp, (ttl, sshfps) ->
       Sshfp_set.iter (fun sshfp ->
         ignore (Sshfp.encode sshfp names buf off)
-      ) sshfps
+      ) sshfps;
+      buf
     | Txt, (ttl, txts) ->
-      Txt_set.iter (fun txt ->
-        ignore (Txt.encode txt names buf off)
-      ) txts
+      let off = Txt_set.fold (fun txt off ->
+        let _, off = Txt.encode txt names buf off in
+        off
+        ) txts off
+      in Bytes.sub buf 0 off
     | Ds, (ttl, ds) ->
       Ds_set.iter (fun ds ->
         ignore (Ds.encode ds names buf off)
-      ) ds
+      ) ds;
+      buf
     | Rrsig, (ttl, rrs) ->
       Rrsig_set.iter (fun rrsig ->
         ignore (Rrsig.encode rrsig names buf off)
-      ) rrs
-    | Nsec, (ttl, nsec) -> ignore (Nsec.encode nsec names buf off)
-    | Nsec3, (ttl, nsec) -> ignore (Nsec3.encode nsec names buf off)
+      ) rrs;
+      buf
+    | Nsec, (ttl, nsec) -> ignore (Nsec.encode nsec names buf off); buf
+    | Nsec3, (ttl, nsec) -> ignore (Nsec3.encode nsec names buf off); buf
     | Loc, (ttl, locs) ->
       Loc_set.iter (fun loc ->
         ignore (Loc.encode loc names buf off)
-      ) locs
+      ) locs;
+      buf
     | Null, (ttl, nulls) ->
       Null_set.iter (fun null ->
           ignore (Null.encode null names buf off)
-      ) nulls
+      ) nulls;
+      buf
     | Unknown _, (ttl, datas) ->
       let encode data names buf off =
         let l = String.length data in
@@ -2684,8 +2699,8 @@ module Rr_map = struct
       in
       Txt_set.iter (fun data ->
           ignore (encode data names buf off))
-        datas);
-  buf
+        datas;
+      buf
 
   let encode_dnssec : type a. ttl:int32 -> ?clas:Class.t -> [ `raw ] Domain_name.t -> a key -> a ->
     (int * string) list = fun ~ttl ?(clas = Class.IN) name k v ->
