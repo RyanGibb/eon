@@ -1,0 +1,6 @@
+(executable
+ (name hibernia)
+ (modules hibernia)
+ (public_name hibernia)
+ (package eon)
+ (libraries dns_server_eio dns_resolver_eio server_args dns_log wol wol-eio))
