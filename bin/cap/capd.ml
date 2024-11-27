@@ -53,8 +53,7 @@ let register_secondary env ~sw primary_uri_files primary_retry_wait
   Eio.Fiber.fork ~sw (fun () -> register initial_primaries)
 
 let capnp_serve env authorative vat_config prod endpoint server_state state_dir
-    primary_uri_files primary_retry_wait =
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
+    primary_uri_files primary_retry_wait ~sw =
   let cap_dir = Eio.Path.(env#fs / state_dir / "caps") in
   let domain_dir = Eio.Path.(cap_dir / "domain") in
   let primary_dir = Eio.Path.(cap_dir / "primary") in
@@ -75,7 +74,6 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
     let make_sturdy = Capnp_rpc_unix.Vat_config.sturdy_uri vat_config in
     Cap.Db.create ~make_sturdy store_dir
   in
-  Eio.Switch.run @@ fun sw ->
   let services =
     Capnp_rpc_net.Restorer.Table.of_loader ~sw (module Cap.Db) loader
   in
@@ -164,6 +162,7 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
 let run zonefiles log_level address_strings port proto prod endpoint authorative
     state_dir primary_uri_files primary_retry_wait vat_config =
   Eio_main.run @@ fun env ->
+  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port address_strings in
   let rng ?_g length =
@@ -193,7 +192,7 @@ let run zonefiles log_level address_strings port proto prod endpoint authorative
       Dns_server_eio.primary env proto server_state log addresses);
   Eio.Path.mkdirs ~exists_ok:true ~perm:0o750 Eio.Path.(env#fs / state_dir);
   capnp_serve env authorative vat_config prod endpoint server_state state_dir
-    primary_uri_files primary_retry_wait;
+    primary_uri_files primary_retry_wait ~sw;
   Eio.Fiber.await_cancel ()
 
 let () =
