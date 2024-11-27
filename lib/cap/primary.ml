@@ -78,6 +78,7 @@ let local sr domain server_state initial_secondaries secondary_dir =
          let prereqs = Params.prereqs_get params in
          let updates = Params.updates_get params in
          release_param_caps ();
+         let response, results = Service.Response.create Results.init_pointer in
          List.iter
            (fun secondary ->
              let prereqs = Update.decode_prereqs domain prereqs in
@@ -89,7 +90,8 @@ let local sr domain server_state initial_secondaries secondary_dir =
              | Error (`Remote e) -> Eio.traceln "Remote error: %s" e
              | Ok () -> ())
            !secondaries;
-         Service.return_empty ()
+         Results.success_set results true;
+         Service.return response
      end
 
 let get_name t =
