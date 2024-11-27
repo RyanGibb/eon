@@ -402,7 +402,7 @@ let update_cmd =
       & opt_all (Cmdliner.Arg.conv (update_of_string, update_to_string)) []
       & info [ "u"; "update" ] ~docv:"UPDATE" ~doc)
   in
-  let doc = "Udpate DNS records." in
+  let doc = "Update DNS records." in
   let man =
     [
       `S Manpage.s_description;
