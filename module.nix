@@ -1,4 +1,5 @@
-packages: { config, lib, ... }:
+packages:
+{ config, lib, ... }:
 
 let cfg = config.services.eon;
 in {
@@ -10,8 +11,9 @@ in {
       default = packages.${config.nixpkgs.hostPlatform.system}.default;
     };
     # todo multiple zones, primary and secondary servers
-    zoneFiles =
-      lib.mkOption { type = lib.types.listOf (lib.types.either lib.types.str lib.types.path); };
+    zoneFiles = lib.mkOption {
+      type = lib.types.listOf (lib.types.either lib.types.str lib.types.path);
+    };
     port = lib.mkOption {
       type = lib.types.int;
       default = 53;
@@ -29,7 +31,8 @@ in {
       default = 1;
     };
     application = lib.mkOption {
-      type = lib.types.enum [ "eon" "resolved" "netcatd" "tund" "capd" ];
+      type =
+        lib.types.enum [ "eon" "resolved" "netcatd" "tund" "capd" "hibernia" ];
       default = "eon";
     };
     openFirewall = lib.mkOption {
@@ -63,6 +66,10 @@ in {
       type = lib.types.listOf lib.types.str;
       default = [ ];
     };
+    wakes = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -89,13 +96,16 @@ in {
             + "${if cfg.acmeServer != null then
               "--endpint ${cfg.acmeServer}"
             else
-              ""}"
-            + "${
-               let args = builtins.map (primary: " --primary ${primary}") cfg.primaries; in
-               builtins.concatStringsSep "" args
-             }"
+              ""}" + "${let
+                args =
+                  builtins.map (primary: " --primary ${primary}") cfg.primaries;
+              in builtins.concatStringsSep "" args}"
           else
-            "");
+            "") + (if cfg.application == "hibernia" then
+              "${let args = builtins.map (wake: " --wake ${wake}") cfg.wakes;
+              in builtins.concatStringsSep "" args}"
+            else
+              "");
         Restart = "always";
         RestartSec = "1s";
         User = cfg.user;

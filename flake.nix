@@ -46,5 +46,8 @@
           default.imports = [ (import ./module.nix self.packages) ];
           acme.imports = [ (import ./acme.nix self.packages) ];
         };
+
+        formatter = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed
+          (system: nixpkgs.legacyPackages.${system}.nixfmt);
       };
 }
