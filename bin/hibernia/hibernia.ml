@@ -2,13 +2,13 @@ let packet_callback ~net wake (question : Dns.Packet.Question.t) :
     Dns.Packet.reply option =
   let qname, _qtype = question in
   let ( let* ) = Option.bind in
-  let* _, mac =
-    List.find_opt (fun (name, _) -> Domain_name.equal name qname) wake
+  let* _, mac, address =
+    List.find_opt (fun (name, _, _) -> Domain_name.equal name qname) wake
   in
-  Format.fprintf Format.std_formatter "Resolution on %a wakes %a\n" Domain_name.pp
-    qname Macaddr.pp mac;
+  Format.fprintf Format.std_formatter "Resolution on %a wakes %a/%a\n" Domain_name.pp
+    qname Macaddr.pp mac Ipaddr.V4.pp address;
   Format.print_flush ();
-  Wol_eio.send ~net mac;
+  Wol_eio.send ~net ~address ~broadcast:false mac;
   None
 
 let run zonefiles log_level address_strings port proto wake =
@@ -36,23 +36,25 @@ let () =
     let name_mac_of_string str =
       try
         match String.split_on_char '/' str with
-        | [ name; mac ] ->
-            Ok (Domain_name.of_string_exn name, Macaddr.of_string_exn mac)
+        | [ name; mac; addr ] ->
+            (* TODO better error handling *)
+            Ok (Domain_name.of_string_exn name, Macaddr.of_string_exn mac, Ipaddr.V4.of_string_exn addr)
         | _ ->
             Error
               (`Msg
                 "Invalid domain name and MAC address pair, should be of form \
-                 DOMAIN_NAME/MAC_ADDR.")
+                 DOMAIN_NAME/MAC_ADDR/IP_ADDR.")
       with
       | Invalid_argument e ->
           Error (`Msg (Printf.sprintf "Error parsing domain name: %s" e))
       | Macaddr.Parse_error (e, _s) ->
           Error (`Msg (Printf.sprintf "Error parsing MAC address: %s" e))
     in
-    let name_mac_to_string fmt (name, mac) =
-      Format.fprintf fmt "%s/%s"
+    let name_mac_to_string fmt (name, mac, addr) =
+      Format.fprintf fmt "%s/%s/%s"
         (Domain_name.to_string name)
         (Macaddr.to_string mac)
+        (Ipaddr.V4.to_string addr)
     in
     let doc =
       "Specify a MAC address to wake on a resolution of a domain name via \

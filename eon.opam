@@ -69,6 +69,6 @@ pin-depends: [
   ["capnp-rpc.dev" "git+https://github.com/mirage/capnp-rpc.git#c95f619d48754f141eb1df1d5786e349a1e2b039"]
   ["capnp-rpc-net.dev" "git+https://github.com/mirage/capnp-rpc.git#c95f619d48754f141eb1df1d5786e349a1e2b039"]
   ["capnp-rpc-unix.dev" "git+https://github.com/mirage/capnp-rpc.git#c95f619d48754f141eb1df1d5786e349a1e2b039"]
-  ["wol.dev" "git+https://github.com/RyanGibb/ocaml-wake-on-lan.git#c72a8d1d4e80c2c183449ddaeca18adc17102d1f"]
-  ["wol-eio.dev" "git+https://github.com/RyanGibb/ocaml-wake-on-lan.git#c72a8d1d4e80c2c183449ddaeca18adc17102d1f"]
+  ["wol.dev" "git+https://github.com/RyanGibb/ocaml-wake-on-lan.git#dd5f5e5d29900d7a2e0b884d3105037d2bb00df3"]
+  ["wol-eio.dev" "git+https://github.com/RyanGibb/ocaml-wake-on-lan.git#dd5f5e5d29900d7a2e0b884d3105037d2bb00df3"]
 ]
