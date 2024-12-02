@@ -181,7 +181,7 @@ let collect_rrs name sub map =
           ~some:(fun rrsig -> [ name, Rr_map.B (Rrsig, rrsig) ])
           (Rr_map.find Rrsig rrmap)
       in
-      ns_entries @ ds_entries @ rrsig_entries, false
+      ns_entries @ ds_entries @ rrsig_entries, true
     else
       Rr_map.fold (fun v acc -> (name, v) :: acc) rrmap [], true
   in
