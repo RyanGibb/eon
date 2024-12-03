@@ -23,8 +23,9 @@ depends: [
   "letsencrypt" {= "dev"}
   "cohttp-eio" {= "dev"}
   "mirage-crypto-rng-eio"
-  # capnp
-  "capnp-rpc-unix"
+  # cap
+  "capnp-rpc-unix" {>= "2.0"}
+  # hibernia
   "wol" {= "dev"}
   "wol-eio" {= "dev"}
 ]
@@ -66,9 +67,9 @@ pin-depends: [
   ["cohttp-lwt.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
   ["cohttp-lwt-unix.dev" "git+https://github.com/mirage/ocaml-cohttp#e5a66f1c1e7c2e5051723e09260222994dff40cf"]
   # Eio port https://github.com/mirage/capnp-rpc/
-  ["capnp-rpc.dev" "git+https://github.com/mirage/capnp-rpc.git#c95f619d48754f141eb1df1d5786e349a1e2b039"]
-  ["capnp-rpc-net.dev" "git+https://github.com/mirage/capnp-rpc.git#c95f619d48754f141eb1df1d5786e349a1e2b039"]
-  ["capnp-rpc-unix.dev" "git+https://github.com/mirage/capnp-rpc.git#c95f619d48754f141eb1df1d5786e349a1e2b039"]
+  ["capnp-rpc.dev" "git+https://github.com/mirage/capnp-rpc.git#252fd9b064367270a48d6bc73cbcd8f188f353d9"]
+  ["capnp-rpc-net.dev" "git+https://github.com/mirage/capnp-rpc.git#252fd9b064367270a48d6bc73cbcd8f188f353d9"]
+  ["capnp-rpc-unix.dev" "git+https://github.com/mirage/capnp-rpc.git#252fd9b064367270a48d6bc73cbcd8f188f353d9"]
   ["wol.dev" "git+https://github.com/RyanGibb/ocaml-wake-on-lan.git#dd5f5e5d29900d7a2e0b884d3105037d2bb00df3"]
   ["wol-eio.dev" "git+https://github.com/RyanGibb/ocaml-wake-on-lan.git#dd5f5e5d29900d7a2e0b884d3105037d2bb00df3"]
 ]

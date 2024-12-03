@@ -1,16 +1,17 @@
 {
   inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs";
     opam-nix.url = "github:tweag/opam-nix";
     flake-utils.url = "github:numtide/flake-utils";
     # we pin opam-nix's nixpkgs to follow the flakes, avoiding using two different instances
     opam-nix.inputs.nixpkgs.follows = "nixpkgs";
 
     # maintain a different opam-repository to those pinned upstream
-    opam-repository = {
-      url = "github:ocaml/opam-repository";
-      flake = false;
-    };
-    opam-nix.inputs.opam-repository.follows = "opam-repository";
+    # opam-repository = {
+    #   url = "github:ocaml/opam-repository";
+    #   flake = false;
+    # };
+    # opam-nix.inputs.opam-repository.follows = "opam-repository";
 
     # deduplicate flakes
     opam-nix.inputs.flake-utils.follows = "flake-utils";

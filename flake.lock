@@ -52,15 +52,17 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1731797254,
-        "narHash": "sha256-df3dJApLPhd11AlueuoN0Q4fHo/hagP75LlM5K1sz9g=",
-        "path": "/nix/store/ly4s3hw35dd1c2vsd694y2715pc1d2c1-source",
-        "rev": "e8c38b73aeb218e27163376a2d617e61a2ad9b59",
-        "type": "path"
+        "lastModified": 1733233106,
+        "narHash": "sha256-nMG7zNYMSgb1jiqUf7cJDEg94WpE4gEMN1KP0qgMgKI=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "ff04c2da50e50329eddde7142aaa3d3ea2f1bb52",
+        "type": "github"
       },
       "original": {
-        "id": "nixpkgs",
-        "type": "indirect"
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "type": "github"
       }
     },
     "opam-nix": {
@@ -74,17 +76,15 @@
           "nixpkgs"
         ],
         "opam-overlays": "opam-overlays",
-        "opam-repository": [
-          "opam-repository"
-        ],
+        "opam-repository": "opam-repository",
         "opam2json": "opam2json"
       },
       "locked": {
-        "lastModified": 1731700604,
-        "narHash": "sha256-95pMkayoID7sSFhw1S4pTDo+vPrhL7vm++U1ZTrqVrU=",
+        "lastModified": 1732617437,
+        "narHash": "sha256-jj25fziYrES8Ix6HkfSiLzrN6MZjiwlHUxFSIuLRjgE=",
         "owner": "tweag",
         "repo": "opam-nix",
-        "rev": "c73f0cbd7f8541bd40613e6f401d8918dfea3fe9",
+        "rev": "ea8b9cb81fe94e1fc45c6376fcff15f17319c445",
         "type": "github"
       },
       "original": {
@@ -112,11 +112,11 @@
     "opam-repository": {
       "flake": false,
       "locked": {
-        "lastModified": 1732049740,
-        "narHash": "sha256-Nzf/7k6/KeP7UtB4hsWx7VWOGOO36t8OphHYwULIJAA=",
+        "lastModified": 1732612513,
+        "narHash": "sha256-kju4NWEQo4xTxnKeBIsmqnyxIcCg6sNZYJ1FmG/gCDw=",
         "owner": "ocaml",
         "repo": "opam-repository",
-        "rev": "a414aa7ca13f5669ba7345e31a62c2017f810a21",
+        "rev": "3d52b66b04788999a23f22f0d59c2dfc831c4f32",
         "type": "github"
       },
       "original": {
@@ -150,8 +150,7 @@
       "inputs": {
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
-        "opam-nix": "opam-nix",
-        "opam-repository": "opam-repository"
+        "opam-nix": "opam-nix"
       }
     },
     "systems": {
