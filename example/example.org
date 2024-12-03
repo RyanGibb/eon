@@ -7,7 +7,9 @@ $TTL 3600
   1814400  ; 21d Expire
   3600     ; 1hr Negative Cache TTL
 )
-@   IN  NS ns1
-ns1 IN  A  203.0.113.0
-@   IN  A  203.0.113.0
-@   IN  AAAA 2001:DB8::
+@            IN NS   ns1
+ns1          IN A    203.0.113.0
+@            IN A    203.0.113.0
+@            IN AAAA 2001:DB8::
+ns.subdomain IN A    128.232.113.136
+subdomain    IN NS   ns.subdomain
