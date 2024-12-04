@@ -28,7 +28,10 @@
           ocamlformat = "*";
           utop = "*";
         };
-        query = { ocaml-base-compiler = "*"; };
+        query = {
+          ocaml-base-compiler = "*";
+          mirage-runtime = "4.8.1";
+        };
         scope =
           opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery);
       in {

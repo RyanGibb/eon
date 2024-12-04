@@ -98,7 +98,7 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
       Capnp_rpc_net.Restorer.grant
       @@ Cap.Secondary.local sr env name server_state);
 
-  let vat = Capnp_rpc_unix.serve ~sw ~net:env#net ~restore vat_config in
+  let vat = Capnp_rpc_unix.serve ~sw ~restore vat_config in
 
   List.iter
     (fun domain ->
@@ -159,9 +159,8 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
   register_secondary env ~sw primary_uri_files primary_retry_wait
     persist_new_secondary
 
-let run zonefiles log_level address_strings port proto prod endpoint authorative
+let run env zonefiles log_level address_strings port proto prod endpoint authorative
     state_dir primary_uri_files primary_retry_wait vat_config =
-  Eio_main.run @@ fun env ->
   Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port address_strings in
@@ -196,6 +195,7 @@ let run zonefiles log_level address_strings port proto prod endpoint authorative
   Eio.Fiber.await_cancel ()
 
 let () =
+  Eio_main.run @@ fun env ->
   Logs.set_level (Some Logs.Info);
   Logs.set_reporter (Logs_fmt.reporter ());
   (* Logs.Src.set_level Capnp_rpc.Debug.src (Some Logs.Debug); *)
@@ -266,9 +266,9 @@ let () =
     in
     let term =
       Term.(
-        const run $ zonefiles $ log_level Dns_log.Level1 $ addresses $ port
+        const (run env) $ zonefiles $ log_level Dns_log.Level1 $ addresses $ port
         $ proto $ prod $ endpoint $ authorative $ state_dir $ primary_uri_files
-        $ primary_retry_wait $ Capnp_rpc_unix.Vat_config.cmd)
+        $ primary_retry_wait $ Capnp_rpc_unix.Vat_config.cmd env)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "cap" ~doc ~man in
