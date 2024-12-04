@@ -278,10 +278,11 @@ let update_cmd =
   let parse_record ?(ttl = 0l) k v =
     (* TODO support more RRs *)
     match type_of_string_exn k with
-    | K (Cname) -> Rr_map.B (Cname, (ttl, Domain_name.of_string_exn ""))
+    | K (Cname) -> Rr_map.B (Cname, (ttl, Domain_name.of_string_exn v))
     | K (A) -> Rr_map.B (A, (ttl, Ipaddr.V4.Set.singleton @@ Ipaddr.V4.of_string_exn v))
     | K (Aaaa) -> Rr_map.B (Aaaa, (ttl, Ipaddr.V6.Set.singleton @@ Ipaddr.V6.of_string_exn v))
     | K (Txt) -> Rr_map.B (Txt, (ttl, Rr_map.Txt_set.singleton v))
+    | K (Ns) -> Rr_map.B (Ns, (ttl, Domain_name.Host_set.singleton (Domain_name.host_exn (Domain_name.of_string_exn v))))
     | k -> raise (Invalid_argument (Fmt.str "Can't parse %a" Dns.Rr_map.ppk k))
   in
   let print_record : type a. a Rr_map.key -> a -> int32 * string =
@@ -292,6 +293,7 @@ let update_cmd =
     | A, (ttl, a) -> ttl, Ipaddr.V4.to_string (Ipaddr.V4.Set.choose a)
     | Aaaa, (ttl, aaaa) -> ttl, Ipaddr.V6.to_string (Ipaddr.V6.Set.choose aaaa)
     | Txt, (ttl, txt) -> ttl, Rr_map.Txt_set.choose txt
+    | Ns, (ttl, ns) -> ttl, Domain_name.to_string (Domain_name.Host_set.choose ns)
     | k, _ -> raise (Invalid_argument (Fmt.str "Can't print %a" Dns.Rr_map.ppk (K k)))
   in
   let prereq_of_string str =
