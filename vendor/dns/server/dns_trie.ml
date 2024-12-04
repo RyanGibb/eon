@@ -164,7 +164,7 @@ let fold key (N (sub, map)) f s =
   let name = Domain_name.root in
   collect name sub (get name map s)
 
-let collect_rrs name sub map =
+let collect_rrs name sub map t =
   let collect_map top name rrmap =
     if not top && Rr_map.mem Ns rrmap then
       (* delegation *)
@@ -180,8 +180,23 @@ let collect_rrs name sub map =
         Option.fold ~none:[]
           ~some:(fun rrsig -> [ name, Rr_map.B (Rrsig, rrsig) ])
           (Rr_map.find Rrsig rrmap)
+      and glue_entries =
+        let nameservers =
+          Option.fold ~none:[]
+            ~some:(fun (_ttl, ns) -> Domain_name.Host_set.to_list ns)
+            (Rr_map.find Ns rrmap)
+        in
+        List.fold_left (fun acc ns ->
+          match lookup_glue ns t with
+          | None, None -> acc
+          | Some v4, None -> (Domain_name.raw ns, Rr_map.B (A, v4)) :: acc
+          | None, Some v6 -> (Domain_name.raw ns, Rr_map.B (Aaaa, v6)) :: acc
+          | Some v4, Some v6 ->
+            (Domain_name.raw ns, Rr_map.B (A, v4)) ::
+              (Domain_name.raw ns, Rr_map.B (Aaaa, v6)) :: acc
+        ) [ ] nameservers
       in
-      ns_entries @ ds_entries @ rrsig_entries, true
+      ns_entries @ ds_entries @ rrsig_entries @ glue_entries, false
     else
       Rr_map.fold (fun v acc -> (name, v) :: acc) rrmap [], true
   in
@@ -197,7 +212,7 @@ let collect_rrs name sub map =
   in
   go true name sub map
 
-let collect_entries name sub map =
+let collect_entries name sub map t =
   let ttlsoa =
     match Rr_map.find Soa map with
     | Some v -> Some v
@@ -211,7 +226,7 @@ let collect_entries name sub map =
   match ttlsoa with
   | None -> Error `NotAuthoritative
   | Some soa ->
-    let entries = collect_rrs name sub (Rr_map.remove Soa map) in
+    let entries = collect_rrs name sub (Rr_map.remove Soa map) t in
     let res =
       List.fold_left (fun acc (name, (Rr_map.B (k, v))) ->
           Name_rr_map.add name k v acc) Domain_name.Map.empty entries
@@ -226,7 +241,7 @@ let entries name t =
   | Some (`Delegation (name, (ttl, ns))) ->
     Error (`Delegation (name, (ttl, ns)))
   | Some (`Soa (name', _)) when Domain_name.equal name name' ->
-    collect_entries name sub map
+    collect_entries name sub map t
   | Some (`Soa (_, _)) -> Error `NotAuthoritative
 
 type zone_check = [ `Missing_soa of [ `raw ] Domain_name.t
