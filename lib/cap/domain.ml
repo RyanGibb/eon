@@ -117,11 +117,10 @@ let update t prereqs updates =
   let request, params = Capability.Request.create Params.init_pointer in
   ignore @@ Params.prereqs_set_list params (Update.encode_prereqs prereqs);
   ignore @@ Params.updates_set_list params (Update.encode_updates updates);
-  match Capability.call_for_value t method_id request with
-  | Ok results -> (
-      match Results.success_get results with
-      | true -> Ok ()
-      | false ->
-          let error = Results.error_get results in
-          Error (`Remote error))
-  | Error e -> Error e
+  let ( let* ) = Result.bind in
+  let* results = Capability.call_for_value t method_id request in
+  match Results.success_get results with
+  | true -> Ok ()
+  | false ->
+      let error = Results.error_get results in
+      Error (`Remote error)

@@ -1,6 +1,99 @@
 open Raw
 open Capnp_rpc
 
+let unpack_rr_sets =
+  let open Dns.Rr_map in
+  function
+  | B (Mx, (ttl, set)) ->
+      Dns.Rr_map.Mx_set.fold
+        (fun e acc ->
+          [
+            Dns.Packet.Update.Add (B (Mx, (ttl, Dns.Rr_map.Mx_set.singleton e)));
+          ]
+          @ acc)
+        set []
+  | B (Txt, (ttl, set)) ->
+      Dns.Rr_map.Txt_set.fold
+        (fun e acc ->
+          [
+            Dns.Packet.Update.Add
+              (B (Txt, (ttl, Dns.Rr_map.Txt_set.singleton e)));
+          ]
+          @ acc)
+        set []
+  | B (Srv, (ttl, set)) ->
+      Dns.Rr_map.Srv_set.fold
+        (fun e acc ->
+          [
+            Dns.Packet.Update.Add
+              (B (Srv, (ttl, Dns.Rr_map.Srv_set.singleton e)));
+          ]
+          @ acc)
+        set []
+  | B (Dnskey, (ttl, set)) ->
+      Dns.Rr_map.Dnskey_set.fold
+        (fun e acc ->
+          [
+            Dns.Packet.Update.Add
+              (B (Dnskey, (ttl, Dns.Rr_map.Dnskey_set.singleton e)));
+          ]
+          @ acc)
+        set []
+  | B (Caa, (ttl, set)) ->
+      Dns.Rr_map.Caa_set.fold
+        (fun e acc ->
+          [
+            Dns.Packet.Update.Add
+              (B (Caa, (ttl, Dns.Rr_map.Caa_set.singleton e)));
+          ]
+          @ acc)
+        set []
+  | B (Tlsa, (ttl, set)) ->
+      Dns.Rr_map.Tlsa_set.fold
+        (fun e acc ->
+          [
+            Dns.Packet.Update.Add
+              (B (Tlsa, (ttl, Dns.Rr_map.Tlsa_set.singleton e)));
+          ]
+          @ acc)
+        set []
+  | B (Sshfp, (ttl, set)) ->
+      Dns.Rr_map.Sshfp_set.fold
+        (fun e acc ->
+          [
+            Dns.Packet.Update.Add
+              (B (Sshfp, (ttl, Dns.Rr_map.Sshfp_set.singleton e)));
+          ]
+          @ acc)
+        set []
+  | B (Ds, (ttl, set)) ->
+      Dns.Rr_map.Ds_set.fold
+        (fun e acc ->
+          [
+            Dns.Packet.Update.Add (B (Ds, (ttl, Dns.Rr_map.Ds_set.singleton e)));
+          ]
+          @ acc)
+        set []
+  | B (Rrsig, (ttl, set)) ->
+      Dns.Rr_map.Rrsig_set.fold
+        (fun e acc ->
+          [
+            Dns.Packet.Update.Add
+              (B (Rrsig, (ttl, Dns.Rr_map.Rrsig_set.singleton e)));
+          ]
+          @ acc)
+        set []
+  | B (Loc, (ttl, set)) ->
+      Dns.Rr_map.Loc_set.fold
+        (fun e acc ->
+          [
+            Dns.Packet.Update.Add
+              (B (Loc, (ttl, Dns.Rr_map.Loc_set.singleton e)));
+          ]
+          @ acc)
+        set []
+  | b -> [ Dns.Packet.Update.Add b ]
+
 let local sr domain server_state initial_secondaries secondary_dir =
   let module Primary = Api.Service.Primary in
   Persistence.with_sturdy_ref sr Primary.local
@@ -30,7 +123,9 @@ let local sr domain server_state initial_secondaries secondary_dir =
              (match
                 (* NB only supports one secondary on a URI *)
                 let _, file =
-                  Eio.Path.(secondary_dir / ((Uri.host uri |> Option.value ~default:"no-uri") ^ ".cap"))
+                  Eio.Path.(
+                    secondary_dir
+                    / ((Uri.host uri |> Option.value ~default:"no-uri") ^ ".cap"))
                 in
                 Capnp_rpc_unix.Cap_file.save_uri uri file
               with
@@ -48,19 +143,7 @@ let local sr domain server_state initial_secondaries secondary_dir =
                    Domain_name.Map.map
                      (fun rrmap ->
                        Dns.Rr_map.fold
-                         (fun b updates ->
-                           match b with
-                           | B (Mx, (ttl, set)) -> (Dns.Rr_map.Mx_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Mx, (ttl, Dns.Rr_map.Mx_set.singleton e))) ] @ acc) set []) @ updates
-                           | B (Txt, (ttl, set)) -> (Dns.Rr_map.Txt_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Txt, (ttl, Dns.Rr_map.Txt_set.singleton e))) ] @ acc) set []) @ updates
-                           | B (Srv, (ttl, set)) -> (Dns.Rr_map.Srv_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Srv, (ttl, Dns.Rr_map.Srv_set.singleton e))) ] @ acc) set []) @ updates
-                           | B (Dnskey, (ttl, set)) -> (Dns.Rr_map.Dnskey_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Dnskey, (ttl, Dns.Rr_map.Dnskey_set.singleton e))) ] @ acc) set []) @ updates
-                           | B (Caa, (ttl, set)) -> (Dns.Rr_map.Caa_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Caa, (ttl, Dns.Rr_map.Caa_set.singleton e))) ] @ acc) set []) @ updates
-                           | B (Tlsa, (ttl, set)) -> (Dns.Rr_map.Tlsa_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Tlsa, (ttl, Dns.Rr_map.Tlsa_set.singleton e))) ] @ acc) set []) @ updates
-                           | B (Sshfp, (ttl, set)) -> (Dns.Rr_map.Sshfp_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Sshfp, (ttl, Dns.Rr_map.Sshfp_set.singleton e))) ] @ acc) set []) @ updates
-                           | B (Ds, (ttl, set)) -> (Dns.Rr_map.Ds_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Ds, (ttl, Dns.Rr_map.Ds_set.singleton e))) ] @ acc) set []) @ updates
-                           | B (Rrsig, (ttl, set)) -> (Dns.Rr_map.Rrsig_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Rrsig, (ttl, Dns.Rr_map.Rrsig_set.singleton e))) ] @ acc) set []) @ updates
-                           | B (Loc, (ttl, set)) -> (Dns.Rr_map.Loc_set.fold (fun e acc -> [ Dns.Packet.Update.Add (B (Loc, (ttl, Dns.Rr_map.Loc_set.singleton e))) ] @ acc) set []) @ updates
-                           | _ -> Dns.Packet.Update.Add b :: updates)
+                         (fun b updates -> unpack_rr_sets b @ updates)
                          rrmap [])
                      entries
                  in
@@ -136,11 +219,10 @@ let update_secondaries t prereqs updates =
       updates []
   in
   ignore @@ Params.updates_set_list params (Update.encode_updates updates);
-  match Capability.call_for_value t method_id request with
-  | Ok results -> (
-      match Results.success_get results with
-      | true -> Ok ()
-      | false ->
-          let error = Results.error_get results in
-          Error (`Remote error))
-  | Error e -> Error e
+  let ( let* ) = Result.bind in
+  let* results = Capability.call_for_value t method_id request in
+  match Results.success_get results with
+  | true -> Ok ()
+  | false ->
+      let error = Results.error_get results in
+      Error (`Remote error)

@@ -36,7 +36,7 @@ let local sr env domain server_state =
 
 let get_name t =
   let open Api.Client.Secondary.GetName in
-  let request, _params = Capability.Request.create Params.init_pointer in
+  let request = Capability.Request.create_no_args () in
   match Capability.call_for_value t method_id request with
   | Ok results -> Ok (Results.name_get results)
   | Error e -> Error e
@@ -58,11 +58,10 @@ let update t prereqs updates =
       updates []
   in
   ignore @@ Params.updates_set_list params (Update.encode_updates updates);
-  match Capability.call_for_value t method_id request with
-  | Ok results -> (
-      match Results.success_get results with
-      | true -> Ok ()
-      | false ->
-          let error = Results.error_get results in
-          Error (`Remote error))
-  | Error e -> Error e
+  let ( let* ) = Result.bind in
+  let* results = Capability.call_for_value t method_id request in
+  match Results.success_get results with
+  | true -> Ok ()
+  | false ->
+      let error = Results.error_get results in
+      Error (`Remote error)
