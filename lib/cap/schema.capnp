@@ -92,3 +92,24 @@ interface CertCallback {
   # register a provisioned certificate
 }
 
+struct HostInfo {
+  name @0 :Text;
+}
+
+interface Process {
+  stdout @0 () -> (data :Text);
+  stderr @1 () -> (data :Text);
+  stdin  @2 (data :Text) -> ();
+  # from https://github.com/patricoferris/hoke/tree/main/src/lib/schema.capnp
+}
+
+interface Host {
+  getInfo @0 () -> (info :HostInfo);
+  shell @1 () -> (process :Process);
+}
+
+interface HostIndex {
+  register @0 (host :Host) -> ();
+  listHosts @1 () -> (hosts :List(Host));
+}
+

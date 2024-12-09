@@ -12,8 +12,9 @@
   update
   schema
   store
-  )
- (libraries dns_acme eio_main capnp-rpc-unix)
+  process
+  host)
+ (libraries dns_acme eio_main capnp-rpc-unix fork_actions pty)
  (flags
   (:standard -w -53-55)))
 
@@ -21,7 +22,12 @@
  (name dns_acme)
  (modules dns_acme)
  (public_name eon.dns-acme)
- (libraries tls_le dns_server_eio letsencrypt-dns mirage-crypto-rng-eio capnp-rpc))
+ (libraries
+  tls_le
+  dns_server_eio
+  letsencrypt-dns
+  mirage-crypto-rng-eio
+  capnp-rpc))
 
 (rule
  (targets schema.ml schema.mli)
