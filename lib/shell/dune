@@ -1,0 +1,17 @@
+(library
+ (name pty)
+ (modules pty)
+ (public_name eon.pty)
+ (libraries unix)
+ (foreign_stubs
+  (language c)
+  (names pty)))
+
+(library
+ (name fork_actions)
+ (modules fork_actions)
+ (public_name eon.fork_actions)
+ (libraries eio_main)
+ (foreign_stubs
+  (language c)
+  (names fork_actions)))

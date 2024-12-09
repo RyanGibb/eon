@@ -16,19 +16,3 @@
  (modules sod)
  (public_name sod)
  (libraries pty eio_main eio_linux cmdliner eon.transport eon.server-args))
-
-(library
- (name pty)
- (modules pty)
- (libraries unix)
- (foreign_stubs
-  (language c)
-  (names pty)))
-
-(library
- (name fork_actions)
- (modules fork_actions)
- (libraries eio_main)
- (foreign_stubs
-  (language c)
-  (names fork_actions)))

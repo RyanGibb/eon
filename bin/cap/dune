@@ -20,3 +20,26 @@
  (public_name capc)
  (package eon)
  (libraries cap eio_main capnp-rpc-unix))
+
+(executable
+ (name shelld)
+ (modules shelld)
+ (public_name shelld)
+ (package eon)
+ (libraries
+  dns_server_eio
+  server_args
+  dns_log
+  dns_acme
+  dns
+  eio_main
+  cap
+  capnp-rpc-unix
+  logs.fmt))
+
+(executable
+ (name shell)
+ (modules shell)
+ (public_name shell)
+ (package eon)
+ (libraries cap eio_main capnp-rpc-unix))
