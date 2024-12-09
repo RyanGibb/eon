@@ -46,22 +46,20 @@ let run_client ~env cap =
 
   (* TODO detect terminated session *)
   (* TODO use nagle's algorithm? *)
-  Eio.Fiber.both
-    (fun () ->
-      let buf = Cstruct.create 4096 in
-      try
-        while true do
-          let got = Eio.Flow.single_read env#stdin buf in
-          Cap.Process.stdin shell (Cstruct.to_string (Cstruct.sub buf 0 got))
-        done
-      with End_of_file -> ())
-    (fun () ->
-      try
-        while true do
-          let buf = Result.get_ok @@ Cap.Process.stdout shell () in
-          Eio.Flow.write env#stdout [ Cstruct.of_string buf ]
-        done
-      with End_of_file -> ());
+  (try
+     Eio.Fiber.both
+       (fun () ->
+         let buf = Cstruct.create 4096 in
+         while true do
+           let got = Eio.Flow.single_read env#stdin buf in
+           Cap.Process.stdin shell (Cstruct.to_string (Cstruct.sub buf 0 got))
+         done)
+       (fun () ->
+         while true do
+           let buf = Result.get_ok @@ Cap.Process.stdout shell () in
+           Eio.Flow.write env#stdout [ Cstruct.of_string buf ]
+         done)
+   with _ -> ());
 
   (* restore tio *)
   Unix.tcsetattr Unix.stdin TCSADRAIN savedTio

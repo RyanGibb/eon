@@ -21,7 +21,7 @@ let local ~sw ~name =
 
          let pty = Pty.open_pty () in
          (* spawn shell as child process *)
-         let _shell =
+         let shell =
            let pw = Unix.getpwuid (Unix.getuid ()) in
            let ptyAction = Fork_actions.setup_shell pty
            and execvAction =
@@ -38,7 +38,13 @@ let local ~sw ~name =
          let close_unix = false in
          let sink = Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd in
          let source = Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd in
-         let stdin data = Eio.Flow.write sink [ (Cstruct.of_string data) ] in
+         let stdin data =
+           match Eio.Promise.peek (Eio_linux.Low_level.Process.exit_status shell) with
+           | Some i -> Error i
+           | None ->
+               Eio.Flow.write sink [ (Cstruct.of_string data) ];
+               Ok ()
+         in
          let buf = Cstruct.create 4096 in
          let stdout () =
            let got = Eio.Flow.single_read source buf in
