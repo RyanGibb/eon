@@ -103,9 +103,16 @@ interface Process {
   # from https://github.com/patricoferris/hoke/tree/main/src/lib/schema.capnp
 }
 
+struct MoshConnect {
+  ip @0 :Text;
+  port @1 :Int32;
+  key @2 :Data;
+}
+
 interface Host {
   getInfo @0 () -> (info :HostInfo);
   shell @1 () -> (process :Process);
+  mosh @2 () -> (moshConnect :MoshConnect);
 }
 
 interface HostIndex {
