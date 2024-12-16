@@ -18,10 +18,7 @@ let local callback =
                    Params.renewed_get params )
            | false -> Error (`Remote (Params.error_get params)));
          release_param_caps ();
-         let response, _results =
-           Service.Response.create Results.init_pointer
-         in
-         Service.return response
+         Service.return_empty ()
      end
 
 let register t success error cert key renewed =
