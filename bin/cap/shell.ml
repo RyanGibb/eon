@@ -137,7 +137,7 @@ let copts_t =
   let _docs = Manpage.s_common_options in
   let cap_uri_file =
     let doc =
-      "File path containing the domain capability URI of the format \
+      "File path containing the host capability URI of the format \
        capnp://sha-256:<hash>@address:port/<service-ID>."
     in
     Arg.(required & pos 0 (some string) None & info [] ~docv:"CAP_FILE" ~doc)

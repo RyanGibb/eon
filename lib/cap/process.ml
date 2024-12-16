@@ -28,9 +28,7 @@ let local ~stdin ~stdout ~stderr =
          let data = Params.data_get params in
          release_param_caps ();
          match stdin data with
-         | Ok () ->
-             Eio.traceln "ok";
-             Service.return (Service.Response.create_empty ())
+         | Ok () -> Service.return (Service.Response.create_empty ())
          | Error (Unix.WEXITED i) -> Eio.traceln "exited"; Service.fail "Exited: %d" i
          | Error (Unix.WSIGNALED i) -> Eio.traceln "signaled"; Service.fail "Signaled: %d" i
          | Error (Unix.WSTOPPED i) -> Eio.traceln "stopped"; Service.fail "Stopped: %d" i
