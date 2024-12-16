@@ -115,8 +115,3 @@ interface Host {
   mosh @2 () -> (moshConnect :MoshConnect);
 }
 
-interface HostIndex {
-  register @0 (host :Host) -> ();
-  listHosts @1 () -> (hosts :List(Host));
-}
-
