@@ -13,6 +13,7 @@
   schema
   store
   process
+  exit_callback
   host)
  (libraries dns_acme eio_main capnp-rpc-unix fork_actions pty)
  (flags

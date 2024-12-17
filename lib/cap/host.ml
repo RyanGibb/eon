@@ -15,8 +15,9 @@ let local ~env ~sw ~name ~mosh_addr =
          Api.Builder.HostInfo.name_set info name;
          Service.return response
 
-       method shell_impl _ release_param_caps =
+       method shell_impl params release_param_caps =
          let open Host.Shell in
+         let exitCallback = Option.get @@ Params.exit_callback_get params in
          release_param_caps ();
 
          let pty = Pty.open_pty () in
@@ -42,15 +43,17 @@ let local ~env ~sw ~name ~mosh_addr =
          let source =
            Eio_unix.Net.import_socket_stream ~sw ~close_unix pty.Pty.masterfd
          in
-         let stdin data =
-           match
-             Eio.Promise.peek (Eio_linux.Low_level.Process.exit_status shell)
-           with
-           | Some i -> Error i
-           | None ->
-               Eio.Flow.write sink [ Cstruct.of_string data ];
-               Ok ()
-         in
+         let stdin data = Eio.Flow.write sink [ Cstruct.of_string data ] in
+
+         Eio.Fiber.fork ~sw (fun () ->
+           let e = Eio.Promise.await (Eio_linux.Low_level.Process.exit_status shell) in
+           match Exit_callback.exitStatus exitCallback e with
+           | Ok () -> ()
+           | Error (`Capnp e) ->
+               Eio.traceln "Error calling Exit_callback.exitStatus %a"
+                 Capnp_rpc.Error.pp e;
+         );
+
          let buf = Cstruct.create 4096 in
          let stdout () =
            let got = Eio.Flow.single_read source buf in
@@ -95,9 +98,10 @@ let get_info t () =
   let* result = Capability.call_for_value t method_id request in
   Ok (Results.info_get result)
 
-let shell t () =
+let shell t exitCallback =
   let open Api.Client.Host.Shell in
-  let request = Capability.Request.create_no_args () in
+  let request, params = Capability.Request.create Params.init_pointer in
+  Params.exit_callback_set params (Some exitCallback);
   Capability.call_for_caps t method_id request Results.process_get_pipelined
 
 type mosh_connect = {

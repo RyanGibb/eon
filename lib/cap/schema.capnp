@@ -109,9 +109,27 @@ struct MoshConnect {
   key @2 :Data;
 }
 
+struct ExitStatus {
+  union {
+    exited :group {
+	  code @0 :Int32;
+    }
+    signaled :group {
+	  code @1 :Int32;
+    }
+    stopped :group {
+	  code @2 :Int32;
+    }
+  }
+}
+
+interface ExitCallback {
+  exitStatus @0 (exitStatus: ExitStatus) -> ();
+}
+
 interface Host {
   getInfo @0 () -> (info :HostInfo);
-  shell @1 () -> (process :Process);
+  shell @1 (exitCallback :ExitCallback) -> (process :Process);
   mosh @2 () -> (moshConnect :MoshConnect);
 }
 

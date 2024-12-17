@@ -11,7 +11,16 @@ let canproto copts_env =
     Capnp_rpc_unix.Vat.import_exn client_vat cap_uri
   in
   let run_client cap =
-    let shell = Cap.Host.shell cap () in
+    let exitCondition = Eio.Condition.create () in
+    let exitMutex = Eio.Mutex.create () in
+    let exitStatus = ref (Unix.WEXITED 0) in
+    let exitCallback =
+      Cap.Exit_callback.local (fun e ->
+          Eio.Mutex.use_rw exitMutex ~protect:true (fun () ->
+              (match e with Error _ -> () | Ok e -> exitStatus := e);
+              Eio.Condition.broadcast exitCondition))
+    in
+    let shell = Cap.Host.shell cap exitCallback in
     let savedTio = Unix.tcgetattr Unix.stdin in
     (* set raw mode *)
     let tio =
@@ -42,6 +51,7 @@ let canproto copts_env =
       }
     in
     Unix.tcsetattr Unix.stdin TCSADRAIN tio;
+
     (* TODO send window size change update https://www.ietf.org/rfc/rfc4254.html#section-6.7 *)
     (* handle window size change *)
     (* match Pty.get_sigwinch () with
@@ -57,21 +67,31 @@ let canproto copts_env =
     (* TODO detect terminated session *)
     (* TODO use nagle's algorithm? *)
     (try
-       Eio.Fiber.both
-         (fun () ->
-           let buf = Cstruct.create 4096 in
-           while true do
-             let got = Eio.Flow.single_read env#stdin buf in
-             Cap.Process.stdin shell (Cstruct.to_string (Cstruct.sub buf 0 got))
-           done)
-         (fun () ->
-           while true do
-             let buf = Result.get_ok @@ Cap.Process.stdout shell () in
-             Eio.Flow.write env#stdout [ Cstruct.of_string buf ]
-           done)
+       Eio.Fiber.all
+         [
+           (fun () ->
+             let buf = Cstruct.create 4096 in
+             while true do
+               let got = Eio.Flow.single_read env#stdin buf in
+               Cap.Process.stdin shell
+                 (Cstruct.to_string (Cstruct.sub buf 0 got))
+             done);
+           (fun () ->
+             while true do
+               let buf = Result.get_ok @@ Cap.Process.stdout shell () in
+               Eio.Flow.write env#stdout [ Cstruct.of_string buf ]
+             done);
+           (fun () ->
+             Eio.Mutex.use_rw exitMutex ~protect:true (fun () ->
+                 Eio.Condition.await exitCondition exitMutex);
+             raise (Failure "exited"));
+         ]
      with _ -> ());
     (* restore tio *)
-    Unix.tcsetattr Unix.stdin TCSADRAIN savedTio
+    Unix.tcsetattr Unix.stdin TCSADRAIN savedTio;
+    match !exitStatus with
+    | Unix.WEXITED i -> Unix._exit i
+    | _ -> ()
   in
   Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
 
@@ -90,8 +110,12 @@ let mosh copts_env =
     | Error _ -> ()
     | Ok mosh_connect ->
         Unix.putenv "MOSH_KEY" mosh_connect.key;
-        Eio.traceln "%s" mosh_connect.key;
-        Unix.execvp "mosh-client" [| "mosh-client"; Ipaddr.to_string mosh_connect.ip; Int32.to_string mosh_connect.port |]
+        Unix.execvp "mosh-client"
+          [|
+            "mosh-client";
+            Ipaddr.to_string mosh_connect.ip;
+            Int32.to_string mosh_connect.port;
+          |]
   in
   Capnp_rpc_unix.with_cap_exn sturdy_ref run_client
 
