@@ -77,8 +77,8 @@ let add_to_list name a map =
   Domain_name.Map.add name (base @ [ a ]) map
 
 let decode_prereqs domain prereqs =
-  Capnp.Array.fold_right
-    ~f:(fun prereq map ->
+  List.fold_left
+    (fun map prereq ->
       let open Api.Reader.Prereq in
       let name = Domain_name.of_string_exn (name_get prereq) in
       if not (Domain_name.is_subdomain ~subdomain:name ~domain) then
@@ -107,11 +107,11 @@ let decode_prereqs domain prereqs =
       | NotNameInUse -> add_to_list name Dns.Packet.Update.Not_name_inuse map
       | Undefined i ->
           raise (Invalid_argument (Printf.sprintf "Undefined prereq %d" i)))
-    ~init:Domain_name.Map.empty prereqs
+    Domain_name.Map.empty (Capnp.Array.to_list prereqs)
 
 let decode_updates domain updates =
-  Capnp.Array.fold_right
-    ~f:(fun update map ->
+  List.fold_left
+    (fun map update ->
       let open Api.Reader.Update in
       let name = Domain_name.of_string_exn (name_get update) in
       if not (Domain_name.is_subdomain ~subdomain:name ~domain) then
@@ -140,7 +140,7 @@ let decode_updates domain updates =
             map
       | Undefined i ->
           raise (Invalid_argument (Printf.sprintf "Undefined update %d" i)))
-    ~init:Domain_name.Map.empty updates
+    Domain_name.Map.empty (Capnp.Array.to_list updates)
 
 let update_trie env server_state domain prereqs updates =
   Eio.traceln "Domain.update(%a) domain=%s" Dns.Packet.Update.pp
