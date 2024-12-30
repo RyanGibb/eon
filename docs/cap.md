@@ -38,7 +38,7 @@ test.example.org
 We expose a DNS UPDATE semantic-compatible interface over Cap'N Proto, which can support arbitrarily complex pre-requisites.
 
 ```
-$ capc update test.example.org.cap -u add:test.example.org:A:128.232.113.136:3600
+$ capc update test.example.org.cap -u add/test.example.org/A/128.232.113.136/3600
 $ dig test.example.org +short
 128.232.113.136
 ```
