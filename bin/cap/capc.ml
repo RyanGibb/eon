@@ -299,7 +299,7 @@ let update_cmd =
   let prereq_of_string str =
     let open Dns.Packet.Update in
     try
-      match String.split_on_char ':' str with
+      match String.split_on_char '/' str with
       | [ "exists"; domain; typ ] ->
           Ok (Domain_name.of_string_exn domain, Exists (type_of_string_exn typ))
       | [ "exists"; domain; typ; value ] ->
@@ -324,28 +324,28 @@ let update_cmd =
     let open Dns.Packet.Update in
     function
     | domain, Exists typ ->
-        Format.fprintf fmt "exists:%s:%a"
+        Format.fprintf fmt "exists/%s/%a"
           (Domain_name.to_string domain)
           Dns.Rr_map.ppk typ
     | domain, Exists_data (Dns.Rr_map.B (typ, v)) ->
         let _ttl, value = print_record typ v in
-        Format.fprintf fmt "exists:%s:%a:%s"
+        Format.fprintf fmt "exists/%s/%a/%s"
           (Domain_name.to_string domain)
           Dns.Rr_map.ppk (K typ) value
     | domain, Not_exists typ ->
-        Format.fprintf fmt "not-exists:%s:%a"
+        Format.fprintf fmt "not-exists/%s/%a"
           (Domain_name.to_string domain)
           Dns.Rr_map.ppk typ
     | domain, Name_inuse ->
-        Format.fprintf fmt "name-inuse:%s" (Domain_name.to_string domain)
+        Format.fprintf fmt "name-inuse/%s" (Domain_name.to_string domain)
     | domain, Not_name_inuse ->
-        Format.fprintf fmt "name-not-inuse:%s" (Domain_name.to_string domain)
+        Format.fprintf fmt "name-not-inuse/%s" (Domain_name.to_string domain)
   in
   let prereqs =
     let doc =
-      "Specify a prerequisite. Formats include: 'exists:DOMAIN:TYPE', \
-       'exists:DOMAIN:TYPE:VALUE', 'not-exists:DOMAIN:TYPE', \
-       'name-inuse:DOMAIN', 'name-not-inuse:DOMAIN'."
+      "Specify a prerequisite. Formats include: 'exists/DOMAIN/TYPE', \
+       'exists/DOMAIN/TYPE/VALUE', 'not-exists/DOMAIN/TYPE', \
+       'name-inuse/DOMAIN', 'name-not-inuse/DOMAIN'."
     in
     Arg.(
       value
@@ -355,7 +355,7 @@ let update_cmd =
   let update_of_string str =
     let open Dns.Packet.Update in
     try
-      match String.split_on_char ':' str with
+      match String.split_on_char '/' str with
       | [ "remove"; domain; typ ] ->
           Ok (Domain_name.of_string_exn domain, Remove (type_of_string_exn typ))
       | [ "remove"; domain ] -> Ok (Domain_name.of_string_exn domain, Remove_all)
@@ -378,26 +378,26 @@ let update_cmd =
     let open Dns.Packet.Update in
     function
     | domain, Remove typ ->
-        Format.fprintf fmt "remove:%s:%a"
+        Format.fprintf fmt "remove/%s/%a"
           (Domain_name.to_string domain)
           Dns.Rr_map.ppk typ
     | domain, Remove_all ->
-        Format.fprintf fmt "remove:%s" (Domain_name.to_string domain)
+        Format.fprintf fmt "remove/%s" (Domain_name.to_string domain)
     | domain, Remove_single (Dns.Rr_map.B (typ, v)) ->
         let _ttl, value = print_record typ v in
-        Format.fprintf fmt "remove:%s:%a:%s"
+        Format.fprintf fmt "remove/%s/%a/%s"
           (Domain_name.to_string domain)
           Dns.Rr_map.ppk (K typ) value
     | domain, Add (Dns.Rr_map.B (typ, v)) ->
         let ttl, value = print_record typ v in
-        Format.fprintf fmt "add:%s:%a:%s:%ld"
+        Format.fprintf fmt "add/%s/%a/%s/%ld"
           (Domain_name.to_string domain)
           Dns.Rr_map.ppk (K typ) value ttl
   in
   let updates =
     let doc =
-      "Specify an update. Formats include remove:DOMAIN:TYPE, remove:DOMAIN, \
-       remove:DOMAIN:TYPE:VALUE, or add:DOMAIN:TYPE:VALUE:TTL"
+      "Specify an update. Formats include remove/DOMAIN/TYPE, remove/DOMAIN, \
+       remove/DOMAIN/TYPE/VALUE, or add/DOMAIN/TYPE/VALUE/TTL"
     in
     Arg.(
       value
