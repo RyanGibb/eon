@@ -12,6 +12,7 @@
   eio_main
   cap
   capnp-rpc-unix
+  mirage-crypto-rng.unix
   logs.fmt))
 
 (executable
@@ -19,4 +20,4 @@
  (modules capc)
  (public_name capc)
  (package eon)
- (libraries cap eio_main capnp-rpc-unix))
+ (libraries cap eio_main capnp-rpc-unix mirage-crypto-rng.unix))

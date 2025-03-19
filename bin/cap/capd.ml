@@ -161,7 +161,6 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
 
 let run env zonefiles log_level address_strings port proto prod endpoint authorative
     state_dir primary_uri_files primary_retry_wait vat_config =
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port address_strings in
   let rng ?_g length =
@@ -195,6 +194,7 @@ let run env zonefiles log_level address_strings port proto prod endpoint authora
   Eio.Fiber.await_cancel ()
 
 let () =
+  Mirage_crypto_rng_unix.use_default ();
   Eio_main.run @@ fun env ->
   Logs.set_level (Some Logs.Info);
   Logs.set_reporter (Logs_fmt.reporter ());
