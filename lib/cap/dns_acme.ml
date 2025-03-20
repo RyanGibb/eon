@@ -119,7 +119,6 @@ let provision_cert prod endpoint server_state update env ?account_key
         if prod then Letsencrypt.letsencrypt_production_url
         else Letsencrypt.letsencrypt_staging_url
   in
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   protect
     ~f:(fun () ->
       try

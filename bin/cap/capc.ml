@@ -3,7 +3,6 @@ type copts = { cap_uri : Uri.t }
 let get_name copts_env =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let copts = copts_env env in
   let cap_uri = copts.cap_uri in
   let sturdy_ref =
@@ -27,7 +26,6 @@ let get_name copts_env =
 let cert copts_env email domains org cert_dir exit_when_renewed =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let copts = copts_env env in
   let cap_uri = copts.cap_uri in
   let sturdy_ref =
@@ -95,7 +93,6 @@ let cert copts_env email domains org cert_dir exit_when_renewed =
 let delegate copts_env subdomain cap_root =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let copts = copts_env env in
   let cap_uri = copts.cap_uri in
   let client_vat = Capnp_rpc_unix.client_only_vat ~sw env#net in
@@ -130,7 +127,6 @@ let delegate copts_env subdomain cap_root =
 let update copts_env prereqs updates =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let copts = copts_env env in
   let cap_uri = copts.cap_uri in
   let sturdy_ref =
@@ -439,4 +435,6 @@ let main_cmd =
   Cmd.group info ~default
     [ get_name_cmd; cert_cmd; delegate_cmd; update_cmd; help_cmd ]
 
-let () = exit (Cmd.eval main_cmd)
+let () =
+  Mirage_crypto_rng_unix.use_default ();
+  exit (Cmd.eval main_cmd)
