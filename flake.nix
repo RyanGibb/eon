@@ -30,10 +30,10 @@
         };
         query = {
           ocaml-base-compiler = "*";
-          mirage-runtime = "4.8.1";
         };
         scope =
-          opam-nix-lib.buildOpamProject' { } ./. (query // devPackagesQuery);
+          # recursive finds vendored dependancies in duniverse
+          opam-nix-lib.buildOpamProject' { recursive = true; } ./. (query // devPackagesQuery);
       in {
         packages.default = scope.${package};
         defaultPackage = scope.${package};
