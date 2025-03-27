@@ -3,6 +3,8 @@
 
 EON is an authoritative nameserver for the Domain Name System (DNS) using the functionally pure [Mirage OCaml-DNS libraries](https://github.com/mirage/ocaml-dns) and [Effects-Based Parallel IO for multicore OCaml](https://github.com/ocaml-multicore/eio), along with some experimental uses of the DNS.
 
+Read more at [https://ryan.freumh.org/eon.html](https://ryan.freumh.org/eon.html).
+
 ### Quick start
 
 ```
