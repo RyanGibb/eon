@@ -8,7 +8,8 @@ let run ~sw env proto ~subdomain ~authorative server_state log addresses =
 
   let buf = ref Cstruct.empty in
 
-  let packet_callback (question : Dns.Packet.Question.t) : Dns.Packet.reply option =
+  let packet_callback (question : Dns.Packet.Question.t) :
+      Dns.Packet.reply option =
     let ( let* ) = Option.bind in
     let name, qtype = question in
     let* recv_buf, root = Domain_name_data.decode subdomain name in
@@ -66,10 +67,13 @@ let run ~sw env proto ~subdomain ~authorative server_state log addresses =
         (* If the last packet hasn't been recieved, retransmit.
            NB if there's no data, the sequence number is confirming the last recieved. *)
         packet.seq_no == !last_sent_seq_no - 1
-      then (* retransmit *)
+      then
+        (* retransmit *)
         Some (Packet.encode !seq_no !buf)
-      else if (* if client up to date *)
-              packet.seq_no == !last_sent_seq_no then (
+      else if
+        (* if client up to date *)
+        packet.seq_no == !last_sent_seq_no
+      then (
         (* send new data *)
         let readBuf =
           let len = String.length (Domain_name.to_string domain) in

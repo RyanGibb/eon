@@ -31,8 +31,6 @@ let register t success error cert key renewed =
     | None -> ""
     | Some v -> v |> X509.Certificate.encode_pem_multiple);
   Params.key_set params
-    (match key with
-    | None -> ""
-    | Some v -> v |> X509.Private_key.encode_pem);
+    (match key with None -> "" | Some v -> v |> X509.Private_key.encode_pem);
   Params.renewed_set params renewed;
   Capability.call_for_unit t method_id request

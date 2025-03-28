@@ -11,8 +11,7 @@
   secondary
   update
   schema
-  store
-  )
+  store)
  (libraries dns_acme eio_main capnp-rpc-unix)
  (flags
   (:standard -w -53-55)))

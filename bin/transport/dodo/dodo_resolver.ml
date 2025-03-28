@@ -1,5 +1,5 @@
-let run log_level address_strings port connectPort proto domain subdomain nameserver
-    timeout =
+let run log_level address_strings port connectPort proto domain subdomain
+    nameserver timeout =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
@@ -19,11 +19,13 @@ let run log_level address_strings port connectPort proto domain subdomain namese
       let buf = Cstruct.create 4096 in
       let got = client.recv buf in
       let trimmedBuf = Cstruct.sub buf 0 got in
-      addr, Cstruct.to_string trimmedBuf
+      (addr, Cstruct.to_string trimmedBuf)
     in
     [ recv ]
   in
-  Dns_server_eio.with_handler env proto handle_dns (Dns_log.get Dns_log.Level1 Format.std_formatter) addresses
+  Dns_server_eio.with_handler env proto handle_dns
+    (Dns_log.get Dns_log.Level1 Format.std_formatter)
+    addresses
 
 let () =
   let open Cmdliner in
@@ -59,9 +61,12 @@ let () =
     in
     let connectPort =
       let doc =
-        "The port to connect to the nameserver with. By default 53 is used. See the BINDING section."
+        "The port to connect to the nameserver with. By default 53 is used. \
+         See the BINDING section."
       in
-      Arg.(value & opt int 53 & info [ ""; "connect-port" ] ~docv:"CONNECT_PORT" ~doc)
+      Arg.(
+        value & opt int 53
+        & info [ ""; "connect-port" ] ~docv:"CONNECT_PORT" ~doc)
     in
     let timeout =
       let doc = "Seconds to wait in between sending DNS queries." in
@@ -69,8 +74,8 @@ let () =
     in
     let term =
       Term.(
-        const run $ log_level Dns_log.Level0 $ addresses $ port $ connectPort $ proto
-        $ domain $ subdomain $ nameserver $ timeout)
+        const run $ log_level Dns_log.Level0 $ addresses $ port $ connectPort
+        $ proto $ domain $ subdomain $ nameserver $ timeout)
     in
     let doc = "DNS over DNS Obliviously (DoDO) Resolver" in
     let info = Cmd.info "dodo_resolver" ~man ~doc in

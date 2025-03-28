@@ -113,7 +113,8 @@ let run ~sw env proto ~subdomain ~authorative server_state log addresses =
     Domain_name_data.max_encoded_len - rootLen - 20
   in
 
-  let packet_callback (question : Dns.Packet.Question.t) : Dns.Packet.reply option =
+  let packet_callback (question : Dns.Packet.Question.t) :
+      Dns.Packet.reply option =
     (* let state = !state_ref in *)
     let receiving_state = !receiving_state_ref
     and sending_state = !sending_state_ref in
@@ -162,7 +163,9 @@ let run ~sw env proto ~subdomain ~authorative server_state log addresses =
 
     (* Build and return the packet *)
     let reply =
-      let hostname = Domain_name_data.encode domain (Frag_packet.encode reply) in
+      let hostname =
+        Domain_name_data.encode domain (Frag_packet.encode reply)
+      in
       let rr = Dns.Rr_map.singleton Dns.Rr_map.Cname (0l, hostname) in
       let answer = Domain_name.Map.singleton name rr in
       let authority = Dns.Name_rr_map.empty in

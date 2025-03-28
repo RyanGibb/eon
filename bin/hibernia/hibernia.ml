@@ -5,8 +5,8 @@ let packet_callback ~net wake (question : Dns.Packet.Question.t) :
   let* _, mac, address =
     List.find_opt (fun (name, _, _) -> Domain_name.equal name qname) wake
   in
-  Format.fprintf Format.std_formatter "Resolution on %a wakes %a/%a\n" Domain_name.pp
-    qname Macaddr.pp mac Ipaddr.V4.pp address;
+  Format.fprintf Format.std_formatter "Resolution on %a wakes %a/%a\n"
+    Domain_name.pp qname Macaddr.pp mac Ipaddr.V4.pp address;
   Format.print_flush ();
   Wol_eio.send ~net ~address ~broadcast:false mac;
   None
@@ -38,12 +38,15 @@ let () =
         match String.split_on_char '/' str with
         | [ name; mac; addr ] ->
             (* TODO better error handling *)
-            Ok (Domain_name.of_string_exn name, Macaddr.of_string_exn mac, Ipaddr.V4.of_string_exn addr)
+            Ok
+              ( Domain_name.of_string_exn name,
+                Macaddr.of_string_exn mac,
+                Ipaddr.V4.of_string_exn addr )
         | _ ->
             Error
               (`Msg
-                "Invalid domain name and MAC address pair, should be of form \
-                 DOMAIN_NAME/MAC_ADDR/IP_ADDR.")
+                 "Invalid domain name and MAC address pair, should be of form \
+                  DOMAIN_NAME/MAC_ADDR/IP_ADDR.")
       with
       | Invalid_argument e ->
           Error (`Msg (Printf.sprintf "Error parsing domain name: %s" e))
@@ -53,8 +56,7 @@ let () =
     let name_mac_to_string fmt (name, mac, addr) =
       Format.fprintf fmt "%s/%s/%s"
         (Domain_name.to_string name)
-        (Macaddr.to_string mac)
-        (Ipaddr.V4.to_string addr)
+        (Macaddr.to_string mac) (Ipaddr.V4.to_string addr)
     in
     let doc =
       "Specify a MAC address to wake on a resolution of a domain name via \

@@ -41,7 +41,7 @@ let udp_listen log handle_dns sock =
       let buf = Cstruct.create 4096 in
       let addr, size = Eio.Net.recv sock buf in
       let trimmedBuf = Cstruct.sub buf 0 size in
-      addr, Cstruct.to_string trimmedBuf
+      (addr, Cstruct.to_string trimmedBuf)
     in
     (* convert Eio.Net.Sockaddr.datagram to Eio.Net.Sockaddr.t *)
     let addr =
@@ -85,7 +85,7 @@ let tcp_handle log handle_dns : _ Eio.Net.connection_handler =
         let len = Cstruct.BE.get_uint16 prefix 0 in
         let buf = Cstruct.create len in
         Eio.Flow.read_exact sock buf;
-        addr, Cstruct.to_string buf
+        (addr, Cstruct.to_string buf)
       in
       (* convert Eio.Net.Sockaddr.stream to Eio.Net.Sockaddr.t *)
       let addr = match addr with `Tcp a -> `Tcp a | `Unix u -> `Unix u in
@@ -105,7 +105,7 @@ let tcp_handle log handle_dns : _ Eio.Net.connection_handler =
               (* add prefix, described in rfc1035 section 4.2.2 *)
               let prefix = Cstruct.create 2 in
               Cstruct.BE.set_uint16 prefix 0 (String.length b);
-              Eio.Flow.write sock [ prefix; (Cstruct.of_string b) ])
+              Eio.Flow.write sock [ prefix; Cstruct.of_string b ])
             answers;
           List.iter
             (fun (_proto, ip, b) ->
@@ -117,7 +117,7 @@ let tcp_handle log handle_dns : _ Eio.Net.connection_handler =
               in
               let prefix = Cstruct.create 2 in
               Cstruct.BE.set_uint16 prefix 0 (String.length b);
-              Eio.Flow.write sock [ prefix; (Cstruct.of_string b) ])
+              Eio.Flow.write sock [ prefix; Cstruct.of_string b ])
             queries)
     done
     (* ignore EOF *)

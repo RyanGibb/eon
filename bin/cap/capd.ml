@@ -159,8 +159,8 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
   register_secondary env ~sw primary_uri_files primary_retry_wait
     persist_new_secondary
 
-let run env zonefiles log_level address_strings port proto prod endpoint authorative
-    state_dir primary_uri_files primary_retry_wait vat_config =
+let run env zonefiles log_level address_strings port proto prod endpoint
+    authorative state_dir primary_uri_files primary_retry_wait vat_config =
   let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port address_strings in
   let rng ?_g length =
@@ -224,8 +224,8 @@ let () =
                        | exception ex ->
                            Error
                              (`Msg
-                               (Fmt.str "Failed to parse URI %S: %a" s Fmt.exn
-                                  ex))
+                                (Fmt.str "Failed to parse URI %S: %a" s Fmt.exn
+                                   ex))
                        | uri -> Ok uri),
                      Uri.pp_hum )))
              None i)
@@ -266,9 +266,11 @@ let () =
     in
     let term =
       Term.(
-        const (run env) $ zonefiles $ log_level Dns_log.Level1 $ addresses $ port
-        $ proto $ prod $ endpoint $ authorative $ state_dir $ primary_uri_files
-        $ primary_retry_wait $ Capnp_rpc_unix.Vat_config.cmd env)
+        const (run env)
+        $ zonefiles $ log_level Dns_log.Level1 $ addresses $ port $ proto $ prod
+        $ endpoint $ authorative $ state_dir $ primary_uri_files
+        $ primary_retry_wait
+        $ Capnp_rpc_unix.Vat_config.cmd env)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "cap" ~doc ~man in

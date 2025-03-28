@@ -107,7 +107,8 @@ let decode_prereqs domain prereqs =
       | NotNameInUse -> add_to_list name Dns.Packet.Update.Not_name_inuse map
       | Undefined i ->
           raise (Invalid_argument (Printf.sprintf "Undefined prereq %d" i)))
-    Domain_name.Map.empty (Capnp.Array.to_list prereqs)
+    Domain_name.Map.empty
+    (Capnp.Array.to_list prereqs)
 
 let decode_updates domain updates =
   List.fold_left
@@ -140,7 +141,8 @@ let decode_updates domain updates =
             map
       | Undefined i ->
           raise (Invalid_argument (Printf.sprintf "Undefined update %d" i)))
-    Domain_name.Map.empty (Capnp.Array.to_list updates)
+    Domain_name.Map.empty
+    (Capnp.Array.to_list updates)
 
 let update_trie env server_state domain prereqs updates =
   Eio.traceln "Domain.update(%a) domain=%s" Dns.Packet.Update.pp
@@ -156,7 +158,7 @@ let update_trie env server_state domain prereqs updates =
         Dns_server.Primary.with_data !server_state now ts trie
       in
       server_state := new_server_state;
-      prereqs, updates
+      (prereqs, updates)
   | Error rcode ->
       raise
         (Invalid_argument (Fmt.str "Error updating trie %a" Dns.Rcode.pp rcode))

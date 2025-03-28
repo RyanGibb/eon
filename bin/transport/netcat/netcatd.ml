@@ -1,5 +1,5 @@
-let run zonefiles log_level address_strings subdomain authorative port proto mode
-    =
+let run zonefiles log_level address_strings subdomain authorative port proto
+    mode =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let log = Dns_log.get log_level Format.std_formatter in
