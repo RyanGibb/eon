@@ -94,7 +94,45 @@ let unpack_rr_sets =
         set []
   | b -> [ Dns.Packet.Update.Add b ]
 
+(** send a zonefile as `Secondary.update`'s *)
+let transfer secondary server_state domain =
+  let trie = Dns_server.Primary.data !server_state in
+  match Dns_trie.entries domain trie with
+  | Error e ->
+      Error (`Trie e)
+  | Ok (soa, entries) ->
+    let updates =
+      Domain_name.Map.map
+        (fun rrmap ->
+          Dns.Rr_map.fold
+            (fun b updates -> unpack_rr_sets b @ updates)
+            rrmap [])
+        entries
+    in
+    (* add SOA to updates *)
+    let updates =
+      Domain_name.Map.update domain
+        (fun updates ->
+          Some
+            (Dns.Packet.Update.Add Dns.Rr_map.(B (Soa, soa))
+             :: Option.value updates ~default:[]))
+        updates
+    in
+    Secondary.update secondary Domain_name.Map.empty updates
+
 let local sr domain server_state initial_secondaries secondary_dir =
+  List.iter (fun secondary ->
+      match transfer secondary server_state domain with
+      | Error (`Trie e) ->
+          Eio.traceln "Error looking up entries for %a: %a"
+            Domain_name.pp domain Dns_trie.pp_e e;
+      | Error (`Capnp e) ->
+          Eio.traceln "Error calling Secondary.update %a"
+            Capnp_rpc.Error.pp e;
+      | Error (`Remote e) ->
+          Eio.traceln "Remote error: %s" e;
+      | Ok _ -> ()
+    ) initial_secondaries;
   let module Primary = Api.Service.Primary in
   Persistence.with_sturdy_ref sr Primary.local
   @@ object
@@ -131,42 +169,21 @@ let local sr domain server_state initial_secondaries secondary_dir =
               with
              | Error (`Msg m) -> failwith m
              | Ok () -> ());
-
-             let trie = Dns_server.Primary.data !server_state in
-             match Dns_trie.entries domain trie with
-             | Error e ->
+             match
+                transfer secondary server_state domain
+             with
+             | Error (`Trie e) ->
                  Eio.traceln "Error looking up entries for %a: %a"
                    Domain_name.pp domain Dns_trie.pp_e e;
                  Service.fail "Error looking up entries"
-             | Ok (soa, entries) -> (
-                 let updates =
-                   Domain_name.Map.map
-                     (fun rrmap ->
-                       Dns.Rr_map.fold
-                         (fun b updates -> unpack_rr_sets b @ updates)
-                         rrmap [])
-                     entries
-                 in
-                 (* add SOA to updates *)
-                 let updates =
-                   Domain_name.Map.update domain
-                     (fun updates ->
-                       Some
-                         (Dns.Packet.Update.Add Dns.Rr_map.(B (Soa, soa))
-                         :: Option.value updates ~default:[]))
-                     updates
-                 in
-                 match
-                   Secondary.update secondary Domain_name.Map.empty updates
-                 with
-                 | Error (`Capnp e) ->
-                     Eio.traceln "Error calling Secondary.update %a"
-                       Capnp_rpc.Error.pp e;
-                     Service.fail "Error transfering zone"
-                 | Error (`Remote e) ->
-                     Eio.traceln "Remote error: %s" e;
-                     Service.fail "Error transfering zone"
-                 | Ok () -> Service.return @@ Service.Response.create_empty ()))
+             | Error (`Capnp e) ->
+                 Eio.traceln "Error calling Secondary.update %a"
+                   Capnp_rpc.Error.pp e;
+                 Service.fail "Error transfering zone"
+             | Error (`Remote e) ->
+                 Eio.traceln "Remote error: %s" e;
+                 Service.fail "Error transfering zone"
+             | Ok () -> Service.return @@ Service.Response.create_empty ())
 
        method update_secondaries_impl params release_param_caps =
          let open Primary.UpdateSecondaries in
