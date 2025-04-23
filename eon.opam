@@ -30,7 +30,6 @@ depends: [
   "wol-eio" {= "dev"}
 ]
 build: [
-  ["dune" "subst"] {dev}
   [
     "dune"
     "build"
