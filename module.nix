@@ -40,7 +40,7 @@ in {
       default = true;
     };
     capnpAddress = lib.mkOption {
-      type = lib.types.string;
+      type = lib.types.str;
       default = "0.0.0.0";
     };
     capnpPort = lib.mkOption {
