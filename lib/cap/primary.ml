@@ -113,13 +113,23 @@ let unpack_rr_sets =
         ips []
   | b -> [ Dns.Packet.Update.Add b ]
 
-(** send a zonefile as `Secondary.update`'s *)
+(** Send a zonefile as `Secondary.update`'s, clearing the zone first so that
+    records removed from the zonefile are also removed on the secondary.
+    Remove(Soa) triggers remove_zone in Dns_trie, which strips everything
+    except nested zones. Sent as a separate update because the per-name
+    update list gets reversed during capnp serialization. *)
 let transfer secondary server_state domain =
   let trie = Dns_server.Primary.data !server_state in
   match Dns_trie.entries domain trie with
   | Error e ->
       Error (`Trie e)
   | Ok (soa, entries) ->
+    let clear =
+      Domain_name.Map.singleton domain
+        [ Dns.Packet.Update.Remove (Dns.Rr_map.K Dns.Rr_map.Soa) ]
+    in
+    let ( let* ) = Result.bind in
+    let* () = Secondary.update secondary Domain_name.Map.empty clear in
     let updates =
       Domain_name.Map.map
         (fun rrmap ->
@@ -128,7 +138,6 @@ let transfer secondary server_state domain =
             rrmap [])
         entries
     in
-    (* add SOA to updates *)
     let updates =
       Domain_name.Map.update domain
         (fun updates ->
