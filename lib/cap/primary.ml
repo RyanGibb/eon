@@ -92,6 +92,25 @@ let unpack_rr_sets =
           ]
           @ acc)
         set []
+  | B (Ns, (ttl, ns)) ->
+      Domain_name.Host_set.fold
+        (fun e acc ->
+          Dns.Packet.Update.Add
+            (B (Ns, (ttl, Domain_name.Host_set.singleton e)))
+          :: acc)
+        ns []
+  | B (A, (ttl, ips)) ->
+      Ipaddr.V4.Set.fold
+        (fun e acc ->
+          Dns.Packet.Update.Add (B (A, (ttl, Ipaddr.V4.Set.singleton e)))
+          :: acc)
+        ips []
+  | B (Aaaa, (ttl, ips)) ->
+      Ipaddr.V6.Set.fold
+        (fun e acc ->
+          Dns.Packet.Update.Add (B (Aaaa, (ttl, Ipaddr.V6.Set.singleton e)))
+          :: acc)
+        ips []
   | b -> [ Dns.Packet.Update.Add b ]
 
 (** send a zonefile as `Secondary.update`'s *)
