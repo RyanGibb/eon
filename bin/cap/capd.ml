@@ -159,8 +159,31 @@ let capnp_serve env authorative vat_config prod endpoint server_state state_dir
   register_secondary env ~sw primary_uri_files primary_retry_wait
     persist_new_secondary
 
+let resolve_address_from_trie trie addr =
+  match addr with
+  | `TCP (host, port) when Result.is_error (Ipaddr.of_string host) -> (
+      let ( let* ) = Result.bind in
+      let resolved =
+        let* name = Domain_name.of_string host in
+        let* host_name = Domain_name.host name in
+        match Dns_trie.lookup host_name Dns.Rr_map.A trie with
+        | Ok (_ttl, ipv4_set) ->
+            Ok (`TCP (Ipaddr.V4.to_string (Ipaddr.V4.Set.choose ipv4_set), port))
+        | Error _ -> (
+            match Dns_trie.lookup host_name Dns.Rr_map.Aaaa trie with
+            | Ok (_ttl, ipv6_set) ->
+                Ok
+                  (`TCP
+                    (Ipaddr.V6.to_string (Ipaddr.V6.Set.choose ipv6_set), port))
+            | Error e -> Error (`Msg (Fmt.to_to_string Dns_trie.pp_e e)))
+      in
+      match resolved with Ok addr -> addr | Error _ -> addr)
+  | _ -> addr
+
 let run env zonefiles log_level address_strings port proto prod endpoint
-    authorative state_dir primary_uri_files primary_retry_wait vat_config =
+    authorative state_dir primary_uri_files primary_retry_wait
+    capnp_listen_address capnp_public_address capnp_secret_key
+    capnp_disable_tls =
   let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port address_strings in
   let rng ?_g length =
@@ -184,6 +207,21 @@ let run env zonefiles log_level address_strings port proto prod endpoint
     ref
     @@ Dns_server.Primary.create ~keys:[] ~rng ~tsig_verify:Dns_tsig.verify
          ~tsig_sign:Dns_tsig.sign trie
+  in
+  let resolved_listen = resolve_address_from_trie trie capnp_listen_address in
+  let public_address =
+    match capnp_public_address with
+    | Some _ -> capnp_public_address
+    | None -> Some capnp_listen_address
+  in
+  let vat_config =
+    let secret_key =
+      match capnp_secret_key with
+      | "" -> `Ephemeral
+      | path -> `File Eio.Path.(env#fs / path)
+    in
+    Capnp_rpc_unix.Vat_config.create ~net:env#net ~secret_key
+      ~serve_tls:(not capnp_disable_tls) ?public_address resolved_listen
   in
   Eio.Switch.run @@ fun sw ->
   Eio.Fiber.fork ~sw (fun () ->
@@ -264,13 +302,48 @@ let () =
         value & opt float 60.
         & info [ "primary-retry-wait" ] ~docv:"PRIMAR_RETRY_WAIT" ~doc)
     in
+    let capnp_listen_address =
+      let docs = "CAP'N PROTO OPTIONS" in
+      let i =
+        Arg.info ~docs [ "capnp-listen-address" ] ~docv:"ADDR"
+          ~doc:"Address to listen on, e.g. $(b,unix:/run/my.socket)."
+      in
+      Arg.(
+        required @@ opt (some Capnp_rpc_unix.Network.Location.cmdliner_conv) None i)
+    in
+    let capnp_public_address =
+      let docs = "CAP'N PROTO OPTIONS" in
+      let i =
+        Arg.info ~docs [ "capnp-public-address" ] ~docv:"ADDR"
+          ~doc:"Address to tell others to connect on."
+      in
+      Arg.(
+        value @@ opt (some Capnp_rpc_unix.Network.Location.cmdliner_conv) None i)
+    in
+    let capnp_secret_key_file =
+      let docs = "CAP'N PROTO OPTIONS" in
+      let i =
+        Arg.info ~docs [ "capnp-secret-key-file" ] ~docv:"PATH"
+          ~doc:
+            "File in which to store secret key (or \"\" for an ephemeral key)."
+      in
+      Arg.(required @@ opt (some string) None i)
+    in
+    let capnp_disable_tls =
+      let docs = "CAP'N PROTO OPTIONS" in
+      let i =
+        Arg.info ~docs [ "capnp-disable-tls" ]
+          ~doc:"Do not use TLS for incoming connections."
+      in
+      Arg.(value @@ flag i)
+    in
     let term =
       Term.(
         const (run env)
         $ zonefiles $ log_level Dns_log.Level1 $ addresses $ port $ proto $ prod
         $ endpoint $ authorative $ state_dir $ primary_uri_files
-        $ primary_retry_wait
-        $ Capnp_rpc_unix.Vat_config.cmd env)
+        $ primary_retry_wait $ capnp_listen_address $ capnp_public_address
+        $ capnp_secret_key_file $ capnp_disable_tls)
     in
     let doc = "Let's Encrypt Nameserver Daemon" in
     let info = Cmd.info "cap" ~doc ~man in
