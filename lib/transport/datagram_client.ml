@@ -141,8 +141,8 @@ let run ~sw env ~nameserver ~subdomain ~authorative port log timeout =
             addr;
           ignore
           @@ Eio.Time.with_timeout env#clock timeout (fun () ->
-                 Eio.Condition.await inc.cond inc.mut;
-                 Ok ()));
+              Eio.Condition.await inc.cond inc.mut;
+              Ok ()));
       Eio.Fiber.yield ()
     done
   in

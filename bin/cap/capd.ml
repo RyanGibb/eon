@@ -168,13 +168,14 @@ let resolve_address_from_trie trie addr =
         let* host_name = Domain_name.host name in
         match Dns_trie.lookup host_name Dns.Rr_map.A trie with
         | Ok (_ttl, ipv4_set) ->
-            Ok (`TCP (Ipaddr.V4.to_string (Ipaddr.V4.Set.choose ipv4_set), port))
+            Ok
+              (`TCP (Ipaddr.V4.to_string (Ipaddr.V4.Set.choose ipv4_set), port))
         | Error _ -> (
             match Dns_trie.lookup host_name Dns.Rr_map.Aaaa trie with
             | Ok (_ttl, ipv6_set) ->
                 Ok
                   (`TCP
-                    (Ipaddr.V6.to_string (Ipaddr.V6.Set.choose ipv6_set), port))
+                     (Ipaddr.V6.to_string (Ipaddr.V6.Set.choose ipv6_set), port))
             | Error e -> Error (`Msg (Fmt.to_to_string Dns_trie.pp_e e)))
       in
       match resolved with Ok addr -> addr | Error _ -> addr)
@@ -182,8 +183,8 @@ let resolve_address_from_trie trie addr =
 
 let run env zonefiles log_level address_strings port proto prod endpoint
     authorative state_dir primary_uri_files primary_retry_wait
-    capnp_listen_address capnp_public_address capnp_secret_key
-    capnp_disable_tls =
+    capnp_listen_address capnp_public_address capnp_secret_key capnp_disable_tls
+    =
   let log = Dns_log.get log_level Format.std_formatter in
   let addresses = Server_args.parse_addresses port address_strings in
   let rng ?_g length =
@@ -309,7 +310,8 @@ let () =
           ~doc:"Address to listen on, e.g. $(b,unix:/run/my.socket)."
       in
       Arg.(
-        required @@ opt (some Capnp_rpc_unix.Network.Location.cmdliner_conv) None i)
+        required
+        @@ opt (some Capnp_rpc_unix.Network.Location.cmdliner_conv) None i)
     in
     let capnp_public_address =
       let docs = "CAP'N PROTO OPTIONS" in
@@ -323,7 +325,9 @@ let () =
     let capnp_secret_key_file =
       let docs = "CAP'N PROTO OPTIONS" in
       let i =
-        Arg.info ~docs [ "capnp-secret-key-file" ] ~docv:"PATH"
+        Arg.info ~docs
+          [ "capnp-secret-key-file" ]
+          ~docv:"PATH"
           ~doc:
             "File in which to store secret key (or \"\" for an ephemeral key)."
       in

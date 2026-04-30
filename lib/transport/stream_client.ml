@@ -122,8 +122,8 @@ let run ~sw env ~nameserver ~subdomain ~authorative port log timeout =
               addr;
             ignore
             @@ Eio.Time.with_timeout env#clock timeout (fun () ->
-                   Eio.Condition.await acked acked_mut;
-                   Ok ())
+                Eio.Condition.await acked acked_mut;
+                Ok ())
           done)
     done
   in
@@ -141,8 +141,8 @@ let run ~sw env ~nameserver ~subdomain ~authorative port log timeout =
             addr;
           ignore
           @@ Eio.Time.with_timeout env#clock timeout (fun () ->
-                 Eio.Condition.await recv_data recv_data_mut;
-                 Ok ()))
+              Eio.Condition.await recv_data recv_data_mut;
+              Ok ()))
     done
   in
   Eio.Fiber.fork ~sw (fun () -> Dns_client_eio.listen sock log handle_dns ());

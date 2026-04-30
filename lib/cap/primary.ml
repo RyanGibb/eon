@@ -102,8 +102,7 @@ let unpack_rr_sets =
   | B (A, (ttl, ips)) ->
       Ipaddr.V4.Set.fold
         (fun e acc ->
-          Dns.Packet.Update.Add (B (A, (ttl, Ipaddr.V4.Set.singleton e)))
-          :: acc)
+          Dns.Packet.Update.Add (B (A, (ttl, Ipaddr.V4.Set.singleton e))) :: acc)
         ips []
   | B (Aaaa, (ttl, ips)) ->
       Ipaddr.V6.Set.fold
@@ -115,52 +114,50 @@ let unpack_rr_sets =
 
 (** Send a zonefile as `Secondary.update`'s, clearing the zone first so that
     records removed from the zonefile are also removed on the secondary.
-    Remove(Soa) triggers remove_zone in Dns_trie, which strips everything
-    except nested zones. Sent as a separate update because the per-name
-    update list gets reversed during capnp serialization. *)
+    Remove(Soa) triggers remove_zone in Dns_trie, which strips everything except
+    nested zones. Sent as a separate update because the per-name update list
+    gets reversed during capnp serialization. *)
 let transfer secondary server_state domain =
   let trie = Dns_server.Primary.data !server_state in
   match Dns_trie.entries domain trie with
-  | Error e ->
-      Error (`Trie e)
+  | Error e -> Error (`Trie e)
   | Ok (soa, entries) ->
-    let clear =
-      Domain_name.Map.singleton domain
-        [ Dns.Packet.Update.Remove (Dns.Rr_map.K Dns.Rr_map.Soa) ]
-    in
-    let ( let* ) = Result.bind in
-    let* () = Secondary.update secondary Domain_name.Map.empty clear in
-    let updates =
-      Domain_name.Map.map
-        (fun rrmap ->
-          Dns.Rr_map.fold
-            (fun b updates -> unpack_rr_sets b @ updates)
-            rrmap [])
-        entries
-    in
-    let updates =
-      Domain_name.Map.update domain
-        (fun updates ->
-          Some
-            (Dns.Packet.Update.Add Dns.Rr_map.(B (Soa, soa))
-             :: Option.value updates ~default:[]))
-        updates
-    in
-    Secondary.update secondary Domain_name.Map.empty updates
+      let clear =
+        Domain_name.Map.singleton domain
+          [ Dns.Packet.Update.Remove (Dns.Rr_map.K Dns.Rr_map.Soa) ]
+      in
+      let ( let* ) = Result.bind in
+      let* () = Secondary.update secondary Domain_name.Map.empty clear in
+      let updates =
+        Domain_name.Map.map
+          (fun rrmap ->
+            Dns.Rr_map.fold
+              (fun b updates -> unpack_rr_sets b @ updates)
+              rrmap [])
+          entries
+      in
+      let updates =
+        Domain_name.Map.update domain
+          (fun updates ->
+            Some
+              (Dns.Packet.Update.Add Dns.Rr_map.(B (Soa, soa))
+              :: Option.value updates ~default:[]))
+          updates
+      in
+      Secondary.update secondary Domain_name.Map.empty updates
 
 let local sr domain server_state initial_secondaries secondary_dir =
-  List.iter (fun secondary ->
+  List.iter
+    (fun secondary ->
       match transfer secondary server_state domain with
       | Error (`Trie e) ->
-          Eio.traceln "Error looking up entries for %a: %a"
-            Domain_name.pp domain Dns_trie.pp_e e;
+          Eio.traceln "Error looking up entries for %a: %a" Domain_name.pp
+            domain Dns_trie.pp_e e
       | Error (`Capnp e) ->
-          Eio.traceln "Error calling Secondary.update %a"
-            Capnp_rpc.Error.pp e;
-      | Error (`Remote e) ->
-          Eio.traceln "Remote error: %s" e;
-      | Ok _ -> ()
-    ) initial_secondaries;
+          Eio.traceln "Error calling Secondary.update %a" Capnp_rpc.Error.pp e
+      | Error (`Remote e) -> Eio.traceln "Remote error: %s" e
+      | Ok _ -> ())
+    initial_secondaries;
   let module Primary = Api.Service.Primary in
   Persistence.with_sturdy_ref sr Primary.local
   @@ object
@@ -197,9 +194,7 @@ let local sr domain server_state initial_secondaries secondary_dir =
               with
              | Error (`Msg m) -> failwith m
              | Ok () -> ());
-             match
-                transfer secondary server_state domain
-             with
+             match transfer secondary server_state domain with
              | Error (`Trie e) ->
                  Eio.traceln "Error looking up entries for %a: %a"
                    Domain_name.pp domain Dns_trie.pp_e e;
