@@ -15,7 +15,7 @@ depends: [
   "dns-server" {>= "6.2.2"}
   "dns-resolver"
   "dns-tsig"
-  "cmdliner" {< "1.4.0"}
+  "cmdliner"
   "fmt"
   # tun
   "tuntap"
@@ -24,7 +24,7 @@ depends: [
   "cohttp-eio" {= "dev"}
   "mirage-crypto-rng-eio"
   # cap
-  "capnp-rpc-unix" {>= "2.0"}
+  "capnp-rpc-unix" {= "dev"}
   # hibernia
   "wol" {= "dev"}
   "wol-eio" {= "dev"}
@@ -68,7 +68,6 @@ pin-depends: [
   # Eio port https://github.com/mirage/capnp-rpc/
   ["capnp-rpc.dev" "git+https://github.com/mirage/capnp-rpc#252fd9b064367270a48d6bc73cbcd8f188f353d9"]
   ["capnp-rpc-net.dev" "git+https://github.com/mirage/capnp-rpc#252fd9b064367270a48d6bc73cbcd8f188f353d9"]
-  ["capnp-rpc-unix.dev" "git+https://github.com/mirage/capnp-rpc#252fd9b064367270a48d6bc73cbcd8f188f353d9"]
   ["wol.dev" "git+https://github.com/RyanGibb/ocaml-wake-on-lan#dd5f5e5d29900d7a2e0b884d3105037d2bb00df3"]
   ["wol-eio.dev" "git+https://github.com/RyanGibb/ocaml-wake-on-lan#dd5f5e5d29900d7a2e0b884d3105037d2bb00df3"]
 ]
