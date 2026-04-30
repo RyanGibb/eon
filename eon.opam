@@ -15,7 +15,7 @@ depends: [
   "dns-server" {>= "6.2.2"}
   "dns-resolver"
   "dns-tsig"
-  "cmdliner"
+  "cmdliner" {< "1.4.0"}
   "fmt"
   # tun
   "tuntap"
