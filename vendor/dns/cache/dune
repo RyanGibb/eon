@@ -1,6 +1,0 @@
-(library
-  (name        dns_cache)
-  (public_name dns.cache)
-  (modules     dns_cache)
-  (libraries   domain-name dns duration lru metrics)
-  (wrapped     false))

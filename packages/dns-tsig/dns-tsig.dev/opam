@@ -1,0 +1,32 @@
+opam-version: "2.0"
+maintainer: "team AT robur dot coop"
+authors: ["Hannes Mehnert <hannes@mehnert.org>"]
+homepage: "https://github.com/mirage/ocaml-dns"
+doc: "https://mirage.github.io/ocaml-dns/"
+dev-repo: "git+https://github.com/mirage/ocaml-dns.git"
+bug-reports: "https://github.com/mirage/ocaml-dns/issues"
+license: "BSD-2-Clause"
+
+depends: [
+  "dune" {>= "2.0.0"}
+  "ocaml" {>= "4.13.0"}
+  "dns" {= version}
+  "digestif" {>= "1.2.0"}
+  "base64" {>= "3.0.0"}
+  "alcotest" {with-test}
+]
+
+build: [
+  ["dune" "subst"] {dev}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+
+synopsis: "TSIG support for DNS"
+description: """
+TSIG is used to authenticate nsupdate frames using a HMAC.
+"""
+
+url {
+  src: "git+https://github.com/RyanGibb/ocaml-dns#1d5769df060420804af7ce61e9522957a97934ce"
+}

@@ -1,0 +1,44 @@
+opam-version: "2.0"
+maintainer: "team AT robur dot coop"
+authors: ["Hannes Mehnert <hannes@mehnert.org>"]
+homepage: "https://github.com/mirage/ocaml-dns"
+doc: "https://mirage.github.io/ocaml-dns/"
+dev-repo: "git+https://github.com/mirage/ocaml-dns.git"
+bug-reports: "https://github.com/mirage/ocaml-dns/issues"
+license: "BSD-2-Clause"
+
+depends: [
+  "dune" {>= "2.0.0"}
+  "ocaml" {>= "4.13.0"}
+  "dns" {= version}
+  "dns-server" {= version}
+  "dns-mirage" {= version}
+  "dnssec" {= version}
+  "lru" {>= "0.3.0"}
+  "duration" {>= "0.1.2"}
+  "randomconv" {>= "0.2.0"}
+  "lwt" {>= "4.2.1"}
+  "mirage-time" {>= "2.0.0"}
+  "mirage-clock" {>= "3.0.0"}
+  "tcpip" {>= "8.2.0"}
+  "alcotest" {with-test}
+  "tls" {>= "1.0.0"}
+  "tls-mirage" {>= "1.0.0"}
+  "mirage-crypto-rng-mirage" {>= "1.0.0"}
+]
+
+build: [
+  ["dune" "subst"] {dev}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+]
+
+synopsis: "DNS resolver business logic"
+description: """
+Forwarding and recursive resolvers as value-passing functions. To be used with
+an effectful layer.
+"""
+
+url {
+  src: "git+https://github.com/RyanGibb/ocaml-dns#1d5769df060420804af7ce61e9522957a97934ce"
+}

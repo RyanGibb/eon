@@ -21,6 +21,7 @@ depends: [
   "tuntap"
   # acme
   "letsencrypt" {= "dev"}
+  "letsencrypt-dns" {= "dev"}
   "cohttp-eio" {>= "6.0.0"}
   "mirage-crypto-rng-eio"
   # cap
@@ -43,15 +44,3 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/RyanGibb/eon.git"
-pin-depends: [
-  ["dns.dev" "vendor/dns"]
-  ["dns-server.dev" "vendor/dns"]
-  ["dns-tsig.dev" "vendor/dns"]
-  ["dns-resolver.dev" "vendor/dns"]
-  ["dns-mirage.dev" "vendor/dns"]
-  ["dnssec.dev" "vendor/dns"]
-  # Eio port
-  ["letsencrypt.dev" "vendor/letsencrypt"]
-  ["wol.dev" "git+https://github.com/RyanGibb/ocaml-wake-on-lan#dd5f5e5d29900d7a2e0b884d3105037d2bb00df3"]
-  ["wol-eio.dev" "git+https://github.com/RyanGibb/ocaml-wake-on-lan#dd5f5e5d29900d7a2e0b884d3105037d2bb00df3"]
-]

@@ -1,6 +1,0 @@
-(library
-  (name        dns_client)
-  (public_name dns-client)
-  (modules     dns_client)
-  (libraries   dns.cache domain-name dns randomconv)
-  (wrapped     false))

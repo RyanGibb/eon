@@ -35,6 +35,7 @@ Note that this is using [Nix flakes](https://nixos.org/manual/nix/stable/command
 
 Alternatively, opam and dune tooling can be used:
 ```
+$ opam repository add eon-local . --this-switch
 $ opam install .
 $ dune build
 ```

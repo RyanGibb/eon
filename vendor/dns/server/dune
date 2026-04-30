@@ -1,5 +1,0 @@
-(library
- (name dns_server)
- (public_name dns-server)
- (wrapped false)
- (libraries dns randomconv duration metrics))
