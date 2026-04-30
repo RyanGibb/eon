@@ -16,9 +16,17 @@
     # deduplicate flakes
     opam-nix.inputs.flake-utils.follows = "flake-utils";
   };
-  outputs = { self, nixpkgs, flake-utils, opam-nix, ... }@inputs:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      opam-nix,
+      ...
+    }@inputs:
     # create outputs for each default system
-    flake-utils.lib.eachDefaultSystem (system:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         package = "eon";
         pkgs = nixpkgs.legacyPackages.${system};
@@ -34,24 +42,29 @@
         scope =
           # recursive finds vendored dependancies in duniverse
           opam-nix-lib.buildOpamProject' { recursive = true; } ./. (query // devPackagesQuery);
-      in {
+      in
+      {
         packages.default = scope.${package};
         defaultPackage = scope.${package};
 
-        devShells.default = let
-          devPackages = builtins.attrValues
-            (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope);
-        in pkgs.mkShell {
-          inputsFrom = [ scope.${package} ];
-          buildInputs = devPackages;
-        };
-      }) // {
-        nixosModules = {
-          default.imports = [ (import ./module.nix self.packages) ];
-          acme.imports = [ (import ./acme.nix self.packages) ];
-        };
-
-        formatter = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed
-          (system: nixpkgs.legacyPackages.${system}.nixfmt);
+        devShells.default =
+          let
+            devPackages = builtins.attrValues (pkgs.lib.getAttrs (builtins.attrNames devPackagesQuery) scope);
+          in
+          pkgs.mkShell {
+            inputsFrom = [ scope.${package} ];
+            buildInputs = devPackages;
+          };
+      }
+    )
+    // {
+      nixosModules = {
+        default.imports = [ (import ./module.nix self.packages) ];
+        acme.imports = [ (import ./acme.nix self.packages) ];
       };
+
+      formatter = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed (
+        system: nixpkgs.legacyPackages.${system}.nixfmt
+      );
+    };
 }
