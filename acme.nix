@@ -170,14 +170,15 @@ in {
         UMask = "0022";
         StateDirectoryMode = "750";
         StateDirectory = [ "acme-eon/${cert.domain}" ];
+        WorkingDirectory = cert.directory;
         # Run as root (Prefixed with +)
         ExecStartPre = "+" + (pkgs.writeShellScript "acme-prerun" ''
-          cp ${cert.capFile} domain.cap
-          chown acme-eon domain.cap
+          cp ${cert.capFile} ${cert.directory}/domain.cap
+          chown acme-eon ${cert.directory}/domain.cap
         '');
         ExecStart = ''
           ${cfg.package}/bin/capc cert \
-          domain.cap \
+          ${cert.directory}/domain.cap \
           ${cert.email} \
           -d ${cert.domain} \
           ${
