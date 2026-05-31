@@ -58,7 +58,7 @@ in {
     acmeServer = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
-      description = lib.mdDoc ''
+      description = ''
         ACME Directory Resource URI.
       '';
     };

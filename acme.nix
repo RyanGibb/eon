@@ -25,13 +25,13 @@ let
         capFile = mkOption {
           type = types.str;
           inherit (defaultAndText "capFile" null) default defaultText;
-          description = lib.mdDoc "Capability file path.";
+          description = "Capability file path.";
         };
 
         email = mkOption {
           type = types.nullOr types.str;
           inherit (defaultAndText "email" null) default defaultText;
-          description = lib.mdDoc ''
+          description = ''
             Email address for account creation and correspondence from the CA.
             It is recommended to use the same email for all certs to avoid account
             creation limits.
@@ -41,13 +41,13 @@ let
         group = mkOption {
           type = types.str;
           inherit (defaultAndText "group" "acme-eon") default defaultText;
-          description = lib.mdDoc "Group running the client.";
+          description = "Group running the client.";
         };
 
         reloadServices = mkOption {
           type = types.listOf types.str;
           inherit (defaultAndText "reloadServices" [ ]) default defaultText;
-          description = lib.mdDoc ''
+          description = ''
             The list of systemd services to call `systemctl try-reload-or-restart`
             on.
           '';
@@ -62,7 +62,7 @@ let
         readOnly = true;
         default = "/var/lib/acme-eon/${name}";
         description =
-          lib.mdDoc "Directory where certificate and other state is stored.";
+          "Directory where certificate and other state is stored.";
       };
 
       domain = mkOption {
@@ -70,7 +70,7 @@ let
         readOnly = true;
         default = name;
         description =
-          lib.mdDoc "Domain to fetch certificate for (the entry name).";
+          "Domain to fetch certificate for (the entry name).";
       };
 
       extraDomainNames = mkOption {
@@ -82,7 +82,7 @@ let
             "mydomain.org"
           ]
         '';
-        description = lib.mdDoc ''
+        description = ''
           A list of extra domain names, which are included in the one certificate to be issued.
         '';
       };
@@ -90,7 +90,7 @@ let
       inheritDefaults = mkOption {
         default = true;
         example = true;
-        description = lib.mdDoc
+        description =
           "Whether to inherit values set in `security.acme.defaults` or not.";
         type = lib.types.bool;
       };
@@ -106,7 +106,7 @@ in {
     acceptTerms = mkOption {
       type = types.bool;
       default = false;
-      description = lib.mdDoc ''
+      description = ''
         Accept the CA's terms of service. The default provider is Let's Encrypt,
         you can find their ToS at <https://letsencrypt.org/repository/>.
       '';
@@ -114,7 +114,7 @@ in {
 
     defaults = mkOption {
       type = types.submodule (inheritableModule true);
-      description = lib.mdDoc ''
+      description = ''
         Default values inheritable by all configured certs. You can
         use this to define options shared by all your certs. These defaults
         can also be ignored on a per-cert basis using the
@@ -126,7 +126,7 @@ in {
       default = { };
       type = with types;
         attrsOf (submodule [ (inheritableModule false) certOpts ]);
-      description = lib.mdDoc ''
+      description = ''
         Attribute set of certificates to get signed and renewed. Other services can add dependencies
         to those units if they rely on the certificates being present,
         or trigger restarts of the service if certificates get renewed.
@@ -147,7 +147,7 @@ in {
     nginxCerts = mkOption {
       type = types.listOf types.str;
       default = [ ];
-      description = lib.mdDoc ''
+      description = ''
         Domain names to configure Nginx certificates for.
       '';
     };
