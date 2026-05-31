@@ -1,11 +1,12 @@
 packages:
 { config, lib, ... }:
 
-let cfg = config.services.eon;
-in {
+let
+  cfg = config.services.eon;
+in
+{
   options.services.eon = {
-    enable =
-      lib.mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
+    enable = lib.mkEnableOption "OCaml DNS Server using effects-based direct-style IO";
     package = lib.mkOption {
       type = lib.types.package;
       default = packages.${config.nixpkgs.hostPlatform.system}.default;
@@ -31,8 +32,14 @@ in {
       default = 1;
     };
     application = lib.mkOption {
-      type =
-        lib.types.enum [ "eon" "resolved" "netcatd" "tund" "capd" "hibernia" ];
+      type = lib.types.enum [
+        "eon"
+        "resolved"
+        "netcatd"
+        "tund"
+        "capd"
+        "hibernia"
+      ];
       default = "eon";
     };
     openFirewall = lib.mkOption {
@@ -79,38 +86,48 @@ in {
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
-        ExecStart = "${cfg.package.out}/bin/${cfg.application} "
-          + (lib.strings.concatMapStrings (zonefile: "-z ${zonefile} ")
-            cfg.zoneFiles) + "-p ${builtins.toString cfg.port} "
+        ExecStart =
+          "${cfg.package.out}/bin/${cfg.application} "
+          + (lib.strings.concatMapStrings (zonefile: "-z ${zonefile} ") cfg.zoneFiles)
+          + "-p ${builtins.toString cfg.port} "
           + "-l ${builtins.toString cfg.logLevel} "
-          + (if cfg.application == "capd" then
-            "--capnp-secret-key-file ${
-              if cfg.capnpSecretKeyFile != null then
-                cfg.capnpSecretKeyFile
-              else
-                "/var/lib/eon/capnp-secret.pem"
-            } " + "--capnp-listen-address tcp:${cfg.capnpAddress}:${
-              builtins.toString cfg.capnpPort
-            } " + "--state-dir /var/lib/eon "
-            + "${if cfg.prod then "--prod" else ""}"
-            + "${if cfg.acmeServer != null then
-              "--endpint ${cfg.acmeServer}"
+          + (
+            if cfg.application == "capd" then
+              "--capnp-secret-key-file ${
+                if cfg.capnpSecretKeyFile != null then cfg.capnpSecretKeyFile else "/var/lib/eon/capnp-secret.pem"
+              } "
+              + "--capnp-listen-address tcp:${cfg.capnpAddress}:${builtins.toString cfg.capnpPort} "
+              + "--state-dir /var/lib/eon "
+              + "${if cfg.prod then "--prod" else ""}"
+              + "${if cfg.acmeServer != null then "--endpint ${cfg.acmeServer}" else ""}"
+              + "${
+                let
+                  args = builtins.map (primary: " --primary ${primary}") cfg.primaries;
+                in
+                builtins.concatStringsSep "" args
+              }"
             else
-              ""}" + "${let
-                args =
-                  builtins.map (primary: " --primary ${primary}") cfg.primaries;
-              in builtins.concatStringsSep "" args}"
-          else
-            "") + (if cfg.application == "hibernia" then
-              "${let args = builtins.map (wake: " --wake ${wake}") cfg.wakes;
-              in builtins.concatStringsSep "" args}"
+              ""
+          )
+          + (
+            if cfg.application == "hibernia" then
+              "${
+                let
+                  args = builtins.map (wake: " --wake ${wake}") cfg.wakes;
+                in
+                builtins.concatStringsSep "" args
+              }"
             else
-              "");
+              ""
+          );
         Restart = "always";
         RestartSec = "1s";
         User = cfg.user;
         Group = cfg.group;
-        AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ] ++
+        AmbientCapabilities = [
+          "CAP_NET_BIND_SERVICE"
+        ]
+        ++
           # for TUNSETIFF
           (if cfg.application == "tund" then [ "CAP_NET_ADMIN" ] else [ ]);
       };
@@ -128,8 +145,7 @@ in {
     users.groups."${cfg.group}" = { };
 
     networking.firewall = lib.mkIf cfg.openFirewall {
-      allowedTCPPorts = [ cfg.port ]
-        ++ (if cfg.application == "capd" then [ cfg.capnpPort ] else [ ]);
+      allowedTCPPorts = [ cfg.port ] ++ (if cfg.application == "capd" then [ cfg.capnpPort ] else [ ]);
       allowedUDPPorts = [ cfg.port ];
     };
   };
