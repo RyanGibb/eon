@@ -249,7 +249,7 @@ in
           name = "acme-eon-${name}";
           value = mkCertService name cert;
         }) cfg.certs)
-        // {
+        // lib.optionalAttrs (cfg.nginxCerts != [ ]) {
           nginx.wants = builtins.map (name: "acme-eon-${name}.service") cfg.nginxCerts;
           nginx-config-reload.after = builtins.map (name: "acme-eon-${name}.service") cfg.nginxCerts;
         };
